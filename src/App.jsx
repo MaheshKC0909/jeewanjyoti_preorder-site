@@ -5,6 +5,7 @@ import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import PaymentSuccess from './pages/PaymentSuccess'
 import MappingSuccess from './lib/MappingSuccess'
+import Blogs from './pages/Blogs'
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/payment-success" element={<PaymentSuccess />} />
       <Route path="/mapping-success" element={<MappingSuccess />} />
+      <Route path="/blogs" element={<Blogs />} />
     </Routes>
   )
 }

@@ -423,15 +423,7 @@ function Header() {
 
   const navItems = [
     { name: 'Features', href: '#features' },
-    { 
-      name: 'Solutions', 
-      href: '#solutions',
-      dropdown: [
-        { name: 'For Individuals', href: '#individuals' },
-        { name: 'For Families', href: '#families' },
-        { name: 'For Healthcare Providers', href: '#providers' }
-      ]
-    },
+    { name: 'Blogs', href: '/blogs' },
     { name: 'Pricing', href: '#pricing' },
     { name: 'About', href: '#about' },
     { name: 'Contact', href: '#contact' }
