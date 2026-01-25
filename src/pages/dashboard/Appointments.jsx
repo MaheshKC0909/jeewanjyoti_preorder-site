@@ -10,6 +10,7 @@ const AppointmentsTab = ({ darkMode }) => {
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [doctors, setDoctors] = useState([]);
   const [filteredDoctors, setFilteredDoctors] = useState([]);
+  const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
   const [appointments, setAppointments] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchFilter, setSearchFilter] = useState('all');
@@ -25,6 +26,15 @@ const AppointmentsTab = ({ darkMode }) => {
     is_immediate: false,
     user_report: null
   });
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [availabilityData, setAvailabilityData] = useState({
+  available_date: '',
+  start_time: '',
+  end_time: '',
+  interval_minutes: 15
+});
 
   // Determine if current user is a doctor based on role from API
   // Role is normalized to uppercase in state, so check uppercase variants
@@ -129,7 +139,11 @@ const AppointmentsTab = ({ darkMode }) => {
       fetchDoctors();
     }
   }, [showDoctorModal]);
-
+  useEffect(() => {
+    if (selectedDoctor && selectedDate) {
+      fetchAvailableSlots(selectedDoctor.id, selectedDate);
+    }
+  }, [selectedDoctor, selectedDate]);
   // Filter doctors based on search term and filter type
   useEffect(() => {
     if (searchTerm) {
@@ -259,7 +273,36 @@ const AppointmentsTab = ({ darkMode }) => {
       setLoading(false);
     }
   };
-
+  const fetchAvailableSlots = async (doctorId, date) => {
+    setLoadingSlots(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem('access_token');
+      const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE;
+      const url = `${base}/get_doctor_availability/${doctorId}/?date=${date}`;
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableSlots(data.slots || []);
+      } else {
+        setError('Failed to fetch available slots');
+        setAvailableSlots([]);
+      }
+    } catch (err) {
+      console.error('Error fetching slots:', err);
+      setError('Failed to load available slots');
+      setAvailableSlots([]);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
   const initializePayment = async (invoiceNo) => {
     try {
       const token = localStorage.getItem("access_token");
@@ -308,7 +351,7 @@ const AppointmentsTab = ({ darkMode }) => {
       alert(err.message || "Failed to initialize payment. Please try again.");
     }
   };
-
+  
   // Handle doctor selection for booking
   const handleSelectDoctor = (doctor) => {
     setSelectedDoctor(doctor);
@@ -328,15 +371,13 @@ const AppointmentsTab = ({ darkMode }) => {
   // Submit booking form
   const handleBookAppointment = async (e) => {
     e.preventDefault();
-    console.log('Form submitted! Booking data:', bookingData);
     
-    // Validate required fields
     if (!bookingData.problem_description.trim()) {
       setError('Please provide a problem description');
       return;
     }
     
-    if (!bookingData.is_immediate && (!bookingData.appointment_date || !bookingData.appointment_time)) {
+    if (!bookingData.appointment_date || !bookingData.appointment_time) {
       setError('Please select appointment date and time');
       return;
     }
@@ -346,56 +387,34 @@ const AppointmentsTab = ({ darkMode }) => {
     
     try {
       const token = localStorage.getItem('access_token');
-      
-      // Prepare multipart form data as required by API
-      const formData = new FormData();
-      formData.append('doctor_id', String(selectedDoctor.id));
-      formData.append('problem_description', bookingData.problem_description);
-      formData.append('is_immediate', bookingData.is_immediate ? 'true' : 'false');
-      
-      if (!bookingData.is_immediate && bookingData.appointment_date && bookingData.appointment_time) {
-        const timeWithSeconds = bookingData.appointment_time.length === 5
-          ? `${bookingData.appointment_time}:00`
-          : bookingData.appointment_time;
-        formData.append('appointment_date', bookingData.appointment_date);
-        formData.append('appointment_time', timeWithSeconds);
-      }
-      
-      if (bookingData.user_report) {
-        formData.append('user_report', bookingData.user_report);
-      }
-      
-      console.log('Booking appointment with FormData (keys):', Array.from(formData.keys()));
-      
-      // Construct the full URL
       const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE;
-      const endpoint = 'book_appointment/';
-      const url = `${base}/${endpoint}`;
+      const url = `${base}/book_appointment/`;
+      
+      const requestBody = {
+        doctor_id: selectedDoctor.id,
+        appointment_date: bookingData.appointment_date,
+        appointment_time: bookingData.appointment_time,
+        problem_description: bookingData.problem_description
+      };
       
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
-          // Note: Do not set Content-Type; the browser will set correct multipart boundary
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         },
-        body: formData
+        body: JSON.stringify(requestBody)
       });
       
       if (response.ok) {
         const data = await response.json();
-        console.log('Appointment booking response:', data);
-        
-        if (!data.invoice_no) {
-          throw new Error('Invalid response from server: missing invoice number');
-        }
-        
         setShowBookingModal(false);
         setSelectedDoctor(null);
         
-        // Begin Khalti redirect payment
-        initializePayment(data.invoice_no);
+        if (data.invoice_no) {
+          initializePayment(data.invoice_no);
+        }
         
-        // Reset booking form
         setBookingData({
           appointment_date: '',
           appointment_time: '',
@@ -404,29 +423,118 @@ const AppointmentsTab = ({ darkMode }) => {
           user_report: null
         });
       } else {
-        let errorMessage = 'Failed to book appointment';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.detail || errorData.message || errorMessage;
-          
-          // Handle authentication errors
-          if (response.status === 401 || response.status === 403) {
-            errorMessage = 'Session expired. Please log in again.';
-          }
-        } catch (parseError) {
-          errorMessage = `Booking failed with status ${response.status}`;
-        }
-        console.error('Appointment booking failed:', errorMessage);
-        setError(errorMessage);
+        // error handling...
       }
     } catch (err) {
-      console.error('Error booking appointment:', err);
-      setError(`Failed to book appointment: ${err.message}. Please try again.`);
+      setError(`Failed to book appointment: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
+  // Handle availability form input changes
+const handleAvailabilityInputChange = (e) => {
+  const { name, value } = e.target;
+  setAvailabilityData(prev => ({
+    ...prev,
+    [name]: value
+  }));
+};
 
+// Submit availability form
+const handleCreateAvailability = async (e) => {
+  e.preventDefault();
+  console.log('Creating availability with data:', availabilityData);
+  
+  // Validate required fields
+  if (!availabilityData.available_date || !availabilityData.start_time || !availabilityData.end_time) {
+    setError('Please fill in all required fields');
+    return;
+  }
+  
+  // Validate that end time is after start time
+  if (availabilityData.start_time >= availabilityData.end_time) {
+    setError('End time must be after start time');
+    return;
+  }
+  
+  setLoading(true);
+  setError(null);
+  
+  try {
+    const token = localStorage.getItem('access_token');
+    
+    if (!token) {
+      setError('Please log in to create availability');
+      return;
+    }
+    
+    // Prepare request body
+    const requestBody = {
+      available_date: availabilityData.available_date,
+      start_time: availabilityData.start_time,
+      end_time: availabilityData.end_time,
+      interval_minutes: parseInt(availabilityData.interval_minutes)
+    };
+    
+    console.log('Sending availability data:', requestBody);
+    
+    // Construct the full URL
+    const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE;
+    const endpoint = 'create_doctor_availability/';
+    const url = `${base}/${endpoint}`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('Availability created successfully:', data);
+      
+      // Show success message
+      alert('Availability created successfully!');
+      
+      // Close modal
+      setShowAvailabilityModal(false);
+      
+      // Reset form
+      setAvailabilityData({
+        available_date: '',
+        start_time: '',
+        end_time: '',
+        interval_minutes: 15
+      });
+      
+      // Optionally refresh appointments list
+      fetchAppointments();
+    } else {
+      let errorMessage = 'Failed to create availability';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.detail || errorData.message || errorMessage;
+        
+        // Handle authentication errors
+        if (response.status === 401 || response.status === 403) {
+          errorMessage = 'Session expired. Please log in again.';
+        }
+      } catch (parseError) {
+        errorMessage = `Failed with status ${response.status}`;
+      }
+      console.error('Availability creation failed:', errorMessage);
+      setError(errorMessage);
+    }
+  } catch (err) {
+    console.error('Error creating availability:', err);
+    setError(`Failed to create availability: ${err.message}. Please try again.`);
+  } finally {
+    setLoading(false);
+  }
+};
   // Format date for display
   const formatDate = (dateString) => {
     if (!dateString) return 'Date not specified';
@@ -472,19 +580,29 @@ const AppointmentsTab = ({ darkMode }) => {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className={`text-xl md:text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Appointments</h2>
-        {!isDoctor && (
-          <div className="flex gap-2">
-            <button 
-              onClick={() => setShowDoctorModal(true)}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors text-sm md:text-base"
-            >
-              <Plus className="w-4 h-4 md:w-5 md:h-5" />
-              <span className="hidden md:inline">Book Appointment</span>
-            </button>
-          </div>
-        )}
-      </div>
+              <h2 className={`text-xl md:text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Appointments</h2>
+              <div className="flex gap-2">
+                {!isDoctor ? (
+                  // Patient sees "Book Appointment" button
+                  <button 
+                    onClick={() => setShowDoctorModal(true)}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors text-sm md:text-base"
+                  >
+                    <Plus className="w-4 h-4 md:w-5 md:h-5" />
+                    <span className="hidden md:inline">Book Appointment</span>
+                  </button>
+                ) : (
+                  // Doctor sees "Add Available Date & Time" button
+                  <button 
+                    onClick={() => setShowAvailabilityModal(true)}
+                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors text-sm md:text-base"
+                  >
+                    <Plus className="w-4 h-4 md:w-5 md:h-5" />
+                    <span className="hidden md:inline">Add Available Date & Time</span>
+                  </button>
+                )}
+              </div>
+            </div>
 
       {error && (
         <div className={`p-4 mb-4 rounded-lg ${darkMode ? 'bg-red-900 text-red-200' : 'bg-red-100 text-red-800'}`}>
@@ -956,7 +1074,7 @@ const AppointmentsTab = ({ darkMode }) => {
       {/* Booking Modal */}
       {showBookingModal && selectedDoctor && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className={`w-full max-w-2xl rounded-2xl shadow-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'} p-6`}>
+          <div className={`w-full max-w-2xl rounded-2xl shadow-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'} p-6 max-h-[90vh] overflow-y-auto`}>
             <div className="flex items-center justify-between mb-6">
               <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'} flex items-center gap-3`}>
                 {selectedDoctor.profile_image ? (
@@ -972,6 +1090,8 @@ const AppointmentsTab = ({ darkMode }) => {
                 onClick={() => {
                   setShowBookingModal(false);
                   setSelectedDoctor(null);
+                  setSelectedDate('');
+                  setAvailableSlots([]);
                 }}
                 className={`p-2 rounded-lg hover:bg-gray-100 ${
                   darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
@@ -983,107 +1103,121 @@ const AppointmentsTab = ({ darkMode }) => {
 
             <form onSubmit={handleBookAppointment}>
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="is_immediate"
-                    name="is_immediate"
-                    checked={bookingData.is_immediate}
-                    onChange={handleBookingInputChange}
-                    className="rounded"
-                  />
-                  <label htmlFor="is_immediate" className={`${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                    Immediate appointment (as soon as possible)
+                {/* Step 1: Select Date */}
+                <div>
+                  <label htmlFor="appointment_date" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    Select Appointment Date <span className="text-red-500">*</span>
                   </label>
+                  <input
+                    type="date"
+                    id="appointment_date"
+                    name="appointment_date"
+                    value={selectedDate}
+                    onChange={(e) => {
+                      setSelectedDate(e.target.value);
+                      setBookingData(prev => ({ ...prev, appointment_date: e.target.value, appointment_time: '' }));
+                    }}
+                    min={new Date().toISOString().split('T')[0]}
+                    max="2100-12-31"
+                    className={`w-full p-3 rounded-xl border ${
+                      darkMode 
+                        ? 'bg-gray-700 border-gray-600 text-white' 
+                        : 'bg-white border-gray-300 text-gray-900'
+                    } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                    required
+                  />
                 </div>
 
-                {!bookingData.is_immediate && (
-                  <>
-                    <div>
-                      <label htmlFor="appointment_date" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                        Appointment Date
-                      </label>
-                      <input
-                        type="date"
-                        id="appointment_date"
-                        name="appointment_date"
-                        value={bookingData.appointment_date}
-                        onChange={handleBookingInputChange}
-                        min={new Date().toISOString().split('T')[0]}
-                        max="2100-12-31"
-                        className={`w-full p-3 rounded-xl border ${
-                          darkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white' 
-                            : 'bg-white border-gray-300 text-gray-900'
-                        } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                        required={!bookingData.is_immediate}
-                      />
-                    </div>
-
-                    <div>
-                      <label htmlFor="appointment_time" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                        Appointment Time
-                      </label>
-                      <input
-                        type="time"
-                        id="appointment_time"
-                        name="appointment_time"
-                        value={bookingData.appointment_time}
-                        onChange={handleBookingInputChange}
-                        className={`w-full p-3 rounded-xl border ${
-                          darkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white' 
-                            : 'bg-white border-gray-300 text-gray-900'
-                        } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                        required={!bookingData.is_immediate}
-                      />
-                    </div>
-                  </>
+                {/* Step 2: Show Available Slots */}
+                {selectedDate && (
+                  <div>
+                    <label className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                      Select Available Time Slot <span className="text-red-500">*</span>
+                    </label>
+                    
+                    {loadingSlots ? (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                        <span className={`ml-3 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                          Loading available slots...
+                        </span>
+                      </div>
+                    ) : availableSlots.length === 0 ? (
+                      <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                        <p className={`${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                          No available slots for this date. Please select another date.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 md:grid-cols-4 gap-2 max-h-64 overflow-y-auto p-2">
+                        {availableSlots.map((slot, index) => (
+                          <button
+                            key={index}
+                            type="button"
+                            disabled={slot.is_booked}
+                            onClick={() => {
+                              setBookingData(prev => ({ ...prev, appointment_time: slot.time }));
+                            }}
+                            className={`p-3 rounded-lg text-sm font-medium transition-all ${
+                              slot.is_booked
+                                ? darkMode
+                                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                : bookingData.appointment_time === slot.time
+                                ? 'bg-blue-500 text-white ring-2 ring-blue-300'
+                                : darkMode
+                                ? 'bg-gray-700 text-white hover:bg-gray-600'
+                                : 'bg-white border border-gray-300 hover:bg-blue-50'
+                            }`}
+                          >
+                            {slot.time}
+                            {slot.is_booked && (
+                              <div className="text-xs mt-1">Booked</div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
 
-                <div>
-                  <label htmlFor="problem_description" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                Problem Description
-                  </label>
-                  <textarea
-                    id="problem_description"
-                    name="problem_description"
-                    value={bookingData.problem_description}
-                    onChange={handleBookingInputChange}
-                    rows={4}
-                    required
-                    className={`w-full p-3 rounded-xl border ${
-                      darkMode 
-                        ? 'bg-gray-700 border-gray-600 text-white' 
-                        : 'bg-white border-gray-300 text-gray-900'
-                    } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                    placeholder="Please describe your symptoms or reason for the appointment"
-                  ></textarea>
-                </div>
+                {/* Step 3: Problem Description */}
+                {bookingData.appointment_time && (
+                  <div>
+                    <label htmlFor="problem_description" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                      Problem Description <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      id="problem_description"
+                      name="problem_description"
+                      value={bookingData.problem_description}
+                      onChange={handleBookingInputChange}
+                      rows={4}
+                      required
+                      className={`w-full p-3 rounded-xl border ${
+                        darkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                      placeholder="Please describe your symptoms or reason for the appointment"
+                    ></textarea>
+                  </div>
+                )}
 
-                <div>
-                  <label htmlFor="user_report" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                    Upload Medical Report (optional)
-                  </label>
-                  <input
-                    type="file"
-                    id="user_report"
-                    name="user_report"
-                    onChange={handleBookingInputChange}
-                    className={`w-full p-3 rounded-xl border ${
-                      darkMode 
-                        ? 'bg-gray-700 border-gray-600 text-white' 
-                        : 'bg-white border-gray-300 text-gray-900'
-                    } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                  />
-                </div>
-
+                {/* Action Buttons */}
                 <div className="flex justify-end gap-4 mt-6">
                   <button
                     type="button"
                     onClick={() => {
                       setShowBookingModal(false);
                       setSelectedDoctor(null);
+                      setSelectedDate('');
+                      setAvailableSlots([]);
+                      setBookingData({
+                        appointment_date: '',
+                        appointment_time: '',
+                        problem_description: ''
+                      });
                     }}
                     className={`px-4 py-2 rounded-lg ${
                       darkMode 
@@ -1095,17 +1229,184 @@ const AppointmentsTab = ({ darkMode }) => {
                   </button>
                   <button
                     type="submit"
-                    disabled={loading}
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg disabled:opacity-50"
+                    disabled={loading || !bookingData.appointment_time || !bookingData.problem_description}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? 'Booking...' : 'Confirm Booking'}
-                    </button>
+                  </button>
                 </div>
               </div>
             </form>
           </div>
         </div>
       )}
+      {/* Doctor Availability Modal */}
+    {showAvailabilityModal && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className={`w-full max-w-2xl rounded-2xl shadow-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'} p-6`}>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              Add Available Date & Time
+            </h3>
+            <button
+              onClick={() => setShowAvailabilityModal(false)}
+              className={`p-2 rounded-lg hover:bg-gray-100 ${
+                darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+              }`}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <form onSubmit={handleCreateAvailability}>
+            <div className="space-y-4">
+              {/* Available Date */}
+              <div>
+                <label htmlFor="available_date" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  Available Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  id="available_date"
+                  name="available_date"
+                  value={availabilityData.available_date}
+                  onChange={handleAvailabilityInputChange}
+                  min={new Date().toISOString().split('T')[0]}
+                  max="2100-12-31"
+                  className={`w-full p-3 rounded-xl border ${
+                    darkMode 
+                      ? 'bg-gray-700 border-gray-600 text-white' 
+                      : 'bg-white border-gray-300 text-gray-900'
+                  } focus:ring-2 focus:ring-green-500 focus:border-transparent`}
+                  required
+                />
+              </div>
+
+              {/* Start Time */}
+              <div>
+                <label htmlFor="start_time" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  Start Time <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="time"
+                  id="start_time"
+                  name="start_time"
+                  value={availabilityData.start_time}
+                  onChange={handleAvailabilityInputChange}
+                  className={`w-full p-3 rounded-xl border ${
+                    darkMode 
+                      ? 'bg-gray-700 border-gray-600 text-white' 
+                      : 'bg-white border-gray-300 text-gray-900'
+                  } focus:ring-2 focus:ring-green-500 focus:border-transparent`}
+                  required
+                />
+              </div>
+
+              {/* End Time */}
+              <div>
+                <label htmlFor="end_time" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  End Time <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="time"
+                  id="end_time"
+                  name="end_time"
+                  value={availabilityData.end_time}
+                  onChange={handleAvailabilityInputChange}
+                  className={`w-full p-3 rounded-xl border ${
+                    darkMode 
+                      ? 'bg-gray-700 border-gray-600 text-white' 
+                      : 'bg-white border-gray-300 text-gray-900'
+                  } focus:ring-2 focus:ring-green-500 focus:border-transparent`}
+                  required
+                />
+              </div>
+
+              {/* Interval Minutes */}
+              <div>
+                <label htmlFor="interval_minutes" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  Appointment Interval (minutes) <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="interval_minutes"
+                  name="interval_minutes"
+                  value={availabilityData.interval_minutes}
+                  onChange={handleAvailabilityInputChange}
+                  className={`w-full p-3 rounded-xl border ${
+                    darkMode 
+                      ? 'bg-gray-700 border-gray-600 text-white' 
+                      : 'bg-white border-gray-300 text-gray-900'
+                  } focus:ring-2 focus:ring-green-500 focus:border-transparent`}
+                  required
+                >
+                  <option value="15">15 minutes</option>
+                  <option value="30">30 minutes</option>
+                  <option value="45">45 minutes</option>
+                  <option value="60">60 minutes</option>
+                </select>
+                <p className={`mt-2 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  This will create appointment slots every {availabilityData.interval_minutes} minutes between your start and end time.
+                </p>
+              </div>
+
+              {/* Preview */}
+              {availabilityData.available_date && availabilityData.start_time && availabilityData.end_time && (
+                <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
+                  <h4 className={`font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    Preview
+                  </h4>
+                  <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Available slots will be created on <strong>{formatDate(availabilityData.available_date)}</strong> from{' '}
+                    <strong>{availabilityData.start_time}</strong> to <strong>{availabilityData.end_time}</strong> with{' '}
+                    <strong>{availabilityData.interval_minutes} minute</strong> intervals.
+                  </p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-4 mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAvailabilityModal(false);
+                    setAvailabilityData({
+                      available_date: '',
+                      start_time: '',
+                      end_time: '',
+                      interval_minutes: 15
+                    });
+                  }}
+                  className={`px-4 py-2 rounded-lg ${
+                    darkMode 
+                      ? 'bg-gray-700 text-white hover:bg-gray-600' 
+                      : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg disabled:opacity-50 flex items-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4" />
+                      Create Availability
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
 
     </div>
   );
