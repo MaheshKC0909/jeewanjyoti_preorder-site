@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Plus, Video, Phone, MapPin, X, Search, Star, GraduationCap, Building, Mail, User, CreditCard } from 'lucide-react';
+import { Calendar, Clock, Plus, Video, Phone, MapPin, X, Search, Star, GraduationCap, Building, Mail, User, CreditCard, ChevronRight } from 'lucide-react';
 import { getDoctorList, API_BASE_URL, getUserEmailProfile } from '../../lib/api';
 
 const AppointmentsTab = ({ darkMode }) => {
@@ -11,6 +11,7 @@ const AppointmentsTab = ({ darkMode }) => {
   const [doctors, setDoctors] = useState([]);
   const [filteredDoctors, setFilteredDoctors] = useState([]);
   const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
+  const [showAvailabilityListModal, setShowAvailabilityListModal] = useState(false);
   const [appointments, setAppointments] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchFilter, setSearchFilter] = useState('all');
@@ -18,6 +19,8 @@ const AppointmentsTab = ({ darkMode }) => {
   const [loadingAppointments, setLoadingAppointments] = useState(true);
   const [error, setError] = useState(null);
   const [userRole, setUserRole] = useState(null);
+  const [doctorAvailabilities, setDoctorAvailabilities] = useState([]);
+  const [loadingAvailabilities, setLoadingAvailabilities] = useState(false);
   const [loadingRole, setLoadingRole] = useState(true);
   const [bookingData, setBookingData] = useState({
     appointment_date: '',
@@ -30,11 +33,11 @@ const AppointmentsTab = ({ darkMode }) => {
   const [selectedDate, setSelectedDate] = useState('');
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [availabilityData, setAvailabilityData] = useState({
-  available_date: '',
-  start_time: '',
-  end_time: '',
-  interval_minutes: 15
-});
+    available_date: '',
+    start_time: '',
+    end_time: '',
+    interval_minutes: 15
+  });
 
   // Determine if current user is a doctor based on role from API
   // Role is normalized to uppercase in state, so check uppercase variants
@@ -133,17 +136,26 @@ const AppointmentsTab = ({ darkMode }) => {
     }
   }, []);
 
+  // Fetch doctor's availabilities if user is a doctor
+  useEffect(() => {
+    if (isDoctor && !loadingRole) {
+      fetchDoctorAvailabilities();
+    }
+  }, [isDoctor, loadingRole]);
+
   // Fetch doctors when modal opens
   useEffect(() => {
     if (showDoctorModal) {
       fetchDoctors();
     }
   }, [showDoctorModal]);
+
   useEffect(() => {
     if (selectedDoctor && selectedDate) {
       fetchAvailableSlots(selectedDoctor.id, selectedDate);
     }
   }, [selectedDoctor, selectedDate]);
+
   // Filter doctors based on search term and filter type
   useEffect(() => {
     if (searchTerm) {
@@ -273,6 +285,7 @@ const AppointmentsTab = ({ darkMode }) => {
       setLoading(false);
     }
   };
+
   const fetchAvailableSlots = async (doctorId, date) => {
     setLoadingSlots(true);
     setError(null);
@@ -303,6 +316,51 @@ const AppointmentsTab = ({ darkMode }) => {
       setLoadingSlots(false);
     }
   };
+
+  const fetchDoctorAvailabilities = async () => {
+    setLoadingAvailabilities(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem('access_token');
+      
+      if (!token) {
+        setError('Please log in to view availabilities');
+        return;
+      }
+      
+      const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE;
+      const url = `${base}/my_availability/`;
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setDoctorAvailabilities(Array.isArray(data) ? data : []);
+      } else {
+        let errorMessage = 'Failed to fetch availabilities';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch (parseError) {
+          errorMessage = `Failed with status ${response.status}`;
+        }
+        setError(errorMessage);
+        setDoctorAvailabilities([]);
+      }
+    } catch (err) {
+      console.error('Error fetching availabilities:', err);
+      setError('Failed to load availabilities');
+      setDoctorAvailabilities([]);
+    } finally {
+      setLoadingAvailabilities(false);
+    }
+  };
+
   const initializePayment = async (invoiceNo) => {
     try {
       const token = localStorage.getItem("access_token");
@@ -431,110 +489,115 @@ const AppointmentsTab = ({ darkMode }) => {
       setLoading(false);
     }
   };
-  // Handle availability form input changes
-const handleAvailabilityInputChange = (e) => {
-  const { name, value } = e.target;
-  setAvailabilityData(prev => ({
-    ...prev,
-    [name]: value
-  }));
-};
 
-// Submit availability form
-const handleCreateAvailability = async (e) => {
-  e.preventDefault();
-  console.log('Creating availability with data:', availabilityData);
-  
-  // Validate required fields
-  if (!availabilityData.available_date || !availabilityData.start_time || !availabilityData.end_time) {
-    setError('Please fill in all required fields');
-    return;
-  }
-  
-  // Validate that end time is after start time
-  if (availabilityData.start_time >= availabilityData.end_time) {
-    setError('End time must be after start time');
-    return;
-  }
-  
-  setLoading(true);
-  setError(null);
-  
-  try {
-    const token = localStorage.getItem('access_token');
+  // Handle availability form input changes
+  const handleAvailabilityInputChange = (e) => {
+    const { name, value } = e.target;
+    setAvailabilityData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // Submit availability form
+  const handleCreateAvailability = async (e) => {
+    e.preventDefault();
+    console.log('Creating availability with data:', availabilityData);
     
-    if (!token) {
-      setError('Please log in to create availability');
+    // Validate required fields
+    if (!availabilityData.available_date || !availabilityData.start_time || !availabilityData.end_time) {
+      setError('Please fill in all required fields');
       return;
     }
     
-    // Prepare request body
-    const requestBody = {
-      available_date: availabilityData.available_date,
-      start_time: availabilityData.start_time,
-      end_time: availabilityData.end_time,
-      interval_minutes: parseInt(availabilityData.interval_minutes)
-    };
+    // Validate that end time is after start time
+    if (availabilityData.start_time >= availabilityData.end_time) {
+      setError('End time must be after start time');
+      return;
+    }
     
-    console.log('Sending availability data:', requestBody);
+    setLoading(true);
+    setError(null);
     
-    // Construct the full URL
-    const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE;
-    const endpoint = 'create_doctor_availability/';
-    const url = `${base}/${endpoint}`;
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(requestBody)
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      console.log('Availability created successfully:', data);
+    try {
+      const token = localStorage.getItem('access_token');
       
-      // Show success message
-      alert('Availability created successfully!');
+      if (!token) {
+        setError('Please log in to create availability');
+        return;
+      }
       
-      // Close modal
-      setShowAvailabilityModal(false);
+      // Prepare request body
+      const requestBody = {
+        available_date: availabilityData.available_date,
+        start_time: availabilityData.start_time,
+        end_time: availabilityData.end_time,
+        interval_minutes: parseInt(availabilityData.interval_minutes)
+      };
       
-      // Reset form
-      setAvailabilityData({
-        available_date: '',
-        start_time: '',
-        end_time: '',
-        interval_minutes: 15
+      console.log('Sending availability data:', requestBody);
+      
+      // Construct the full URL
+      const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE;
+      const endpoint = 'create_doctor_availability/';
+      const url = `${base}/${endpoint}`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
       });
       
-      // Optionally refresh appointments list
-      fetchAppointments();
-    } else {
-      let errorMessage = 'Failed to create availability';
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.detail || errorData.message || errorMessage;
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Availability created successfully:', data);
         
-        // Handle authentication errors
-        if (response.status === 401 || response.status === 403) {
-          errorMessage = 'Session expired. Please log in again.';
+        // Show success message
+        alert('Availability created successfully!');
+        
+        // Close modal
+        setShowAvailabilityModal(false);
+        
+        // Reset form
+        setAvailabilityData({
+          available_date: '',
+          start_time: '',
+          end_time: '',
+          interval_minutes: 15
+        });
+        
+        // Refresh availabilities list
+        fetchDoctorAvailabilities();
+        
+        // Optionally refresh appointments list
+        fetchAppointments();
+      } else {
+        let errorMessage = 'Failed to create availability';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+          
+          // Handle authentication errors
+          if (response.status === 401 || response.status === 403) {
+            errorMessage = 'Session expired. Please log in again.';
+          }
+        } catch (parseError) {
+          errorMessage = `Failed with status ${response.status}`;
         }
-      } catch (parseError) {
-        errorMessage = `Failed with status ${response.status}`;
+        console.error('Availability creation failed:', errorMessage);
+        setError(errorMessage);
       }
-      console.error('Availability creation failed:', errorMessage);
-      setError(errorMessage);
+    } catch (err) {
+      console.error('Error creating availability:', err);
+      setError(`Failed to create availability: ${err.message}. Please try again.`);
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error('Error creating availability:', err);
-    setError(`Failed to create availability: ${err.message}. Please try again.`);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
+
   // Format date for display
   const formatDate = (dateString) => {
     if (!dateString) return 'Date not specified';
@@ -558,52 +621,53 @@ const handleCreateAvailability = async (e) => {
     }
   };
 
-  // Handle payment success
-  const handlePaymentSuccess = () => {
-    // This function is no longer needed as payment is handled by Khalti redirect
-    alert('Payment successful! Your appointment has been confirmed.');
-    fetchAppointments(); // Refresh appointments list
-  };
-
-  // Handle payment error
-  const handlePaymentError = (error) => {
-    console.error('Payment error:', error);
-    setError('Payment failed. Please try again or contact support.');
-  };
-
-  // Handle payment cancellation
-  const handlePaymentCancel = () => {
-    // This function is no longer needed as payment is handled by Khalti redirect
-    setError('Payment cancelled. Your appointment is still pending.');
-  };
-
   return (
     <div>
+      {/* Header with buttons on opposite sides */}
       <div className="flex items-center justify-between mb-6">
-              <h2 className={`text-xl md:text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Appointments</h2>
-              <div className="flex gap-2">
-                {!isDoctor ? (
-                  // Patient sees "Book Appointment" button
-                  <button 
-                    onClick={() => setShowDoctorModal(true)}
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors text-sm md:text-base"
-                  >
-                    <Plus className="w-4 h-4 md:w-5 md:h-5" />
-                    <span className="hidden md:inline">Book Appointment</span>
-                  </button>
-                ) : (
-                  // Doctor sees "Add Available Date & Time" button
-                  <button 
-                    onClick={() => setShowAvailabilityModal(true)}
-                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors text-sm md:text-base"
-                  >
-                    <Plus className="w-4 h-4 md:w-5 md:h-5" />
-                    <span className="hidden md:inline">Add Available Date & Time</span>
-                  </button>
-                )}
-              </div>
-            </div>
+        {/* Left side - Show different content based on user role */}
+        <div className="flex gap-2">
+          {isDoctor ? (
+            // Doctor sees "My Appointment Schedule" button on left
+            <button 
+              onClick={() => setShowAvailabilityListModal(true)}
+              className={`px-4 py-2 rounded-xl flex items-center gap-2 transition-colors text-sm md:text-base border ${
+                darkMode 
+                  ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 text-white' 
+                  : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-800'
+              }`}
+            >
+              <Calendar className="w-4 h-4 md:w-5 md:h-5" />
+              <span>My Appointment Schedule</span>
+              <ChevronRight className="w-4 h-4 md:w-5 md:h-5" />
+            </button>
+          ) : (
+            // Patient sees "Book Appointment" button on left
+            <button 
+              onClick={() => setShowDoctorModal(true)}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors text-sm md:text-base"
+            >
+              <Plus className="w-4 h-4 md:w-5 md:h-5" />
+              <span>Book Appointment</span>
+            </button>
+          )}
+        </div>
 
+        {/* Right side - Only show for doctors */}
+        {isDoctor && (
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setShowAvailabilityModal(true)}
+              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors text-sm md:text-base"
+            >
+              <Plus className="w-4 h-4 md:w-5 md:h-5" />
+              <span>Add Available Date & Time</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Error Display */}
       {error && (
         <div className={`p-4 mb-4 rounded-lg ${darkMode ? 'bg-red-900 text-red-200' : 'bg-red-100 text-red-800'}`}>
           {error}
@@ -628,153 +692,153 @@ const handleCreateAvailability = async (e) => {
         // Appointments list
         <div className="grid gap-4 md:gap-6">
           {appointments.map((appointment) => {
-          // Add null checks for appointment data
-          if (!appointment) {
-            console.warn('Invalid appointment data:', appointment);
-            return null;
-          }
-          
-          // Handle new response format
-          const doctorName = appointment.doctor_name || 'Doctor';
-          const patientName = appointment.user_name || 'Patient';
-          const specialization = appointment.doctor_specialization || 'General Practice';
-          
-          // Determine what to show based on user role
-          const primaryName = isDoctor ? patientName : doctorName;
-          const primaryInitials = isDoctor 
-            ? (patientName !== 'Patient' ? patientName.split(' ').map(name => name[0]).join('').toUpperCase() : 'PT')
-            : (doctorName !== 'Doctor' ? doctorName.split(' ').map(name => name[0]).join('').toUpperCase() : 'DR');
-          
-          return (
-            <div key={appointment.appointment_id || Math.random()} className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border hover:shadow-xl transition-all duration-300 ${
-              darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-            }`}>
-              <div className="flex flex-col md:flex-row md:items-center justify-between">
-                <div className="flex items-center gap-4 mb-4 md:mb-0">
-                  {(!isDoctor ? appointment.doctor_profile_image : appointment.user_profile_image) ? (
-                    <img
-                      src={`${API_BASE_URL}${(!isDoctor ? appointment.doctor_profile_image : appointment.user_profile_image)}`}
-                      alt={primaryName}
-                      className="w-12 h-12 md:w-16 md:h-16 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 md:w-16 md:h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg md:text-xl">
-                      {primaryInitials}
-                    </div>
-                  )}
-                  <div>
-                    <h3 className={`text-base md:text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                      {primaryName}
-                    </h3>
-                    {isDoctor ? (
-                      <>
-                        <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                          Doctor: {doctorName}
-                        </p>
-                        <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                          {specialization}
-                        </p>
-                      </>
+            // Add null checks for appointment data
+            if (!appointment) {
+              console.warn('Invalid appointment data:', appointment);
+              return null;
+            }
+            
+            // Handle new response format
+            const doctorName = appointment.doctor_name || 'Doctor';
+            const patientName = appointment.user_name || 'Patient';
+            const specialization = appointment.doctor_specialization || 'General Practice';
+            
+            // Determine what to show based on user role
+            const primaryName = isDoctor ? patientName : doctorName;
+            const primaryInitials = isDoctor 
+              ? (patientName !== 'Patient' ? patientName.split(' ').map(name => name[0]).join('').toUpperCase() : 'PT')
+              : (doctorName !== 'Doctor' ? doctorName.split(' ').map(name => name[0]).join('').toUpperCase() : 'DR');
+            
+            return (
+              <div key={appointment.appointment_id || Math.random()} className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border hover:shadow-xl transition-all duration-300 ${
+                darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
+              }`}>
+                <div className="flex flex-col md:flex-row md:items-center justify-between">
+                  <div className="flex items-center gap-4 mb-4 md:mb-0">
+                    {(!isDoctor ? appointment.doctor_profile_image : appointment.user_profile_image) ? (
+                      <img
+                        src={`${API_BASE_URL}${(!isDoctor ? appointment.doctor_profile_image : appointment.user_profile_image)}`}
+                        alt={primaryName}
+                        className="w-12 h-12 md:w-16 md:h-16 rounded-full object-cover"
+                      />
                     ) : (
-                      <>
-                        <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                          {specialization}
-                        </p>
-                        {appointment.user_name && (
+                      <div className="w-12 h-12 md:w-16 md:h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg md:text-xl">
+                        {primaryInitials}
+                      </div>
+                    )}
+                    <div>
+                      <h3 className={`text-base md:text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        {primaryName}
+                      </h3>
+                      {isDoctor ? (
+                        <>
                           <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                            Patient: {appointment.user_name}
+                            Doctor: {doctorName}
                           </p>
-                        )}
-                      </>
-                    )}
-                    {appointment.invoice_no && (
-                      <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        Invoice: {appointment.invoice_no}
-                      </p>
-                    )}
-                  <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 mt-2">
-                    <div className={`flex items-center gap-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                      <Calendar className="w-3 h-3 md:w-4 md:h-4" />
-                        <span className="text-xs md:text-sm">
-                          {appointment.appointment_date ? formatDate(appointment.appointment_date) : appointment.is_immediate ? 'Immediate' : 'Date not set'}
-                        </span>
-                    </div>
-                    {!appointment.is_immediate && (
-                      <div className={`flex items-center gap-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                        <Clock className="w-3 h-3 md:w-4 md:h-4" />
+                          <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {specialization}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {specialization}
+                          </p>
+                          {appointment.user_name && (
+                            <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              Patient: {appointment.user_name}
+                            </p>
+                          )}
+                        </>
+                      )}
+                      {appointment.invoice_no && (
+                        <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          Invoice: {appointment.invoice_no}
+                        </p>
+                      )}
+                      <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 mt-2">
+                        <div className={`flex items-center gap-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                          <Calendar className="w-3 h-3 md:w-4 md:h-4" />
                           <span className="text-xs md:text-sm">
-                            {appointment.appointment_time ? formatTime(appointment.appointment_time) : 'Time not set'}
+                            {appointment.appointment_date ? formatDate(appointment.appointment_date) : appointment.is_immediate ? 'Immediate' : 'Date not set'}
                           </span>
-                      </div>
-                    )}
-                    {appointment.is_immediate && (
-                      <div className={`flex items-center gap-1 ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>
-                        <Clock className="w-3 h-3 md:w-4 md:h-4" />
-                        <span className="text-xs md:text-sm font-medium">Immediate</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center justify-between md:justify-end gap-3">
-                  <div className="flex flex-col items-center gap-2">
-                  <span className={`px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium ${
-                      appointment.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' : 
-                      appointment.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                      appointment.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
-                      'bg-blue-100 text-blue-800'
-                  }`}>
-                    {appointment.status || 'UNKNOWN'}
-                  </span>
-                  {/* Only show payment status if appointment is confirmed and paid, or if not confirmed */}
-                  {appointment.status !== 'CONFIRMED' && (
-                    <div className={`flex items-center gap-1 text-xs md:text-sm ${
-                      appointment.is_paid 
-                        ? (darkMode ? 'text-green-400' : 'text-green-600')
-                        : (darkMode ? 'text-orange-400' : 'text-orange-600')
-                    }`}>
-                        {appointment.is_paid ? (
-                          <>
-                            <CreditCard className="w-3 h-3 md:w-4 md:h-4" />
-                            <span className="font-medium">Paid</span>
-                          </>
-                        ) : (
-                          <>
-                            <CreditCard className="w-3 h-3 md:w-4 md:h-4" />
-                            <span className="font-medium">Payment Required</span>
-                          </>
+                        </div>
+                        {!appointment.is_immediate && (
+                          <div className={`flex items-center gap-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                            <Clock className="w-3 h-3 md:w-4 md:h-4" />
+                            <span className="text-xs md:text-sm">
+                              {appointment.appointment_time ? formatTime(appointment.appointment_time) : 'Time not set'}
+                            </span>
+                          </div>
+                        )}
+                        {appointment.is_immediate && (
+                          <div className={`flex items-center gap-1 ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>
+                            <Clock className="w-3 h-3 md:w-4 md:h-4" />
+                            <span className="text-xs md:text-sm font-medium">Immediate</span>
+                          </div>
                         )}
                       </div>
-                  )}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between md:justify-end gap-3">
+                    <div className="flex flex-col items-center gap-2">
+                      <span className={`px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium ${
+                        appointment.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' : 
+                        appointment.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                        appointment.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                        'bg-blue-100 text-blue-800'
+                      }`}>
+                        {appointment.status || 'UNKNOWN'}
+                      </span>
+                      {/* Only show payment status if appointment is confirmed and paid, or if not confirmed */}
+                      {appointment.status !== 'CONFIRMED' && (
+                        <div className={`flex items-center gap-1 text-xs md:text-sm ${
+                          appointment.is_paid 
+                            ? (darkMode ? 'text-green-400' : 'text-green-600')
+                            : (darkMode ? 'text-orange-400' : 'text-orange-600')
+                        }`}>
+                          {appointment.is_paid ? (
+                            <>
+                              <CreditCard className="w-3 h-3 md:w-4 md:h-4" />
+                              <span className="font-medium">Paid</span>
+                            </>
+                          ) : (
+                            <>
+                              <CreditCard className="w-3 h-3 md:w-4 md:h-4" />
+                              <span className="font-medium">Payment Required</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
+                {appointment.problem_description && (
+                  <div className={`mt-4 p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                    <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      <strong>Reason: </strong>{appointment.problem_description}
+                    </p>
+                  </div>
+                )}
+                
+                {appointment.user_report_url && (
+                  <div className={`mt-4 p-3 rounded-lg ${darkMode ? 'bg-blue-900' : 'bg-blue-50'}`}>
+                    <p className={`text-sm ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
+                      <strong>Medical Report: </strong>
+                      <a 
+                        href={appointment.user_report_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="underline hover:no-underline ml-1"
+                      >
+                        View Report
+                      </a>
+                    </p>
+                  </div>
+                )}
               </div>
-              {appointment.problem_description && (
-                <div className={`mt-4 p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                  <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    <strong>Reason: </strong>{appointment.problem_description}
-                  </p>
-                </div>
-              )}
-              
-              {appointment.user_report_url && (
-                <div className={`mt-4 p-3 rounded-lg ${darkMode ? 'bg-blue-900' : 'bg-blue-50'}`}>
-                  <p className={`text-sm ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
-                    <strong>Medical Report: </strong>
-                    <a 
-                      href={appointment.user_report_url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="underline hover:no-underline ml-1"
-                    >
-                      View Report
-                    </a>
-                  </p>
-                </div>
-              )}
-            </div>
-          );
-        })}
+            );
+          })}
         </div>
       ) : (
         // Empty state UI - Only shows when loading is complete and no appointments exist
@@ -1240,174 +1304,281 @@ const handleCreateAvailability = async (e) => {
           </div>
         </div>
       )}
-      {/* Doctor Availability Modal */}
-    {showAvailabilityModal && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className={`w-full max-w-2xl rounded-2xl shadow-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'} p-6`}>
-          <div className="flex items-center justify-between mb-6">
-            <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-              Add Available Date & Time
-            </h3>
-            <button
-              onClick={() => setShowAvailabilityModal(false)}
-              className={`p-2 rounded-lg hover:bg-gray-100 ${
-                darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
-              }`}
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          
-          <form onSubmit={handleCreateAvailability}>
-            <div className="space-y-4">
-              {/* Available Date */}
-              <div>
-                <label htmlFor="available_date" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                  Available Date <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  id="available_date"
-                  name="available_date"
-                  value={availabilityData.available_date}
-                  onChange={handleAvailabilityInputChange}
-                  min={new Date().toISOString().split('T')[0]}
-                  max="2100-12-31"
-                  className={`w-full p-3 rounded-xl border ${
-                    darkMode 
-                      ? 'bg-gray-700 border-gray-600 text-white' 
-                      : 'bg-white border-gray-300 text-gray-900'
-                  } focus:ring-2 focus:ring-green-500 focus:border-transparent`}
-                  required
-                />
-              </div>
 
-              {/* Start Time */}
-              <div>
-                <label htmlFor="start_time" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                  Start Time <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="time"
-                  id="start_time"
-                  name="start_time"
-                  value={availabilityData.start_time}
-                  onChange={handleAvailabilityInputChange}
-                  className={`w-full p-3 rounded-xl border ${
-                    darkMode 
-                      ? 'bg-gray-700 border-gray-600 text-white' 
-                      : 'bg-white border-gray-300 text-gray-900'
-                  } focus:ring-2 focus:ring-green-500 focus:border-transparent`}
-                  required
-                />
-              </div>
+      {/* Doctor Availability Creation Modal */}
+      {showAvailabilityModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className={`w-full max-w-2xl rounded-2xl shadow-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'} p-6`}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                Add Available Date & Time
+              </h3>
+              <button
+                onClick={() => setShowAvailabilityModal(false)}
+                className={`p-2 rounded-lg hover:bg-gray-100 ${
+                  darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateAvailability}>
+              <div className="space-y-4">
+                {/* Available Date */}
+                <div>
+                  <label htmlFor="available_date" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    Available Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    id="available_date"
+                    name="available_date"
+                    value={availabilityData.available_date}
+                    onChange={handleAvailabilityInputChange}
+                    min={new Date().toISOString().split('T')[0]}
+                    max="2100-12-31"
+                    className={`w-full p-3 rounded-xl border ${
+                      darkMode 
+                        ? 'bg-gray-700 border-gray-600 text-white' 
+                        : 'bg-white border-gray-300 text-gray-900'
+                    } focus:ring-2 focus:ring-green-500 focus:border-transparent`}
+                    required
+                  />
+                </div>
 
-              {/* End Time */}
-              <div>
-                <label htmlFor="end_time" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                  End Time <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="time"
-                  id="end_time"
-                  name="end_time"
-                  value={availabilityData.end_time}
-                  onChange={handleAvailabilityInputChange}
-                  className={`w-full p-3 rounded-xl border ${
-                    darkMode 
-                      ? 'bg-gray-700 border-gray-600 text-white' 
-                      : 'bg-white border-gray-300 text-gray-900'
-                  } focus:ring-2 focus:ring-green-500 focus:border-transparent`}
-                  required
-                />
-              </div>
+                {/* Start Time */}
+                <div>
+                  <label htmlFor="start_time" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    Start Time <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="time"
+                    id="start_time"
+                    name="start_time"
+                    value={availabilityData.start_time}
+                    onChange={handleAvailabilityInputChange}
+                    className={`w-full p-3 rounded-xl border ${
+                      darkMode 
+                        ? 'bg-gray-700 border-gray-600 text-white' 
+                        : 'bg-white border-gray-300 text-gray-900'
+                    } focus:ring-2 focus:ring-green-500 focus:border-transparent`}
+                    required
+                  />
+                </div>
 
-              {/* Interval Minutes */}
-              <div>
-                <label htmlFor="interval_minutes" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                  Appointment Interval (minutes) <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="interval_minutes"
-                  name="interval_minutes"
-                  value={availabilityData.interval_minutes}
-                  onChange={handleAvailabilityInputChange}
-                  className={`w-full p-3 rounded-xl border ${
-                    darkMode 
-                      ? 'bg-gray-700 border-gray-600 text-white' 
-                      : 'bg-white border-gray-300 text-gray-900'
-                  } focus:ring-2 focus:ring-green-500 focus:border-transparent`}
-                  required
-                >
-                  <option value="15">15 minutes</option>
-                  <option value="30">30 minutes</option>
-                  <option value="45">45 minutes</option>
-                  <option value="60">60 minutes</option>
-                </select>
-                <p className={`mt-2 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  This will create appointment slots every {availabilityData.interval_minutes} minutes between your start and end time.
-                </p>
-              </div>
+                {/* End Time */}
+                <div>
+                  <label htmlFor="end_time" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    End Time <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="time"
+                    id="end_time"
+                    name="end_time"
+                    value={availabilityData.end_time}
+                    onChange={handleAvailabilityInputChange}
+                    className={`w-full p-3 rounded-xl border ${
+                      darkMode 
+                        ? 'bg-gray-700 border-gray-600 text-white' 
+                        : 'bg-white border-gray-300 text-gray-900'
+                    } focus:ring-2 focus:ring-green-500 focus:border-transparent`}
+                    required
+                  />
+                </div>
 
-              {/* Preview */}
-              {availabilityData.available_date && availabilityData.start_time && availabilityData.end_time && (
-                <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
-                  <h4 className={`font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                    Preview
-                  </h4>
-                  <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Available slots will be created on <strong>{formatDate(availabilityData.available_date)}</strong> from{' '}
-                    <strong>{availabilityData.start_time}</strong> to <strong>{availabilityData.end_time}</strong> with{' '}
-                    <strong>{availabilityData.interval_minutes} minute</strong> intervals.
+                {/* Interval Minutes */}
+                <div>
+                  <label htmlFor="interval_minutes" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    Appointment Interval (minutes) <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    id="interval_minutes"
+                    name="interval_minutes"
+                    value={availabilityData.interval_minutes}
+                    onChange={handleAvailabilityInputChange}
+                    className={`w-full p-3 rounded-xl border ${
+                      darkMode 
+                        ? 'bg-gray-700 border-gray-600 text-white' 
+                        : 'bg-white border-gray-300 text-gray-900'
+                    } focus:ring-2 focus:ring-green-500 focus:border-transparent`}
+                    required
+                  >
+                    <option value="15">15 minutes</option>
+                    <option value="30">30 minutes</option>
+                    <option value="45">45 minutes</option>
+                    <option value="60">60 minutes</option>
+                  </select>
+                  <p className={`mt-2 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    This will create appointment slots every {availabilityData.interval_minutes} minutes between your start and end time.
                   </p>
                 </div>
-              )}
 
-              {/* Action Buttons */}
-              <div className="flex justify-end gap-4 mt-6">
+                {/* Preview */}
+                {availabilityData.available_date && availabilityData.start_time && availabilityData.end_time && (
+                  <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
+                    <h4 className={`font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                      Preview
+                    </h4>
+                    <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Available slots will be created on <strong>{formatDate(availabilityData.available_date)}</strong> from{' '}
+                      <strong>{availabilityData.start_time}</strong> to <strong>{availabilityData.end_time}</strong> with{' '}
+                      <strong>{availabilityData.interval_minutes} minute</strong> intervals.
+                    </p>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex justify-end gap-4 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAvailabilityModal(false);
+                      setAvailabilityData({
+                        available_date: '',
+                        start_time: '',
+                        end_time: '',
+                        interval_minutes: 15
+                      });
+                    }}
+                    className={`px-4 py-2 rounded-lg ${
+                      darkMode 
+                        ? 'bg-gray-700 text-white hover:bg-gray-600' 
+                        : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                    }`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {loading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4" />
+                        Create Availability
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Doctor Availability List Modal */}
+      {showAvailabilityListModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className={`w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            {/* Modal Header */}
+            <div className={`flex items-center justify-between p-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                My Appointment Schedule
+              </h3>
+              <button
+                onClick={() => setShowAvailabilityListModal(false)}
+                className={`p-2 rounded-lg hover:bg-gray-100 ${
+                  darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 max-h-[70vh] overflow-y-auto">
+              {loadingAvailabilities ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500"></div>
+                  <span className={`ml-3 text-lg ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                    Loading your schedule...
+                  </span>
+                </div>
+              ) : doctorAvailabilities.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {doctorAvailabilities.map((availability) => (
+                    <div 
+                      key={availability.id} 
+                      className={`rounded-xl p-4 shadow-lg border ${
+                        darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Calendar className={`w-5 h-5 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
+                          <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                            {formatDate(availability.available_date)}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Clock className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                          <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                            {formatTime(availability.start_time)} - {formatTime(availability.end_time)}
+                          </span>
+                        </div>
+                        
+                        <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {availability.interval_minutes} min intervals
+                        </div>
+                        
+                        <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                          Created: {new Date(availability.created_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className={`rounded-xl p-8 text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg`}>
+                  <Calendar className={`w-16 h-16 mx-auto mb-4 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`} />
+                  <h4 className={`text-lg font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    No Schedule Available
+                  </h4>
+                  <p className={`mb-6 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    You haven't created any availability schedules yet.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setShowAvailabilityListModal(false);
+                      setShowAvailabilityModal(true);
+                    }}
+                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 mx-auto"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Available Date & Time
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className={`p-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <div className="flex justify-end">
                 <button
-                  type="button"
-                  onClick={() => {
-                    setShowAvailabilityModal(false);
-                    setAvailabilityData({
-                      available_date: '',
-                      start_time: '',
-                      end_time: '',
-                      interval_minutes: 15
-                    });
-                  }}
+                  onClick={() => setShowAvailabilityListModal(false)}
                   className={`px-4 py-2 rounded-lg ${
                     darkMode 
                       ? 'bg-gray-700 text-white hover:bg-gray-600' 
                       : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
                   }`}
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg disabled:opacity-50 flex items-center gap-2"
-                >
-                  {loading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="w-4 h-4" />
-                      Create Availability
-                    </>
-                  )}
+                  Close
                 </button>
               </div>
             </div>
-          </form>
+          </div>
         </div>
-      </div>
-    )}
-
+      )}
     </div>
   );
 };
