@@ -411,8 +411,8 @@ const Dashboard = () => {
 
   return (
     <div className={`${activeTab === 'chat' ? 'h-screen overflow-hidden flex flex-col' : 'min-h-screen pb-20 md:pb-0'} ${darkMode
-        ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900'
-        : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
+      ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900'
+      : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
       }`}>
       {/* Navigation */}
       <nav className={`shadow-lg border-b z-10 ${darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'
@@ -434,12 +434,12 @@ const Dashboard = () => {
                 <button
                   onClick={() => handleTabChange('home')}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all duration-200 ${activeTab === 'home'
-                      ? darkMode
-                        ? 'bg-gray-700 shadow-md text-blue-400'
-                        : 'bg-white shadow-md text-blue-600'
-                      : darkMode
-                        ? 'text-gray-400 hover:text-gray-200'
-                        : 'text-gray-600 hover:text-gray-800'
+                    ? darkMode
+                      ? 'bg-gray-700 shadow-md text-blue-400'
+                      : 'bg-white shadow-md text-blue-600'
+                    : darkMode
+                      ? 'text-gray-400 hover:text-gray-200'
+                      : 'text-gray-600 hover:text-gray-800'
                     }`}
                 >
                   <Home className="w-5 h-5" />
@@ -448,12 +448,12 @@ const Dashboard = () => {
                 <button
                   onClick={() => handleTabChange('appointments')}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all duration-200 ${activeTab === 'appointments'
-                      ? darkMode
-                        ? 'bg-gray-700 shadow-md text-blue-400'
-                        : 'bg-white shadow-md text-blue-600'
-                      : darkMode
-                        ? 'text-gray-400 hover:text-gray-200'
-                        : 'text-gray-600 hover:text-gray-800'
+                    ? darkMode
+                      ? 'bg-gray-700 shadow-md text-blue-400'
+                      : 'bg-white shadow-md text-blue-600'
+                    : darkMode
+                      ? 'text-gray-400 hover:text-gray-200'
+                      : 'text-gray-600 hover:text-gray-800'
                     }`}
                 >
                   <Calendar className="w-5 h-5" />
@@ -462,12 +462,12 @@ const Dashboard = () => {
                 <button
                   onClick={() => handleTabChange('chat')}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all duration-200 ${activeTab === 'chat'
-                      ? darkMode
-                        ? 'bg-gray-700 shadow-md text-blue-400'
-                        : 'bg-white shadow-md text-blue-600'
-                      : darkMode
-                        ? 'text-gray-400 hover:text-gray-200'
-                        : 'text-gray-600 hover:text-gray-800'
+                    ? darkMode
+                      ? 'bg-gray-700 shadow-md text-blue-400'
+                      : 'bg-white shadow-md text-blue-600'
+                    : darkMode
+                      ? 'text-gray-400 hover:text-gray-200'
+                      : 'text-gray-600 hover:text-gray-800'
                     }`}
                 >
                   <MessageCircle className="w-5 h-5" />
@@ -477,12 +477,12 @@ const Dashboard = () => {
                 <button
                   onClick={() => handleTabChange('profile')}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all duration-200 ${activeTab === 'profile'
-                      ? darkMode
-                        ? 'bg-gray-700 shadow-md text-blue-400'
-                        : 'bg-white shadow-md text-blue-600'
-                      : darkMode
-                        ? 'text-gray-400 hover:text-gray-200'
-                        : 'text-gray-600 hover:text-gray-800'
+                    ? darkMode
+                      ? 'bg-gray-700 shadow-md text-blue-400'
+                      : 'bg-white shadow-md text-blue-600'
+                    : darkMode
+                      ? 'text-gray-400 hover:text-gray-200'
+                      : 'text-gray-600 hover:text-gray-800'
                     }`}
                 >
                   <User className="w-5 h-5" />
@@ -496,8 +496,8 @@ const Dashboard = () => {
                 <button
                   onClick={() => setShowUserDropdown(!showUserDropdown)}
                   className={`flex items-center gap-2 transition-all duration-200 transform hover:scale-105 ${darkMode
-                      ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     } rounded-lg px-2 py-1.5`}
                 >
                   <User className="w-4 h-4 text-gray-500" />
@@ -510,8 +510,8 @@ const Dashboard = () => {
                 {/* User Dropdown */}
                 {showUserDropdown && (
                   <div className={`absolute top-full left-0 mt-2 w-64 rounded-xl shadow-lg border z-50 ${darkMode
-                      ? 'bg-gray-800 border-gray-700'
-                      : 'bg-white border-gray-200'
+                    ? 'bg-gray-800 border-gray-700'
+                    : 'bg-white border-gray-200'
                     } max-h-96 overflow-y-auto`}>
                     <div className={`p-3 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'
                       }`}>
@@ -538,12 +538,12 @@ const Dashboard = () => {
                               key={mapping.id}
                               onClick={() => handleUserSelection(mapping.mapped_user.id)}
                               className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${selectedUserId === mapping.mapped_user.id
-                                  ? darkMode
-                                    ? 'bg-gray-700 text-blue-400'
-                                    : 'bg-blue-50 text-blue-600'
-                                  : darkMode
-                                    ? 'hover:bg-gray-700 text-gray-300'
-                                    : 'hover:bg-gray-100 text-gray-700'
+                                ? darkMode
+                                  ? 'bg-gray-700 text-blue-400'
+                                  : 'bg-blue-50 text-blue-600'
+                                : darkMode
+                                  ? 'hover:bg-gray-700 text-gray-300'
+                                  : 'hover:bg-gray-100 text-gray-700'
                                 }`}
                             >
                               <img
@@ -589,8 +589,8 @@ const Dashboard = () => {
 
               {/* Date Display */}
               <div className={`hidden md:flex items-center gap-2 px-2 py-1.5 rounded-lg whitespace-nowrap transition-all duration-200 transform hover:scale-105 ${darkMode
-                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}>
                 <Calendar className="w-4 h-4 text-gray-500" />
                 <span className="text-sm font-medium">
@@ -608,26 +608,26 @@ const Dashboard = () => {
                   <button
                     onClick={() => setShowFilterDropdown(!showFilterDropdown)}
                     className={`p-2 rounded-lg transition-all duration-200 transform hover:scale-105 ${showFilterDropdown
-                        ? darkMode
-                          ? 'bg-purple-600 hover:bg-purple-700'
-                          : 'bg-purple-500 hover:bg-purple-600'
-                        : darkMode
-                          ? 'bg-gray-800 hover:bg-purple-600/20 border border-purple-500/30'
-                          : 'bg-gradient-to-r from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 border border-purple-200'
+                      ? darkMode
+                        ? 'bg-purple-600 hover:bg-purple-700'
+                        : 'bg-purple-500 hover:bg-purple-600'
+                      : darkMode
+                        ? 'bg-gray-800 hover:bg-purple-600/20 border border-purple-500/30'
+                        : 'bg-gradient-to-r from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 border border-purple-200'
                       }`}
                     title={`Filter: ${selectedPeriod === 'today' ? 'Today' : selectedPeriod === 'week' ? 'This Week' : 'This Month'}`}
                   >
                     <SlidersHorizontal className={`w-5 h-5 transition-colors ${showFilterDropdown
-                        ? 'text-white'
-                        : 'text-purple-600'
+                      ? 'text-white'
+                      : 'text-purple-600'
                       }`} />
                   </button>
 
                   {/* Filter Dropdown */}
                   {showFilterDropdown && (
                     <div className={`absolute top-full right-0 mt-2 w-40 rounded-lg shadow-xl border z-10 ${darkMode
-                        ? 'bg-gray-800 border-purple-500/30 shadow-purple-500/20'
-                        : 'bg-white border-purple-200 shadow-purple-100'
+                      ? 'bg-gray-800 border-purple-500/30 shadow-purple-500/20'
+                      : 'bg-white border-purple-200 shadow-purple-100'
                       }`}>
                       <div className="py-1">
                         <button
@@ -636,12 +636,12 @@ const Dashboard = () => {
                             setShowFilterDropdown(false);
                           }}
                           className={`w-full text-left px-4 py-2 text-sm transition-colors ${selectedPeriod === 'today'
-                              ? darkMode
-                                ? 'bg-purple-600/20 text-purple-400'
-                                : 'bg-purple-50 text-purple-600'
-                              : darkMode
-                                ? 'text-gray-300 hover:bg-purple-600/10'
-                                : 'text-gray-700 hover:bg-purple-50'
+                            ? darkMode
+                              ? 'bg-purple-600/20 text-purple-400'
+                              : 'bg-purple-50 text-purple-600'
+                            : darkMode
+                              ? 'text-gray-300 hover:bg-purple-600/10'
+                              : 'text-gray-700 hover:bg-purple-50'
                             }`}
                         >
                           Today
@@ -652,12 +652,12 @@ const Dashboard = () => {
                             setShowFilterDropdown(false);
                           }}
                           className={`w-full text-left px-4 py-2 text-sm transition-colors ${selectedPeriod === 'week'
-                              ? darkMode
-                                ? 'bg-purple-600/20 text-purple-400'
-                                : 'bg-purple-50 text-purple-600'
-                              : darkMode
-                                ? 'text-gray-300 hover:bg-purple-600/10'
-                                : 'text-gray-700 hover:bg-purple-50'
+                            ? darkMode
+                              ? 'bg-purple-600/20 text-purple-400'
+                              : 'bg-purple-50 text-purple-600'
+                            : darkMode
+                              ? 'text-gray-300 hover:bg-purple-600/10'
+                              : 'text-gray-700 hover:bg-purple-50'
                             }`}
                         >
                           This Week
@@ -668,12 +668,12 @@ const Dashboard = () => {
                             setShowFilterDropdown(false);
                           }}
                           className={`w-full text-left px-4 py-2 text-sm transition-colors ${selectedPeriod === 'month'
-                              ? darkMode
-                                ? 'bg-purple-600/20 text-purple-400'
-                                : 'bg-purple-50 text-purple-600'
-                              : darkMode
-                                ? 'text-gray-300 hover:bg-purple-600/10'
-                                : 'text-gray-700 hover:bg-purple-50'
+                            ? darkMode
+                              ? 'bg-purple-600/20 text-purple-400'
+                              : 'bg-purple-50 text-purple-600'
+                            : darkMode
+                              ? 'text-gray-300 hover:bg-purple-600/10'
+                              : 'text-gray-700 hover:bg-purple-50'
                             }`}
                         >
                           This Month
@@ -688,16 +688,16 @@ const Dashboard = () => {
                 <button
                   onClick={toggleDarkMode}
                   className={`p-2 rounded-lg transition-all duration-200 transform hover:scale-105 ${darkMode
-                      ? 'text-yellow-400 hover:bg-gray-700'
-                      : 'text-gray-600 hover:bg-gray-100'
+                    ? 'text-yellow-400 hover:bg-gray-700'
+                    : 'text-gray-600 hover:bg-gray-100'
                     }`}
                 >
                   {darkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
                 </button>
                 <div className="hidden md:flex items-center gap-1">
                   <button className={`p-2 rounded-lg transition-all duration-200 transform hover:scale-105 ${darkMode
-                      ? 'hover:bg-gray-700'
-                      : 'hover:bg-gray-100'
+                    ? 'hover:bg-gray-700'
+                    : 'hover:bg-gray-100'
                     }`}
                   >
                     <Settings className="w-5 h-5 text-gray-500" />
@@ -705,8 +705,8 @@ const Dashboard = () => {
                   <button
                     onClick={handleLogoutClick}
                     className={`p-2 rounded-lg transition-all duration-200 transform hover:scale-105 ${darkMode
-                        ? 'hover:bg-red-700'
-                        : 'hover:bg-red-50'
+                      ? 'hover:bg-red-700'
+                      : 'hover:bg-red-50'
                       }`}
                     title="Logout"
                   >
@@ -719,8 +719,8 @@ const Dashboard = () => {
                   <button
                     onClick={() => setShowUserDropdown(!showUserDropdown)}
                     className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-200 transform hover:scale-105 ${darkMode
-                        ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }`}
                   >
                     <User className="w-4 h-4 text-gray-500" />
@@ -734,8 +734,8 @@ const Dashboard = () => {
 
                   {showUserDropdown && (
                     <div className={`absolute right-0 mt-2 w-48 rounded-lg border shadow-lg animate-in slide-in-from-top duration-200 ${darkMode
-                        ? 'bg-gray-800 border-gray-700'
-                        : 'bg-white border-gray-200'
+                      ? 'bg-gray-800 border-gray-700'
+                      : 'bg-white border-gray-200'
                       }`}>
                       {mappedUsers.length > 0 && (
                         <div className="p-2">
@@ -750,12 +750,12 @@ const Dashboard = () => {
                                 setShowUserDropdown(false);
                               }}
                               className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${selectedUserId === mapping.mapped_user.id
-                                  ? darkMode
-                                    ? 'bg-gray-700 text-blue-400'
-                                    : 'bg-blue-50 text-blue-600'
-                                  : darkMode
-                                    ? 'hover:bg-gray-700 text-gray-300'
-                                    : 'hover:bg-gray-100 text-gray-700'
+                                ? darkMode
+                                  ? 'bg-gray-700 text-blue-400'
+                                  : 'bg-blue-50 text-blue-600'
+                                : darkMode
+                                  ? 'hover:bg-gray-700 text-gray-300'
+                                  : 'hover:bg-gray-100 text-gray-700'
                                 }`}
                             >
                               <img
@@ -786,8 +786,8 @@ const Dashboard = () => {
                 <div className="flex items-center gap-1">
                   <button
                     className={`md:hidden p-2 rounded-lg transition-all duration-200 transform hover:scale-105 ${darkMode
-                        ? 'text-gray-300 hover:bg-gray-700'
-                        : 'text-gray-600 hover:bg-gray-100'
+                      ? 'text-gray-300 hover:bg-gray-700'
+                      : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                   >
@@ -808,8 +808,8 @@ const Dashboard = () => {
         <div className={`md:hidden fixed inset-0 z-50 ${darkMode ? 'bg-gray-900' : 'bg-white'} pt-16 animate-in slide-in-from-top duration-300`}>
           {/* Mobile Menu Header with Back Button */}
           <div className={`flex items-center justify-between p-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} bg-gradient-to-r ${darkMode
-              ? 'from-gray-800 to-gray-900'
-              : 'from-blue-50 to-purple-50'
+            ? 'from-gray-800 to-gray-900'
+            : 'from-blue-50 to-purple-50'
             }`}>
             <div className="flex items-center gap-3">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700' : 'bg-white shadow-md'
@@ -821,8 +821,8 @@ const Dashboard = () => {
             <button
               onClick={() => setIsMobileMenuOpen(false)}
               className={`p-2 rounded-xl transition-all duration-200 transform hover:scale-110 ${darkMode
-                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  : 'bg-white text-gray-600 hover:bg-gray-100 shadow-md'
+                ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                : 'bg-white text-gray-600 hover:bg-gray-100 shadow-md'
                 }`}
             >
               <X className="w-5 h-5" />
@@ -832,8 +832,8 @@ const Dashboard = () => {
           <div className="p-4 space-y-4 overflow-y-auto h-full pb-20">
             {/* User Section */}
             <div className={`rounded-2xl p-4 border shadow-lg transition-all duration-200 hover:shadow-xl ${darkMode
-                ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
-                : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
+              ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
+              : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
               }`}>
               <div className="flex items-center gap-3 mb-4">
                 <div className="relative">
@@ -862,8 +862,8 @@ const Dashboard = () => {
                 <button
                   onClick={() => setShowUserDropdown(!showUserDropdown)}
                   className={`w-full flex items-center justify-between p-3 rounded-xl transition-all duration-200 transform hover:scale-[1.02] ${darkMode
-                      ? 'bg-gradient-to-r from-gray-700 to-gray-600 text-gray-300 hover:from-gray-600 hover:to-gray-500'
-                      : 'bg-gradient-to-r from-blue-50 to-purple-50 text-gray-700 hover:from-blue-100 hover:to-purple-100'
+                    ? 'bg-gradient-to-r from-gray-700 to-gray-600 text-gray-300 hover:from-gray-600 hover:to-gray-500'
+                    : 'bg-gradient-to-r from-blue-50 to-purple-50 text-gray-700 hover:from-blue-100 hover:to-purple-100'
                     }`}
                 >
                   <div className="flex items-center gap-2">
@@ -875,8 +875,8 @@ const Dashboard = () => {
 
                 {showUserDropdown && (
                   <div className={`rounded-xl border shadow-lg animate-in slide-in-from-top duration-200 ${darkMode
-                      ? 'bg-gray-700 border-gray-600'
-                      : 'bg-white border-gray-200'
+                    ? 'bg-gray-700 border-gray-600'
+                    : 'bg-white border-gray-200'
                     }`}>
                     {/* Current User Option */}
                     <div className={`p-3 ${mappedUsers.length > 0 ? `border-b ${darkMode ? 'border-gray-600' : 'border-gray-200'}` : ''}`}>
@@ -891,15 +891,14 @@ const Dashboard = () => {
                           setTimeout(() => setSelectionFeedback(null), 2000);
                           setTimeout(() => setIsMobileMenuOpen(false), 500);
                         }}
-                        className={`w-full flex items-center gap-3 p-4 rounded-xl transition-all duration-200 transform hover:scale-[1.02] touch-manipulation ${
-                          selectedUserId === null
+                        className={`w-full flex items-center gap-3 p-4 rounded-xl transition-all duration-200 transform hover:scale-[1.02] touch-manipulation ${selectedUserId === null
                             ? darkMode
                               ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
                               : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg'
                             : darkMode
                               ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
+                          }`}
                       >
                         <img
                           src={backendUser?.profile_image || user?.photoURL || 'https://via.placeholder.com/32'}
@@ -919,7 +918,7 @@ const Dashboard = () => {
                         </div>
                       </button>
                     </div>
-                    
+
                     {mappedUsers.length > 0 && (
                       <div className="p-3">
                         <p className={`text-xs font-bold mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -936,12 +935,12 @@ const Dashboard = () => {
                                 setTimeout(() => setIsMobileMenuOpen(false), 500);
                               }}
                               className={`w-full flex items-center gap-3 p-4 rounded-xl transition-all duration-200 transform hover:scale-[1.02] touch-manipulation ${selectedUserId === mapping.mapped_user.id
-                                  ? darkMode
-                                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
-                                    : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg'
-                                  : darkMode
-                                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                ? darkMode
+                                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                                  : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg'
+                                : darkMode
+                                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                 }`}
                             >
                               <img
@@ -980,8 +979,8 @@ const Dashboard = () => {
 
             {/* Date Display */}
             <div className={`rounded-2xl p-4 border shadow-lg transition-all duration-200 hover:shadow-xl ${darkMode
-                ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
-                : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
+              ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
+              : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
               }`}>
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${darkMode ? 'bg-blue-600/20' : 'bg-blue-100'
@@ -1003,14 +1002,14 @@ const Dashboard = () => {
 
             {/* Dark Mode Toggle */}
             <div className={`rounded-2xl p-4 border shadow-lg transition-all duration-200 hover:shadow-xl ${darkMode
-                ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
-                : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
+              ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
+              : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
               }`}>
               <button
                 onClick={toggleDarkMode}
                 className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 transform hover:scale-[1.02] ${darkMode
-                    ? 'bg-gradient-to-r from-yellow-600/20 to-orange-600/20 text-gray-300 hover:from-yellow-600/30 hover:to-orange-600/30'
-                    : 'bg-gradient-to-r from-yellow-50 to-orange-50 text-gray-700 hover:from-yellow-100 hover:to-orange-100'
+                  ? 'bg-gradient-to-r from-yellow-600/20 to-orange-600/20 text-gray-300 hover:from-yellow-600/30 hover:to-orange-600/30'
+                  : 'bg-gradient-to-r from-yellow-50 to-orange-50 text-gray-700 hover:from-yellow-100 hover:to-orange-100'
                   }`}
               >
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${darkMode ? 'bg-yellow-600/30' : 'bg-yellow-100'
@@ -1031,8 +1030,8 @@ const Dashboard = () => {
             {/* Period Filter for Home Tab */}
             {activeTab === 'home' && (
               <div className={`rounded-2xl p-4 border shadow-lg transition-all duration-200 hover:shadow-xl ${darkMode
-                  ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
-                  : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
+                ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
+                : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
                 }`}>
                 <div className="flex items-center gap-3 mb-4">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center ${darkMode ? 'bg-purple-600/20' : 'bg-purple-100'
@@ -1057,12 +1056,12 @@ const Dashboard = () => {
                         setIsMobileMenuOpen(false);
                       }}
                       className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 transform hover:scale-[1.02] ${selectedPeriod === period
-                          ? darkMode
-                            ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg'
-                            : 'bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-lg'
-                          : darkMode
-                            ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        ? darkMode
+                          ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg'
+                          : 'bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-lg'
+                        : darkMode
+                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                         }`}
                     >
                       <SlidersHorizontal className="w-4 h-4" />
@@ -1085,8 +1084,8 @@ const Dashboard = () => {
               <button
                 onClick={() => { handleTabChange('settings'); setIsMobileMenuOpen(false); }}
                 className={`w-full flex items-center gap-3 p-4 rounded-2xl transition-all duration-200 transform hover:scale-[1.02] hover:shadow-lg ${darkMode
-                    ? 'bg-gradient-to-r from-gray-800 to-gray-700 text-gray-300 hover:from-gray-700 hover:to-gray-600'
-                    : 'bg-gradient-to-r from-white to-gray-100 text-gray-700 hover:from-gray-50 hover:to-gray-200 shadow-md'
+                  ? 'bg-gradient-to-r from-gray-800 to-gray-700 text-gray-300 hover:from-gray-700 hover:to-gray-600'
+                  : 'bg-gradient-to-r from-white to-gray-100 text-gray-700 hover:from-gray-50 hover:to-gray-200 shadow-md'
                   }`}
               >
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-600' : 'bg-gray-200'
@@ -1101,8 +1100,8 @@ const Dashboard = () => {
 
               <button
                 className={`w-full flex items-center gap-3 p-4 rounded-2xl transition-all duration-200 transform hover:scale-[1.02] hover:shadow-lg ${darkMode
-                    ? 'bg-gradient-to-r from-gray-800 to-gray-700 text-gray-300 hover:from-gray-700 hover:to-gray-600'
-                    : 'bg-gradient-to-r from-white to-gray-100 text-gray-700 hover:from-gray-50 hover:to-gray-200 shadow-md'
+                  ? 'bg-gradient-to-r from-gray-800 to-gray-700 text-gray-300 hover:from-gray-700 hover:to-gray-600'
+                  : 'bg-gradient-to-r from-white to-gray-100 text-gray-700 hover:from-gray-50 hover:to-gray-200 shadow-md'
                   }`}
               >
                 <div className="relative">
@@ -1157,8 +1156,8 @@ const Dashboard = () => {
               <button
                 onClick={handleLogoutCancel}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${darkMode
-                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                   }`}
               >
                 Cancel
@@ -1185,12 +1184,12 @@ const Dashboard = () => {
           <button
             onClick={() => handleTabChange('home')}
             className={`flex flex-col items-center justify-center p-2 transition-colors ${activeTab === 'home'
-                ? darkMode
-                  ? 'text-blue-400'
-                  : 'text-blue-600'
-                : darkMode
-                  ? 'text-gray-400'
-                  : 'text-gray-500'
+              ? darkMode
+                ? 'text-blue-400'
+                : 'text-blue-600'
+              : darkMode
+                ? 'text-gray-400'
+                : 'text-gray-500'
               }`}
           >
             <Home className="w-6 h-6" />
@@ -1199,12 +1198,12 @@ const Dashboard = () => {
           <button
             onClick={() => handleTabChange('appointments')}
             className={`flex flex-col items-center justify-center p-2 transition-colors ${activeTab === 'appointments'
-                ? darkMode
-                  ? 'text-blue-400'
-                  : 'text-blue-600'
-                : darkMode
-                  ? 'text-gray-400'
-                  : 'text-gray-500'
+              ? darkMode
+                ? 'text-blue-400'
+                : 'text-blue-600'
+              : darkMode
+                ? 'text-gray-400'
+                : 'text-gray-500'
               }`}
           >
             <Calendar className="w-6 h-6" />
@@ -1213,12 +1212,12 @@ const Dashboard = () => {
           <button
             onClick={() => handleTabChange('chat')}
             className={`flex flex-col items-center justify-center p-2 transition-colors relative ${activeTab === 'chat'
-                ? darkMode
-                  ? 'text-blue-400'
-                  : 'text-blue-600'
-                : darkMode
-                  ? 'text-gray-400'
-                  : 'text-gray-500'
+              ? darkMode
+                ? 'text-blue-400'
+                : 'text-blue-600'
+              : darkMode
+                ? 'text-gray-400'
+                : 'text-gray-500'
               }`}
           >
             <MessageCircle className="w-6 h-6" />
@@ -1228,12 +1227,12 @@ const Dashboard = () => {
           <button
             onClick={() => handleTabChange('profile')}
             className={`flex flex-col items-center justify-center p-2 transition-colors ${activeTab === 'profile'
-                ? darkMode
-                  ? 'text-blue-400'
-                  : 'text-blue-600'
-                : darkMode
-                  ? 'text-gray-400'
-                  : 'text-gray-500'
+              ? darkMode
+                ? 'text-blue-400'
+                : 'text-blue-600'
+              : darkMode
+                ? 'text-gray-400'
+                : 'text-gray-500'
               }`}
           >
             <User className="w-6 h-6" />
@@ -1254,8 +1253,8 @@ const Dashboard = () => {
       {selectionFeedback && (
         <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 animate-pulse">
           <div className={`px-4 py-2 rounded-lg shadow-lg text-sm font-medium ${darkMode
-              ? 'bg-green-600 text-white'
-              : 'bg-green-500 text-white'
+            ? 'bg-green-600 text-white'
+            : 'bg-green-500 text-white'
             }`}>
             {selectionFeedback}
           </div>

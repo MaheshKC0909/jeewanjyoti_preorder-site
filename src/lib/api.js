@@ -29,7 +29,7 @@ export async function registerUser(payload) {
     },
     body: JSON.stringify(payload),
   })
-  
+
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
     const error = new Error('Registration failed')
@@ -47,7 +47,7 @@ export async function registerUser(payload) {
  */
 export async function loginUser(credentials, userType = 'individual') {
   const endpoint = userType === 'individual' ? '/api/login/' : '/api/ins/login/'
-  
+
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     method: 'POST',
     headers: {
@@ -55,7 +55,7 @@ export async function loginUser(credentials, userType = 'individual') {
     },
     body: JSON.stringify(credentials),
   })
-  
+
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
     const error = new Error('Login failed')
@@ -71,11 +71,11 @@ export async function loginUser(credentials, userType = 'individual') {
  */
 export async function getUserProfile() {
   const response = await apiRequest('/api/profile/')
-  
+
   if (!response.ok) {
     throw new Error('Failed to fetch user profile')
   }
-  
+
   return await response.json()
 }
 
@@ -92,11 +92,11 @@ export async function updateUserProfile(profileData) {
     },
     body: JSON.stringify(profileData),
   })
-  
+
   if (!response.ok) {
     throw new Error('Failed to update user profile')
   }
-  
+
   return await response.json()
 }
 
@@ -106,9 +106,9 @@ export async function updateUserProfile(profileData) {
  * @returns {Promise<object>} Updated profile data
  */
 export async function updateProfile(profileData) {
-  console.log('updateProfile called with:', profileData); // Debug log
-  console.log('updateProfile payload stringified:', JSON.stringify(profileData)); // Debug log
-  
+  console.log('updateProfile called with:', profileData);
+  console.log('updateProfile payload stringified:', JSON.stringify(profileData));
+
   try {
     const response = await apiRequest('/api/profile-update/', {
       method: 'PATCH',
@@ -117,13 +117,13 @@ export async function updateProfile(profileData) {
       },
       body: JSON.stringify(profileData),
     })
-    
-    console.log('updateProfile response status:', response.status); // Debug log
-    console.log('updateProfile response headers:', response.headers); // Debug log
-    
+
+    console.log('updateProfile response status:', response.status);
+    console.log('updateProfile response headers:', response.headers);
+
     const responseText = await response.text();
-    console.log('updateProfile response text:', responseText); // Debug log
-    
+    console.log('updateProfile response text:', responseText);
+
     if (!response.ok) {
       let errorData = {};
       try {
@@ -131,30 +131,28 @@ export async function updateProfile(profileData) {
       } catch (e) {
         errorData = { detail: responseText || 'Unknown error' };
       }
-      console.error('updateProfile error:', errorData); // Debug log
-      console.error('updateProfile error status:', response.status); // Debug log
+      console.error('updateProfile error:', errorData);
+      console.error('updateProfile error status:', response.status);
       const error = new Error(errorData.detail || errorData.message || `Failed to update profile (Status: ${response.status})`);
       error.details = errorData;
       error.response = response;
       error.status = response.status;
       throw error;
     }
-    
+
     let result = {};
     try {
       result = JSON.parse(responseText);
     } catch (e) {
       result = { success: true, message: 'Profile updated successfully' };
     }
-    console.log('updateProfile success:', result); // Debug log
+    console.log('updateProfile success:', result);
     return result;
   } catch (error) {
     console.error('updateProfile exception:', error);
-    // Re-throw if it's already our formatted error
     if (error.details) {
       throw error;
     }
-    // Otherwise, wrap it
     const wrappedError = new Error(error.message || 'Failed to update profile');
     wrappedError.details = { detail: error.message };
     wrappedError.originalError = error;
@@ -168,11 +166,11 @@ export async function updateProfile(profileData) {
  */
 export async function getAppointments() {
   const response = await apiRequest('/api/appointments/')
-  
+
   if (!response.ok) {
     throw new Error('Failed to fetch appointments')
   }
-  
+
   return await response.json()
 }
 
@@ -189,11 +187,11 @@ export async function createAppointment(appointmentData) {
     },
     body: JSON.stringify(appointmentData),
   })
-  
+
   if (!response.ok) {
     throw new Error('Failed to create appointment')
   }
-  
+
   return await response.json()
 }
 
@@ -203,74 +201,12 @@ export async function createAppointment(appointmentData) {
  */
 export async function getDoctorList() {
   const response = await apiRequest('/api/doctorlist/')
-  
+
   if (!response.ok) {
     throw new Error('Failed to fetch doctor list')
   }
-  
+
   return await response.json()
-}
-
-/**
- * Get sleep data
- * @param {string} userId - Optional user ID
- * @param {string} startDate - Optional start date filter (ISO string)
- * @param {string} endDate - Optional end date filter (ISO string)
- * @param {string} range - Optional range filter (24h, 7d, 30d)
- * @returns {Promise<Array>} List of sleep data records
- */
-export async function getSleepData(userId = null, startDate = null, endDate = null, range = null) {
-  let url = userId ? `/api/sleep-data/?user_id=${userId}` : '/api/sleep-data/?'
-  
-  // Add range filter if provided (prefer range over date filters)
-  if (range) {
-    url += `&range=${range}`
-  }
-  // Add date range filters if provided (fallback if range not used)
-  else if (startDate) {
-    url += `&start_date=${startDate}`
-    if (endDate) {
-      url += `&end_date=${endDate}`
-    }
-  } else if (endDate) {
-    url += `&end_date=${endDate}`
-  } else {
-    // Default to 24h if no filters provided
-    url += `&range=24h`
-  }
-  
-  return await fetchAllPages(url)
-}
-
-/**
- * Get SpO2/Blood Oxygen data
- * @param {string} userId - Optional user ID
- * @param {string} startDate - Optional start date filter (ISO string)
- * @param {string} endDate - Optional end date filter (ISO string)
- * @param {string} range - Optional range filter (24h, 7d, 30d)
- * @returns {Promise<Array>} List of SpO2 data records
- */
-export async function getSpO2Data(userId = null, startDate = null, endDate = null, range = null) {
-  let url = userId ? `/api/Spo2-data/?user_id=${userId}` : '/api/Spo2-data/?'
-  
-  // Add range filter if provided (prefer range over date filters)
-  if (range) {
-    url += `&range=${range}`
-  }
-  // Add date range filters if provided (fallback if range not used)
-  else if (startDate) {
-    url += `&start_date=${startDate}`
-    if (endDate) {
-      url += `&end_date=${endDate}`
-    }
-  } else if (endDate) {
-    url += `&end_date=${endDate}`
-  } else {
-    // Default to 24h if no filters provided
-    url += `&range=24h`
-  }
-  
-  return await fetchAllPages(url)
 }
 
 /**
@@ -280,224 +216,354 @@ export async function getSpO2Data(userId = null, startDate = null, endDate = nul
  */
 async function fetchAllPages(initialUrl) {
   let allResults = [];
-  let currentUrl = initialUrl;
-  let isFirstRequest = true;
-  
-  while (currentUrl) {
-    // For the first request, ensure page=1 is included if not already present
-    let url = currentUrl;
-    if (isFirstRequest && !currentUrl.includes('page=')) {
-      const hasParams = currentUrl.includes('?');
-      url = hasParams 
-        ? `${currentUrl}&page=1` 
-        : `${currentUrl}?page=1`;
+  let nextUrl = initialUrl;
+  let useAbsolute = false;
+
+  while (nextUrl) {
+    let response;
+
+    if (useAbsolute) {
+      const secureUrl = nextUrl.replace(/^http:\/\//, 'https://');
+      console.log(`Fetching page (absolute): ${secureUrl}`);
+      response = await authenticatedFetch(secureUrl, {});
+    } else {
+      console.log(`Fetching page (relative): ${nextUrl}`);
+      response = await apiRequest(nextUrl);
     }
-    // For subsequent requests, use the URL from data.next which already includes page parameter
-    
-    console.log(`Fetching: ${url}`);
-    
-    const response = await apiRequest(url);
-    
+
     if (!response.ok) {
       throw new Error(`Failed to fetch data: ${response.status}`);
     }
-    
+
     const data = await response.json();
-    
-    // Check if response is paginated (has count, next, previous, results)
+
     if (data && typeof data === 'object' && 'results' in data && Array.isArray(data.results)) {
-      // Paginated response
       allResults = allResults.concat(data.results);
-      console.log(`Received ${data.results.length} items (Total: ${allResults.length} / ${data.count || 'unknown'})`);
-      
-      // Check if there's a next page
+      console.log(`Got ${data.results.length} items | Total: ${allResults.length} / ${data.count ?? '?'}`);
+
       if (data.next) {
-        // Extract relative URL from the next link
-        // Remove the base URL to get just the path
-        let nextRelativeUrl = data.next;
-        if (nextRelativeUrl.startsWith(API_BASE_URL)) {
-          nextRelativeUrl = nextRelativeUrl.replace(API_BASE_URL, '');
-        } else if (nextRelativeUrl.startsWith('http://') || nextRelativeUrl.startsWith('https://')) {
-          // Full URL, extract the path
-          try {
-            const urlObj = new URL(nextRelativeUrl);
-            nextRelativeUrl = urlObj.pathname + urlObj.search;
-          } catch (e) {
-            console.error('Error parsing next URL:', e);
-            currentUrl = null;
-            break;
-          }
-        }
-        currentUrl = nextRelativeUrl;
-        isFirstRequest = false;
+        nextUrl = data.next;
+        useAbsolute = true;
+        console.log(`Next page URL: ${data.next}`);
       } else {
-        currentUrl = null;
+        nextUrl = null;
+        console.log(`No more pages`);
       }
     } else if (Array.isArray(data)) {
-      // Non-paginated response (direct array)
       allResults = allResults.concat(data);
-      console.log(`Received ${data.length} items (non-paginated)`);
-      currentUrl = null;
+      console.log(`Got ${data.length} items (non-paginated)`);
+      nextUrl = null;
     } else {
-      // Single object response (not paginated)
       allResults.push(data);
-      currentUrl = null;
+      console.log(`Got 1 item (single object)`);
+      nextUrl = null;
     }
   }
-  
-  console.log(`Total items fetched: ${allResults.length}`);
+
+  console.log(`All pages fetched. Total items: ${allResults.length}`);
   return allResults;
+}
+
+/**
+ * Get sleep data
+ * @param {string} userId - Optional user ID
+ * @param {string} fromDate - Optional from date filter (YYYY-MM-DD)
+ * @param {string} toDate - Optional to date filter (YYYY-MM-DD)
+ * @param {string} range - Optional range filter (24h, 7d, 30d)
+ * @returns {Promise<Array>} List of sleep data records
+ */
+export async function getSleepData(userId = null, fromDate = null, toDate = null, range = null) {
+  let url = userId ? `/api/sleep-data/?user_id=${userId}` : '/api/sleep-data/?';
+
+  if (fromDate && toDate) {
+    url = userId 
+      ? `/api/sleep-data/?user_id=${userId}&from=${fromDate}&to=${toDate}`
+      : `/api/sleep-data/?from=${fromDate}&to=${toDate}`;
+    console.log('Fetching sleep data with from/to:', url);
+  }
+  else if (range) {
+    url += `&range=${range}`;
+    console.log('Fetching sleep data with range:', url);
+  }
+  else if (fromDate) {
+    url += `&from=${fromDate}`;
+    if (toDate) {
+      url += `&to=${toDate}`;
+    }
+    console.log('Fetching sleep data with from:', url);
+  }
+  else if (toDate) {
+    url += `&to=${toDate}`;
+    console.log('Fetching sleep data with to:', url);
+  }
+  else {
+    url += `&range=24h`;
+    console.log('Fetching sleep data default 24h:', url);
+  }
+
+  console.log('Sleep data URL:', url);
+  const results = await fetchAllPages(url);
+  console.log(`Total sleep records fetched: ${results.length}`);
+  return results;
+}
+
+/**
+ * Get SpO2/Blood Oxygen data
+ * @param {string} userId - Optional user ID
+ * @param {string} fromDate - Optional from date filter (YYYY-MM-DD)
+ * @param {string} toDate - Optional to date filter (YYYY-MM-DD)
+ * @param {string} range - Optional range filter (24h, 7d, 30d)
+ * @returns {Promise<Array>} List of SpO2 data records
+ */
+export async function getSpO2Data(userId = null, fromDate = null, toDate = null, range = null) {
+  let url = userId ? `/api/Spo2-data/?user_id=${userId}` : '/api/Spo2-data/?';
+
+  if (fromDate && toDate) {
+    url = userId 
+      ? `/api/Spo2-data/?user_id=${userId}&from=${fromDate}&to=${toDate}`
+      : `/api/Spo2-data/?from=${fromDate}&to=${toDate}`;
+    console.log('Fetching SpO2 data with from/to:', url);
+  }
+  else if (range) {
+    url += `&range=${range}`;
+    console.log('Fetching SpO2 data with range:', url);
+  }
+  else if (fromDate) {
+    url += `&from=${fromDate}`;
+    if (toDate) {
+      url += `&to=${toDate}`;
+    }
+    console.log('Fetching SpO2 data with from:', url);
+  }
+  else if (toDate) {
+    url += `&to=${toDate}`;
+    console.log('Fetching SpO2 data with to:', url);
+  }
+  else {
+    url += `&range=24h`;
+    console.log('Fetching SpO2 data default 24h:', url);
+  }
+
+  console.log('SpO2 data URL:', url);
+  const results = await fetchAllPages(url);
+  console.log(`Total SpO2 records fetched: ${results.length}`);
+  return results;
 }
 
 /**
  * Get Heart Rate data
  * @param {string} userId - Optional user ID
- * @param {string} startDate - Optional start date filter (ISO string)
- * @param {string} endDate - Optional end date filter (ISO string)
+ * @param {string} fromDate - Optional from date filter (YYYY-MM-DD)
+ * @param {string} toDate - Optional to date filter (YYYY-MM-DD)
  * @param {string} range - Optional range filter (24h, 7d, 30d)
  * @returns {Promise<Array>} List of Heart Rate data records
  */
-export async function getHeartRateData(userId = null, startDate = null, endDate = null, range = null) {
-  let url = userId ? `/api/HeartRate_Data/?user_id=${userId}` : '/api/HeartRate_Data/?'
-  
-  // Add range filter if provided (prefer range over date filters)
-  if (range) {
-    url += `&range=${range}`
+export async function getHeartRateData(userId = null, fromDate = null, toDate = null, range = null) {
+  let url = userId ? `/api/HeartRate_Data/?user_id=${userId}` : '/api/HeartRate_Data/?';
+
+  if (fromDate && toDate) {
+    url = userId 
+      ? `/api/HeartRate_Data/?user_id=${userId}&from=${fromDate}&to=${toDate}`
+      : `/api/HeartRate_Data/?from=${fromDate}&to=${toDate}`;
+    console.log('Fetching heart rate data with from/to:', url);
   }
-  // Add date range filters if provided (fallback if range not used)
-  else if (startDate) {
-    url += `&start_date=${startDate}`
-    if (endDate) {
-      url += `&end_date=${endDate}`
+  else if (range) {
+    url += `&range=${range}`;
+    console.log('Fetching heart rate data with range:', url);
+  }
+  else if (fromDate) {
+    url += `&from=${fromDate}`;
+    if (toDate) {
+      url += `&to=${toDate}`;
     }
-  } else if (endDate) {
-    url += `&end_date=${endDate}`
-  } else {
-    // Default to 24h if no filters provided
-    url += `&range=24h`
+    console.log('Fetching heart rate data with from:', url);
   }
-  
-  return await fetchAllPages(url)
+  else if (toDate) {
+    url += `&to=${toDate}`;
+    console.log('Fetching heart rate data with to:', url);
+  }
+  else {
+    url += `&range=24h`;
+    console.log('Fetching heart rate data default 24h:', url);
+  }
+
+  console.log('Heart rate data URL:', url);
+  const results = await fetchAllPages(url);
+  console.log(`Total heart rate records fetched: ${results.length}`);
+  return results;
 }
 
 /**
  * Get Blood Pressure data
  * @param {string} userId - Optional user ID
- * @param {string} startDate - Optional start date filter (ISO string)
- * @param {string} endDate - Optional end date filter (ISO string)
+ * @param {string} fromDate - Optional from date filter (YYYY-MM-DD)
+ * @param {string} toDate - Optional to date filter (YYYY-MM-DD)
  * @param {string} range - Optional range filter (24h, 7d, 30d)
  * @returns {Promise<Array>} List of Blood Pressure data records
  */
-export async function getBloodPressureData(userId = null, startDate = null, endDate = null, range = null) {
-  let url = userId ? `/api/BloodPressure_Data/?user_id=${userId}` : '/api/BloodPressure_Data/?'
-  
-  // Add range filter if provided (prefer range over date filters)
-  if (range) {
-    url += `&range=${range}`
+export async function getBloodPressureData(userId = null, fromDate = null, toDate = null, range = null) {
+  let url = userId ? `/api/BloodPressure_Data/?user_id=${userId}` : '/api/BloodPressure_Data/?';
+
+  if (fromDate && toDate) {
+    url = userId 
+      ? `/api/BloodPressure_Data/?user_id=${userId}&from=${fromDate}&to=${toDate}`
+      : `/api/BloodPressure_Data/?from=${fromDate}&to=${toDate}`;
+    console.log('Fetching blood pressure data with from/to:', url);
   }
-  // Add date range filters if provided (fallback if range not used)
-  else if (startDate) {
-    url += `&start_date=${startDate}`
-    if (endDate) {
-      url += `&end_date=${endDate}`
+  else if (range) {
+    url += `&range=${range}`;
+    console.log('Fetching blood pressure data with range:', url);
+  }
+  else if (fromDate) {
+    url += `&from=${fromDate}`;
+    if (toDate) {
+      url += `&to=${toDate}`;
     }
-  } else if (endDate) {
-    url += `&end_date=${endDate}`
+    console.log('Fetching blood pressure data with from:', url);
   }
-  
-  return await fetchAllPages(url)
+  else if (toDate) {
+    url += `&to=${toDate}`;
+    console.log('Fetching blood pressure data with to:', url);
+  }
+  else {
+    url += `&range=24h`;
+    console.log('Fetching blood pressure data default 24h:', url);
+  }
+
+  console.log('Blood pressure data URL:', url);
+  const results = await fetchAllPages(url);
+  console.log(`Total blood pressure records fetched: ${results.length}`);
+  return results;
 }
 
 /**
  * Get Stress data
  * @param {string} userId - Optional user ID
- * @param {string} startDate - Optional start date filter (ISO string)
- * @param {string} endDate - Optional end date filter (ISO string)
+ * @param {string} fromDate - Optional from date filter (YYYY-MM-DD)
+ * @param {string} toDate - Optional to date filter (YYYY-MM-DD)
  * @param {string} range - Optional range filter (24h, 7d, 30d)
  * @returns {Promise<Array>} List of Stress data records
  */
-export async function getStressData(userId = null, startDate = null, endDate = null, range = null) {
-  let url = userId ? `/api/Stress_Data/?user_id=${userId}` : '/api/Stress_Data/?'
-  
-  // Add range filter if provided (prefer range over date filters)
-  if (range) {
-    url += `&range=${range}`
+export async function getStressData(userId = null, fromDate = null, toDate = null, range = null) {
+  let url = userId ? `/api/Stress_Data/?user_id=${userId}` : '/api/Stress_Data/?';
+
+  if (fromDate && toDate) {
+    url = userId 
+      ? `/api/Stress_Data/?user_id=${userId}&from=${fromDate}&to=${toDate}`
+      : `/api/Stress_Data/?from=${fromDate}&to=${toDate}`;
+    console.log('Fetching stress data with from/to:', url);
   }
-  // Add date range filters if provided (fallback if range not used)
-  else if (startDate) {
-    url += `&start_date=${startDate}`
-    if (endDate) {
-      url += `&end_date=${endDate}`
+  else if (range) {
+    url += `&range=${range}`;
+    console.log('Fetching stress data with range:', url);
+  }
+  else if (fromDate) {
+    url += `&from=${fromDate}`;
+    if (toDate) {
+      url += `&to=${toDate}`;
     }
-  } else if (endDate) {
-    url += `&end_date=${endDate}`
-  } else {
-    // Default to 24h if no filters provided
-    url += `&range=24h`
+    console.log('Fetching stress data with from:', url);
   }
-  
-  return await fetchAllPages(url)
+  else if (toDate) {
+    url += `&to=${toDate}`;
+    console.log('Fetching stress data with to:', url);
+  }
+  else {
+    url += `&range=24h`;
+    console.log('Fetching stress data default 24h:', url);
+  }
+
+  console.log('Stress data URL:', url);
+  const results = await fetchAllPages(url);
+  console.log(`Total stress records fetched: ${results.length}`);
+  return results;
 }
 
 /**
  * Get HRV (Heart Rate Variability) data
  * @param {string} userId - Optional user ID
- * @param {string} startDate - Optional start date filter (ISO string)
- * @param {string} endDate - Optional end date filter (ISO string)
+ * @param {string} fromDate - Optional from date filter (YYYY-MM-DD)
+ * @param {string} toDate - Optional to date filter (YYYY-MM-DD)
  * @param {string} range - Optional range filter (24h, 7d, 30d)
  * @returns {Promise<Array>} List of HRV data records
  */
-export async function getHRVData(userId = null, startDate = null, endDate = null, range = null) {
-  let url = userId ? `/api/HRV_Iso_Data/?user_id=${userId}` : '/api/HRV_Iso_Data/?'
-  
-  // Add range filter if provided (prefer range over date filters)
-  if (range) {
-    url += `&range=${range}`
+export async function getHRVData(userId = null, fromDate = null, toDate = null, range = null) {
+  let url = userId ? `/api/HRV_Iso_Data/?user_id=${userId}` : '/api/HRV_Iso_Data/?';
+
+  if (fromDate && toDate) {
+    url = userId 
+      ? `/api/HRV_Iso_Data/?user_id=${userId}&from=${fromDate}&to=${toDate}`
+      : `/api/HRV_Iso_Data/?from=${fromDate}&to=${toDate}`;
+    console.log('Fetching HRV data with from/to:', url);
   }
-  // Add date range filters if provided (fallback if range not used)
-  else if (startDate) {
-    url += `&start_date=${startDate}`
-    if (endDate) {
-      url += `&end_date=${endDate}`
+  else if (range) {
+    url += `&range=${range}`;
+    console.log('Fetching HRV data with range:', url);
+  }
+  else if (fromDate) {
+    url += `&from=${fromDate}`;
+    if (toDate) {
+      url += `&to=${toDate}`;
     }
-  } else if (endDate) {
-    url += `&end_date=${endDate}`
+    console.log('Fetching HRV data with from:', url);
   }
-  
-  return await fetchAllPages(url)
+  else if (toDate) {
+    url += `&to=${toDate}`;
+    console.log('Fetching HRV data with to:', url);
+  }
+  else {
+    url += `&range=24h`;
+    console.log('Fetching HRV data default 24h:', url);
+  }
+
+  console.log('HRV data URL:', url);
+  const results = await fetchAllPages(url);
+  console.log(`Total HRV records fetched: ${results.length}`);
+  return results;
 }
 
 /**
  * Get Steps data
  * @param {string} userId - Optional user ID
- * @param {string} startDate - Optional start date filter (ISO string)
- * @param {string} endDate - Optional end date filter (ISO string)
+ * @param {string} fromDate - Optional from date filter (YYYY-MM-DD)
+ * @param {string} toDate - Optional to date filter (YYYY-MM-DD)
  * @param {string} range - Optional range filter (24h, 7d, 30d)
  * @returns {Promise<Array>} List of Steps data records
  */
-export async function getStepsData(userId = null, startDate = null, endDate = null, range = null) {
+export async function getStepsData(userId = null, fromDate = null, toDate = null, range = null) {
   try {
     let url = '/api/Steps/';
     const params = new URLSearchParams();
-    
+
     if (userId) params.append('user', userId);
-    if (startDate) params.append('start_date', startDate);
-    if (endDate) params.append('end_date', endDate);
-    if (range) params.append('range', range);
     
+    if (fromDate && toDate) {
+      params.append('from', fromDate);
+      params.append('to', toDate);
+    } else if (fromDate) {
+      params.append('from', fromDate);
+    } else if (toDate) {
+      params.append('to', toDate);
+    } else if (range) {
+      params.append('range', range);
+    }
+
     if (params.toString()) {
       url += `?${params.toString()}`;
     }
-    
+
+    console.log('Fetching steps data with URL:', url);
     const response = await apiRequest(url);
-    
+
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       console.error('Error fetching steps data:', error);
       throw new Error(error.detail || 'Failed to fetch steps data');
     }
-    
-    return await response.json();
+
+    const data = await response.json();
+    console.log(`Total steps records fetched: ${data.length || 0}`);
+    return data;
   } catch (error) {
     console.error('Error in getStepsData:', error);
     throw error;
@@ -514,22 +580,23 @@ export async function getDayTotalActivity(userId = null, range = null) {
   try {
     let url = '/api/Day_total_activity/';
     const params = new URLSearchParams();
-    
+
     if (userId) params.append('user_id', userId);
     if (range) params.append('range', range);
-    
+
     if (params.toString()) {
       url += `?${params.toString()}`;
     }
-    
+
+    console.log('Fetching daily activity data with URL:', url);
     const response = await apiRequest(url);
-    
+
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       console.error('Error fetching daily activity data:', error);
       throw new Error(error.detail || 'Failed to fetch daily activity data');
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('Error in getDayTotalActivity:', error);
@@ -545,21 +612,22 @@ export async function getDayTotalActivity(userId = null, range = null) {
 export async function getUserEmailProfile(userId = null) {
   let url = '/api/useremailprofile/';
   const params = new URLSearchParams();
-  
+
   if (userId) params.append('user_id', userId);
-  
+
   if (params.toString()) {
     url += `?${params.toString()}`;
   }
-  
+
+  console.log('Fetching user profile with URL:', url);
   const response = await apiRequest(url);
-  
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     console.error('Error fetching user profile:', error);
     throw new Error(error.detail || 'Failed to fetch user profile');
   }
-  
+
   return await response.json();
 }
 
@@ -569,17 +637,15 @@ export async function getUserEmailProfile(userId = null) {
  */
 export async function logoutUser() {
   try {
-    // Call logout endpoint if available
     await apiRequest('/api/logout/', {
       method: 'POST',
     })
   } catch (error) {
     console.warn('Logout endpoint failed:', error)
   } finally {
-    // Always clear local tokens
     clearTokens()
   }
-} 
+}
 
 export const initializePayment = async (token, invoiceNo, amount) => {
   return await apiRequest('/initialize_payment/', {
@@ -590,4 +656,4 @@ export const initializePayment = async (token, invoiceNo, amount) => {
     },
     body: JSON.stringify({ invoice_no: invoiceNo, amount })
   });
-}; 
+};

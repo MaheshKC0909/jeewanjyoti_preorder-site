@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Activity, Footprints, Flame, Clock, AlertCircle, RefreshCw } from 'lucide-react';
+import { Activity, Footprints, Flame, Clock, AlertCircle, RefreshCw, Calendar, Eye, EyeOff } from 'lucide-react';
 import { getDayTotalActivity } from '../lib/api';
 
 // Utility function to calculate the dash offset for a given percentage and circumference
@@ -7,14 +7,16 @@ const calculateOffset = (percentage, circumference) => {
     return circumference - (percentage / 100) * circumference;
 };
 
-const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserId }) => {
+const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserId, dateRange }) => {
     const [activityData, setActivityData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [showDetails, setShowDetails] = useState(false);
 
-    // Cache and debouncing refs
+    // Cache and refs
     const cacheRef = useRef(new Map());
-    const debounceRef = useRef(null);
+    const abortControllerRef = useRef(null);
+    const isMountedRef = useRef(true);
 
     // Chart configuration
     const size = 280;
@@ -39,109 +41,193 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
 
     const icons = [Activity, Footprints, Flame, Clock];
 
-    // Fetch daily activity data from API with caching and debouncing
+    // Format date for API (YYYY-MM-DD)
+    const formatDateForAPI = (date) => {
+        if (!date) return null;
+        if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return date;
+        }
+        const d = new Date(date);
+        return d.toISOString().split('T')[0];
+    };
+
+    // Fetch daily activity data from API
     const fetchActivityData = useCallback(async () => {
-        // Clear previous debounce timeout
-        if (debounceRef.current) {
-            clearTimeout(debounceRef.current);
+        // Cancel previous request if it exists
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
         }
 
-        // Debounce the fetch to prevent rapid API calls
-        debounceRef.current = setTimeout(async () => {
-            try {
-                // Create a cache key that includes the current date
-                const today = new Date().toISOString().split('T')[0];
-                const cacheKey = `activity-${selectedUserId || 'default'}-${today}`;
+        // Create new abort controller for this request
+        abortControllerRef.current = new AbortController();
 
-                // Check cache first
-                if (cacheRef.current.has(cacheKey)) {
-                    const cachedData = cacheRef.current.get(cacheKey);
-                    console.log('Using cached activity data:', cachedData);
-                    setActivityData(cachedData);
-                    if (onActivityDataUpdate) {
-                        onActivityDataUpdate(cachedData);
+        try {
+            setLoading(true);
+            setError(null);
+
+            let fromDate = null;
+            let toDate = null;
+            let range = null;
+            let cacheKey;
+
+            // Determine API parameters based on date range
+            if (dateRange?.customRange && dateRange.from && dateRange.to) {
+                // Custom date range - use from/to parameters
+                fromDate = formatDateForAPI(dateRange.from);
+                toDate = formatDateForAPI(dateRange.to);
+                cacheKey = `activity-${selectedUserId || 'default'}-${fromDate}-${toDate}`;
+                console.log('Fetching activity data for custom range:', { fromDate, toDate });
+            } else {
+                // Use range parameter for predefined periods
+                if (dateRange?.period === 'today') {
+                    range = '24h';
+                } else if (dateRange?.period === 'week') {
+                    range = '7d';
+                } else if (dateRange?.period === 'month') {
+                    range = '30d';
+                } else {
+                    range = '24h'; // default
+                }
+                cacheKey = `activity-${selectedUserId || 'default'}-${range}`;
+                console.log('Fetching activity data with range:', range);
+            }
+
+            // Check cache first (5 minutes max)
+            if (cacheRef.current.has(cacheKey)) {
+                const cachedData = cacheRef.current.get(cacheKey);
+                const cacheTime = cachedData.timestamp;
+                const now = Date.now();
+
+                if (now - cacheTime < 5 * 60 * 1000) {
+                    console.log('Using cached activity data:', cachedData.data);
+                    if (isMountedRef.current) {
+                        setActivityData(cachedData.data);
+                        if (onActivityDataUpdate) {
+                            onActivityDataUpdate(cachedData.data);
+                        }
+                        setLoading(false);
                     }
-                    setLoading(false);
                     return;
                 }
+            }
 
-                setLoading(true);
-                setError(null);
+            console.log('Making API call with params:', {
+                userId: selectedUserId,
+                fromDate,
+                toDate,
+                range
+            });
 
-                console.log('Fetching daily activity data for user:', selectedUserId || 'self');
+            // Fetch daily activity data
+            const response = await getDayTotalActivity(selectedUserId, range);
 
-                // Fetch daily activity data with 24h range
-                const response = await getDayTotalActivity(selectedUserId, '24h');
+            // Check if component is still mounted and request wasn't aborted
+            if (!isMountedRef.current || abortControllerRef.current.signal.aborted) {
+                console.log('Component unmounted or request aborted');
+                return;
+            }
 
-                console.log('=== Activity API Response ===');
-                console.log('Full response:', response);
-                console.log('Total results:', response.results?.length);
+            console.log('Activity API Response:', response);
 
-                if (!response.results || response.results.length === 0) {
-                    throw new Error('No activity data available');
+            let processedData = null;
+
+            if (response && response.results && response.results.length > 0) {
+                // Filter data based on date range if custom range is active
+                let dataToProcess = response.results;
+
+                if (dateRange?.customRange && fromDate && toDate) {
+                    // Filter results to only include dates within the custom range
+                    dataToProcess = response.results.filter(item => {
+                        const itemDate = item.date;
+                        return itemDate >= fromDate && itemDate <= toDate;
+                    });
+                    console.log(`Filtered to ${dataToProcess.length} records within custom range`);
                 }
 
-                // Get today's date in YYYY-MM-DD format
-                console.log('Today\'s date:', today);
-                console.log('All dates in response:', response.results.map(r => r.date));
+                if (dataToProcess.length > 0) {
+                    // Sort by date (oldest to newest)
+                    const sortedData = dataToProcess.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-                // Filter for today's data
-                const todayData = response.results.filter(item => item.date === today);
-                console.log('Today\'s data count:', todayData.length);
-                console.log('Today\'s data:', todayData);
+                    // Get the latest data point
+                    const latestData = sortedData[sortedData.length - 1];
 
-                // If no data for today, use all results
-                const dataToProcess = todayData.length > 0 ? todayData : response.results;
+                    // Sum up calories for the period
+                    const totalCalories = sortedData.reduce((sum, item) => sum + (item.calories || 0), 0);
 
-                // Get the LAST item in the array (most recent based on API order)
-                const latestData = dataToProcess[dataToProcess.length - 1];
+                    // Sum up steps for the period
+                    const totalSteps = sortedData.reduce((sum, item) => sum + (item.step || 0), 0);
 
-                console.log('Latest data selected:', latestData);
+                    // Calculate average distance per day
+                    const avgDistance = sortedData.reduce((sum, item) => sum + (item.distance || 0), 0) / sortedData.length;
 
-                if (!latestData) {
-                    throw new Error('No valid activity data found');
+                    // Calculate total exercise minutes
+                    const totalExerciseMinutes = sortedData.reduce((sum, item) => sum + (item.exercise_minutes || 0), 0);
+
+                    console.log('=== Processed Activity Data ===');
+                    console.log('Records count:', sortedData.length);
+                    console.log('Date range:', {
+                        first: sortedData[0].date,
+                        last: sortedData[sortedData.length - 1].date
+                    });
+                    console.log('Total steps:', totalSteps);
+                    console.log('Total calories:', totalCalories);
+                    console.log('Avg distance:', avgDistance.toFixed(2));
+                    console.log('Total exercise minutes:', totalExerciseMinutes);
+
+                    // Create a combined data object
+                    processedData = {
+                        ...latestData,
+                        calories: totalCalories,
+                        step: totalSteps,
+                        distance: avgDistance,
+                        exercise_minutes: totalExerciseMinutes,
+                        recordCount: sortedData.length,
+                        dateRange: {
+                            from: sortedData[0].date,
+                            to: sortedData[sortedData.length - 1].date
+                        }
+                    };
                 }
+            }
 
-                // Sum up all calories for the day (since calories can be recorded at different times)
-                const totalCalories = dataToProcess.reduce((sum, item) => sum + (item.calories || 0), 0);
+            // Cache the results
+            cacheRef.current.set(cacheKey, {
+                data: processedData,
+                timestamp: Date.now()
+            });
 
-                console.log('=== Calories Calculation ===');
-                console.log('Total calories (summed):', totalCalories);
-                console.log('Individual calories:', dataToProcess.map(d => ({ date: d.date, calories: d.calories })));
-
-                // Create a combined data object with latest values for most fields and summed calories
-                const processedData = {
-                    ...latestData,
-                    calories: totalCalories > 0 ? totalCalories : latestData.calories
-                };
-
-                console.log('=== Processed Activity Data ===');
-                console.log('Steps:', processedData.step);
-                console.log('Distance:', processedData.distance);
-                console.log('Calories (summed):', processedData.calories);
-                console.log('Exercise time:', processedData.exercise_time);
-
-                // Cache the results with today's date
-                cacheRef.current.set(cacheKey, processedData);
-
+            if (isMountedRef.current) {
                 setActivityData(processedData);
-
-                // Notify parent component about activity data update
                 if (onActivityDataUpdate) {
                     onActivityDataUpdate(processedData);
                 }
-            } catch (err) {
-                console.error('Error fetching activity data:', err);
+            }
+        } catch (err) {
+            if (err.name === 'AbortError' || err.code === 'ERR_CANCELED' || !isMountedRef.current) {
+                return;
+            }
+            console.error('Error fetching activity data:', err);
+            if (isMountedRef.current) {
                 setError('Failed to load activity data');
-            } finally {
+            }
+        } finally {
+            if (isMountedRef.current && !abortControllerRef.current?.signal.aborted) {
                 setLoading(false);
             }
-        }, 300); // 300ms debounce
-    }, [selectedUserId, onActivityDataUpdate]);
+        }
+    }, [selectedUserId, onActivityDataUpdate, dateRange]);
 
     useEffect(() => {
+        isMountedRef.current = true;
         fetchActivityData();
-    }, [fetchActivityData, selectedUserId]);
+
+        return () => {
+            isMountedRef.current = false;
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
+        };
+    }, [fetchActivityData]);
 
     // Transform activity data to chart format
     const getChartData = () => {
@@ -179,11 +265,14 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
             ];
         }
 
-        // Calculate percentages based on goals
-        const stepsPercentage = Math.min(Math.round((activityData.step / 10000) * 100), 100);
-        const distancePercentage = Math.min(Math.round((activityData.distance / 5) * 100), 100);
-        const caloriesPercentage = Math.min(Math.round((activityData.calories / 500) * 100), 100);
-        const exercisePercentage = Math.min(Math.round((activityData.exercise_minutes / 60) * 100), 100);
+        // Calculate percentages based on goals (daily goals)
+        // For multi-day periods, we adjust goals proportionally
+        const daysMultiplier = activityData.recordCount || 1;
+
+        const stepsPercentage = Math.min(Math.round((activityData.step / (10000 * daysMultiplier)) * 100), 100);
+        const distancePercentage = Math.min(Math.round((activityData.distance * daysMultiplier / 5) * 100), 100);
+        const caloriesPercentage = Math.min(Math.round((activityData.calories / (500 * daysMultiplier)) * 100), 100);
+        const exercisePercentage = Math.min(Math.round((activityData.exercise_minutes / (60 * daysMultiplier)) * 100), 100);
 
         return [
             {
@@ -191,37 +280,63 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
                 percentage: stepsPercentage,
                 value: activityData.step.toLocaleString(),
                 label: 'Steps',
-                goal: '10,000 steps'
+                goal: `${(10000 * daysMultiplier).toLocaleString()} steps`
             },
             {
                 id: 2,
                 percentage: distancePercentage,
                 value: `${activityData.distance.toFixed(2)} km`,
                 label: 'Distance',
-                goal: '5 km'
+                goal: `${(5 * daysMultiplier).toFixed(1)} km`
             },
             {
                 id: 3,
                 percentage: caloriesPercentage,
-                value: Math.round(activityData.calories),
+                value: Math.round(activityData.calories).toLocaleString(),
                 label: 'Calories',
-                goal: '500 cal'
+                goal: `${(500 * daysMultiplier).toLocaleString()} cal`
             },
             {
                 id: 4,
                 percentage: exercisePercentage,
                 value: `${activityData.exercise_minutes} min`,
                 label: 'Exercise',
-                goal: '60 min'
+                goal: `${(60 * daysMultiplier)} min`
             },
         ];
+    };
+
+    // Format date range for display
+    const getDateRangeDisplay = () => {
+        if (!activityData || !activityData.dateRange) {
+            const today = new Date();
+            return today.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+
+        const fromDate = new Date(activityData.dateRange.from);
+        const toDate = new Date(activityData.dateRange.to);
+
+        if (fromDate.toDateString() === toDate.toDateString()) {
+            return fromDate.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+
+        return `${fromDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${toDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
     };
 
     // Loading state
     if (loading) {
         return (
-            <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-                }`}>
+            <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
                 <div className="flex items-center justify-center h-64">
                     <div className="text-center">
                         <RefreshCw className="w-8 h-8 animate-spin text-green-500 mx-auto mb-4" />
@@ -237,8 +352,7 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
     // Error state
     if (error) {
         return (
-            <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-                }`}>
+            <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
                 <div className="flex items-center justify-center h-64">
                     <div className="text-center">
                         <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
@@ -260,28 +374,51 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
     const chartData = getChartData();
 
     return (
-        <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-            }`}>
-            {/* Header */}
-            <div className="mb-6">
-                <h3 className={`font-semibold text-base md:text-lg ${darkMode ? 'text-gray-200' : 'text-gray-800'
-                    }`}>
-                    Activity Summary
-                </h3>
-                <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    {activityData?.date &&
-                        new Date(activityData.date).toLocaleDateString('en-US', {
-                            weekday: 'long',
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                        })
-                    }
-                </p></div>
+        <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+            {/* Header - Matches other components */}
+            <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                    <div className="p-3 md:p-4 rounded-xl bg-green-500 bg-opacity-20 shadow-lg">
+                        <Activity className="w-6 h-6 md:w-8 md:h-8 text-green-500" />
+                    </div>
+                    <div>
+                        <h3 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                            Activity Summary
+                        </h3>
+                        <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {getDateRangeDisplay()}
+                        </p>
+                        {dateRange?.customRange && dateRange.from && dateRange.to && (
+                            <div className="flex items-center gap-1 mt-1">
+                                <Calendar className="w-3 h-3 text-green-500" />
+                                <span className={`text-xs ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
+                                    Custom Range
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="text-right">
+                        <div className={`text-xl md:text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {activityData ? `${Math.round(chartData.reduce((acc, item) => acc + item.percentage, 0) / chartData.length)}%` : '0%'}
+                        </div>
+                        <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            Overall
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setShowDetails(!showDetails)}
+                        className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                    >
+                        {showDetails ? <EyeOff className="w-5 h-5 text-gray-500" /> : <Eye className="w-5 h-5 text-gray-500" />}
+                    </button>
+                </div>
+            </div>
 
-
+            {/* Main Content */}
             <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
-                {/* Chart */}
+                {/* Chart - Center area left empty as requested */}
                 <div className="relative flex-shrink-0">
                     <svg
                         width={size}
@@ -314,17 +451,7 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
                         })}
                     </svg>
 
-                    {/* Center Score */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <div className={`text-3xl md:text-4xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'
-                            }`}>
-                            {Math.round(chartData.reduce((acc, item) => acc + item.percentage, 0) / chartData.length)}%
-                        </div>
-                        <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'
-                            }`}>
-                            Overall
-                        </div>
-                    </div>
+                    {/* Center area intentionally left empty - no text */}
                 </div>
 
                 {/* Stats Cards */}
@@ -335,21 +462,19 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
                             <div
                                 key={item.id}
                                 className={`rounded-lg md:rounded-xl p-4 md:p-5 border transition-all hover:shadow-md ${darkMode
-                                        ? 'bg-gray-700 border-gray-600 hover:bg-gray-650'
-                                        : 'bg-gradient-to-br from-gray-50 to-white border-gray-100 hover:border-gray-200'
+                                    ? 'bg-gray-700 border-gray-600 hover:bg-gray-650'
+                                    : 'bg-gradient-to-br from-gray-50 to-white border-gray-100 hover:border-gray-200'
                                     }`}
                             >
                                 <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
                                     <div className={`p-2 rounded-lg ${colors[index].replace('text-', 'bg-')}/20`}>
                                         <Icon className={`w-4 h-4 md:w-5 md:h-5 ${colors[index]}`} />
                                     </div>
-                                    <span className={`text-xs md:text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'
-                                        }`}>
+                                    <span className={`text-xs md:text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                                         {item.label}
                                     </span>
                                 </div>
-                                <p className={`text-xl md:text-2xl font-bold mb-1 ${darkMode ? 'text-white' : 'text-gray-900'
-                                    }`}>
+                                <p className={`text-xl md:text-2xl font-bold mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                                     {item.value}
                                 </p>
                                 <div className="flex items-center gap-2">
@@ -359,13 +484,11 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
                                             style={{ width: `${item.percentage}%` }}
                                         />
                                     </div>
-                                    <span className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'
-                                        }`}>
+                                    <span className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                                         {item.percentage}%
                                     </span>
                                 </div>
-                                <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'
-                                    }`}>
+                                <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                                     Goal: {item.goal}
                                 </p>
                             </div>
@@ -373,6 +496,38 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
                     })}
                 </div>
             </div>
+
+            {/* Detailed View - Shows additional info when expanded */}
+            {showDetails && activityData && (
+                <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Days Tracked</div>
+                            <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                {activityData.recordCount || 1}
+                            </div>
+                        </div>
+                        <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Avg Daily Steps</div>
+                            <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                {Math.round(activityData.step / (activityData.recordCount || 1)).toLocaleString()}
+                            </div>
+                        </div>
+                        <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Calories</div>
+                            <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                {Math.round(activityData.calories).toLocaleString()}
+                            </div>
+                        </div>
+                        <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Minutes</div>
+                            <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                {activityData.exercise_minutes}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

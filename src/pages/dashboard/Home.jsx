@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Heart, Moon, Activity, Zap, Brain, Gauge, Target, TrendingUp, Clock, Droplets, Thermometer, BarChart3, PieChart as PieChartIcon, LineChart as LineChartIcon, Activity as ActivityIcon } from 'lucide-react';
+import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { Heart, Moon, Activity, Brain, Calendar, TrendingUp, Droplets } from 'lucide-react';
 import SleepDataComponent from '../../components/SleepDataComponent';
 import SpO2DataComponent from '../../components/SpO2DataComponent';
 import HeartRateDataComponent from '../../components/HeartRateDataComponent';
 import ActivitySummary from '../../components/ActivitySummary';
-import { getBloodPressureData, getStressData, getHRVData } from '../../lib/api';
+import StressDataComponent from '../../components/StressDataComponent';
+import HRVDataComponent from '../../components/HRVDataComponent';
+import BloodPressureDataComponent from '../../components/BloodPressureDataComponent';
+import DateRangePicker from '../../components/DateRangePicker';
 
 const HomeTab = ({ darkMode, selectedPeriod = 'today', setSelectedPeriod, selectedUserId, selectedUserInfo }) => {
+  // State for all health data
   const [sleepData, setSleepData] = useState(null);
   const [spo2Data, setSpO2Data] = useState(null);
   const [heartRateData, setHeartRateData] = useState(null);
@@ -16,17 +20,26 @@ const HomeTab = ({ darkMode, selectedPeriod = 'today', setSelectedPeriod, select
   const [stressApiData, setStressApiData] = useState(null);
   const [hrvApiData, setHrvApiData] = useState(null);
 
-  // Cache and debouncing refs
-  const cacheRef = useRef(new Map());
-  const debounceRef = useRef(null);
+  // State for date filtering
+  const [dateRange, setDateRange] = useState({
+    from: null,
+    to: null,
+    customRange: false,
+    period: selectedPeriod
+  });
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('today');
 
-  // Calculate sleep score based on data (same as SleepDataComponent)
+  // Cache ref
+  const cacheRef = useRef(new Map());
+
+  // Calculate sleep score based on data
   const calculateSleepScore = (data) => {
     if (!data) return 0;
 
     let score = 0;
 
-    // Duration score (optimal: 7-9 hours)
     const duration = data.duration;
     if (duration >= 7 && duration <= 9) {
       score += 30;
@@ -36,7 +49,6 @@ const HomeTab = ({ darkMode, selectedPeriod = 'today', setSelectedPeriod, select
       score += 10;
     }
 
-    // Deep sleep percentage (optimal: 15-20%)
     const deepSleep = data.deep_sleep_percentage;
     if (deepSleep >= 15 && deepSleep <= 20) {
       score += 25;
@@ -46,7 +58,6 @@ const HomeTab = ({ darkMode, selectedPeriod = 'today', setSelectedPeriod, select
       score += 5;
     }
 
-    // Light sleep percentage (optimal: 45-55%)
     const lightSleep = data.light_sleep_percentage;
     if (lightSleep >= 45 && lightSleep <= 55) {
       score += 25;
@@ -56,7 +67,6 @@ const HomeTab = ({ darkMode, selectedPeriod = 'today', setSelectedPeriod, select
       score += 5;
     }
 
-    // Awake percentage (optimal: <5%)
     const awake = data.awake_percentage;
     if (awake < 5) {
       score += 20;
@@ -69,111 +79,63 @@ const HomeTab = ({ darkMode, selectedPeriod = 'today', setSelectedPeriod, select
     return Math.min(score, 100);
   };
 
-  // Helper function to get data time range
-  const getDataTimeRange = (data) => {
-    if (!data || data.length === 0) return 'No data available';
-
-    const now = new Date();
-    const oldestDate = new Date(data[0].date);
-    const hoursDiff = Math.floor((now - oldestDate) / (1000 * 60 * 60));
-
-    if (hoursDiff < 1) return 'Last hour';
-    if (hoursDiff === 1) return 'Last 1 hour';
-    if (hoursDiff < 24) return `Last ${hoursDiff} hours`;
-    return 'Last 24+ hours';
+  // Format date for API (YYYY-MM-DD)
+  const formatDateForAPI = (date) => {
+    if (!date) return null;
+    const d = new Date(date);
+    return d.toISOString().split('T')[0];
   };
 
-  // Fetch health data with caching and debouncing
-  const fetchHealthData = useCallback(async () => {
-    // Clear previous debounce timeout
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
+  // Handle filter change
+  const handleFilterChange = (filterType) => {
+    setActiveFilter(filterType);
+    
+    if (filterType === 'custom') {
+      setShowDatePicker(true);
+      setDateRange(prev => ({ 
+        ...prev, 
+        customRange: true,
+        period: filterType 
+      }));
+    } else {
+      setShowDatePicker(false);
+      setDateRange({ 
+        from: null, 
+        to: null, 
+        customRange: false,
+        period: filterType 
+      });
+      setSelectedPeriod(filterType);
     }
+  };
 
-    // Debounce the fetch to prevent rapid API calls
-    debounceRef.current = setTimeout(async () => {
-      try {
-        console.log('fetchHealthData called with selectedUserId:', selectedUserId);
+  // Handle custom date range selection
+  const handleDateRangeApply = (from, to) => {
+    const newDateRange = {
+      from: formatDateForAPI(from),
+      to: formatDateForAPI(to),
+      customRange: true,
+      period: 'custom'
+    };
+    setDateRange(newDateRange);
+    setShowDatePicker(false);
+  };
 
-        // Map selectedPeriod to range values
-        let range = '24h'; // default
-        if (selectedPeriod === 'today') {
-          range = '24h';
-        } else if (selectedPeriod === 'week') {
-          range = '7d';
-        } else if (selectedPeriod === 'month') {
-          range = '30d';
-        }
+  // Clear custom date filter
+  const handleClearFilter = () => {
+    setActiveFilter('today');
+    setDateRange({ 
+      from: null, 
+      to: null, 
+      customRange: false,
+      period: 'today'
+    });
+    setSelectedPeriod('today');
+    setShowDatePicker(false);
+  };
 
-        // Check cache first
-        const cacheKey = `${selectedUserId || 'null'}-${range}-${new Date().toDateString()}`;
-        console.log('Cache key:', cacheKey);
-        if (cacheRef.current.has(cacheKey)) {
-          const cachedData = cacheRef.current.get(cacheKey);
-          setBloodPressureData(cachedData.bloodPressure);
-          setStressApiData(cachedData.stress);
-          setHrvApiData(cachedData.hrv);
-          console.log('Using cached data');
-          return;
-        }
-
-        console.log('Fetching data with range:', {
-          selectedUserId,
-          range,
-          selectedPeriod
-        });
-
-        const [bloodPressureDataResult, stressDataResult, hrvDataResult] = await Promise.all([
-          getBloodPressureData(selectedUserId, null, null, range),
-          getStressData(selectedUserId, null, null, range),
-          getHRVData(selectedUserId, null, null, range)
-        ]);
-
-        console.log('API results:', {
-          bloodPressureData: bloodPressureDataResult?.length || 0,
-          stressData: stressDataResult?.length || 0,
-          hrvData: hrvDataResult?.length || 0
-        });
-
-        // Log data availability
-        console.log('Blood Pressure data points:', bloodPressureDataResult?.length || 0);
-        console.log('Stress data points:', stressDataResult?.length || 0);
-        console.log('HRV data points:', hrvDataResult?.length || 0);
-
-        // Cache the results
-        const healthData = {
-          bloodPressure: bloodPressureDataResult,
-          stress: stressDataResult,
-          hrv: hrvDataResult
-        };
-
-        cacheRef.current.set(cacheKey, healthData);
-
-        // Update state
-        setBloodPressureData(bloodPressureDataResult);
-        setStressApiData(stressDataResult);
-        setHrvApiData(hrvDataResult);
-      } catch (error) {
-        console.error('Error fetching health data:', error);
-      }
-    }, 300); // 300ms debounce
-  }, [selectedUserId, selectedPeriod]);
-
-  useEffect(() => {
-    fetchHealthData();
-  }, [fetchHealthData]);
-
-  // Sample data for different metrics
-
-  const bloodOxygenData = [
-    { time: '6AM', value: 98 },
-    { time: '10AM', value: 97 },
-    { time: '2PM', value: 98 },
-    { time: '6PM', value: 97 },
-    { time: '10PM', value: 98 }
-  ];
-
-  const stressData = [
+  // Stress data for fallback chart
+  const fallbackStressData = [
     { time: '8AM', level: 25 },
     { time: '10AM', level: 45 },
     { time: '12PM', level: 65 },
@@ -183,51 +145,10 @@ const HomeTab = ({ darkMode, selectedPeriod = 'today', setSelectedPeriod, select
     { time: '8PM', level: 20 }
   ];
 
-  const MetricCard = ({ icon: Icon, title, value, unit, trend, color, chartType, children }) => (
-    <div className={`rounded-2xl p-4 md:p-6 shadow-lg transition-all duration-300 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-      }`}>
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className={`p-3 md:p-4 rounded-xl ${color} bg-opacity-20 shadow-lg`}>
-            <Icon className={`w-6 h-6 md:w-8 md:h-8 ${color.replace('bg-', 'text-')}`} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>{title}</h3>
-              {chartType && (
-                <div className={`p-1 rounded-md ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                  {chartType === 'area' && <AreaChart className="w-3 h-3 text-gray-500" />}
-                  {chartType === 'line' && <LineChartIcon className="w-3 h-3 text-gray-500" />}
-                  {chartType === 'bar' && <BarChart3 className="w-3 h-3 text-gray-500" />}
-                  {chartType === 'pie' && <PieChartIcon className="w-3 h-3 text-gray-500" />}
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`text-xl md:text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{value}</span>
-              <span className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{unit}</span>
-            </div>
-          </div>
-        </div>
-        {trend && (
-          <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs md:text-sm ${trend.includes('+') || trend === 'Normal' || trend === 'Excellent' || trend === 'Improving' || trend === 'Good Recovery'
-            ? 'text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400'
-            : 'text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400'
-            }`}>
-            <TrendingUp className="w-3 h-3 md:w-4 md:h-4" />
-            {trend}
-          </div>
-        )}
-      </div>
-      {children}
-    </div>
-  );
-
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
-        <div className={`p-3 border rounded-lg shadow-lg ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-          }`}>
+        <div className={`p-3 border rounded-lg shadow-lg ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
           <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{label}</p>
           <p className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
             {payload[0].value} {payload[0].unit || ''}
@@ -240,12 +161,12 @@ const HomeTab = ({ darkMode, selectedPeriod = 'today', setSelectedPeriod, select
 
   return (
     <div>
-      {/* User Header */}
-      {selectedUserInfo && (
-        <div className={`rounded-2xl p-4 md:p-6 mb-6 md:mb-8 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-          }`}>
+      {/* User Header with Filters */}
+      <div className={`rounded-2xl p-4 md:p-6 mb-6 md:mb-8 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* User Info */}
           <div className="flex items-center gap-4">
-            {selectedUserInfo.profileImage && (
+            {selectedUserInfo?.profileImage && (
               <img
                 src={selectedUserInfo.profileImage}
                 alt={selectedUserInfo.name}
@@ -256,17 +177,98 @@ const HomeTab = ({ darkMode, selectedPeriod = 'today', setSelectedPeriod, select
               />
             )}
             <div>
-              <h2 className={`text-xl md:text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'
-                }`}>
-                {selectedUserInfo.name}'s Health Dashboard
+              <h2 className={`text-xl md:text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                {selectedUserInfo?.name}'s Health Dashboard
               </h2>
-              <p className={`text-sm md:text-base ${darkMode ? 'text-gray-400' : 'text-gray-600'
-                }`}>
-                Viewing health data for {selectedUserInfo.fullName}
+              <p className={`text-sm md:text-base ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Viewing health data for {selectedUserInfo?.fullName}
               </p>
+              {dateRange.customRange && dateRange.from && dateRange.to && (
+                <p className={`text-xs mt-1 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                  Filtering: {dateRange.from} to {dateRange.to}
+                </p>
+              )}
             </div>
           </div>
+
+          {/* Filter Controls */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+              <button
+                onClick={() => handleFilterChange('today')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  activeFilter === 'today'
+                    ? 'bg-blue-500 text-white'
+                    : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Today
+              </button>
+              <button
+                onClick={() => handleFilterChange('week')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  activeFilter === 'week'
+                    ? 'bg-blue-500 text-white'
+                    : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Week
+              </button>
+              <button
+                onClick={() => handleFilterChange('month')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  activeFilter === 'month'
+                    ? 'bg-blue-500 text-white'
+                    : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Month
+              </button>
+              <button
+                onClick={() => handleFilterChange('custom')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1 ${
+                  activeFilter === 'custom'
+                    ? 'bg-blue-500 text-white'
+                    : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Calendar className="w-4 h-4" />
+                Custom
+              </button>
+            </div>
+
+            {dateRange.customRange && (
+              <button
+                onClick={handleClearFilter}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                  darkMode
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
+                    : 'bg-gray-200 text-gray-600 hover:bg-gray-300 hover:text-gray-900'
+                }`}
+              >
+                Clear Filter
+              </button>
+            )}
+
+            {isLoading && (
+              <div className="flex items-center gap-2 px-3 py-1.5">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Loading...
+                </span>
+              </div>
+            )}
+          </div>
         </div>
+      </div>
+
+      {/* Date Range Picker Modal */}
+      {showDatePicker && (
+        <DateRangePicker
+          darkMode={darkMode}
+          onApply={handleDateRangeApply}
+          onClose={() => setShowDatePicker(false)}
+        />
       )}
 
       {/* Quick Stats */}
@@ -340,284 +342,89 @@ const HomeTab = ({ darkMode, selectedPeriod = 'today', setSelectedPeriod, select
         </div>
       </div>
 
-      {/* Main Metrics Grid */}
+      {/* Main Metrics Grid - Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 mb-6 md:mb-8">
-        {/* Heart Rate */}
         <HeartRateDataComponent
           darkMode={darkMode}
           onHeartRateDataUpdate={setHeartRateData}
           selectedUserId={selectedUserId}
+          dateRange={dateRange}
         />
 
-        {/* Blood Oxygen */}
         <SpO2DataComponent
           darkMode={darkMode}
           onSpO2DataUpdate={setSpO2Data}
           selectedUserId={selectedUserId}
+          dateRange={dateRange}
         />
       </div>
 
-      {/* Sleep and Activity Row */}
+      {/* Main Metrics Grid - Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 mb-6 md:mb-8">
-        {/* Sleep Analysis */}
         <SleepDataComponent
           darkMode={darkMode}
           onSleepDataUpdate={setSleepData}
           selectedUserId={selectedUserId}
+          dateRange={dateRange}
         />
 
-        {/* Activity Tracking */}
         <ActivitySummary
           darkMode={darkMode}
           onActivityDataUpdate={setStepsData}
           selectedUserId={selectedUserId}
+          dateRange={dateRange}
         />
       </div>
 
-      {/* Stress and HRV Row */}
+      {/* Main Metrics Grid - Row 3 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 mb-6 md:mb-8">
-        {/* Stress Level */}
-        <MetricCard
-          icon={Brain}
-          title="Stress Level"
-          value={stressApiData && stressApiData.length > 0
-            ? stressApiData[stressApiData.length - 1].stress
-            : '32'
-          }
-          unit={stressApiData && stressApiData.length > 0
-            ? (() => {
-              const stress = stressApiData[stressApiData.length - 1].stress;
-              if (stress < 30) return 'Low';
-              if (stress < 60) return 'Moderate';
-              return 'High';
-            })()
-            : 'Low'
-          }
-          trend={stressApiData && stressApiData.length > 0
-            ? (() => {
-              const stress = stressApiData[stressApiData.length - 1].stress;
-              if (stress < 30) return 'Excellent';
-              if (stress < 60) return 'Good';
-              return 'High';
-            })()
-            : 'Improving'
-          }
-          color="bg-purple-500"
-          chartType="area"
-        >
-          <div className="mb-2">
-            <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-              {stressApiData && stressApiData.length > 0
-                ? `Showing ${stressApiData.length} data point${stressApiData.length !== 1 ? 's' : ''} • ${getDataTimeRange(stressApiData)}`
-                : 'No data available'
-              }
-            </span>
-          </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={stressApiData && stressApiData.length > 0
-              ? stressApiData.map(item => ({
-                time: new Date(item.date).toLocaleTimeString('en-US', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  hour12: true
-                }),
-                level: item.stress
-              }))
-              : stressData
-            }>
-              {darkMode ? (
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false} vertical={false} />
-              ) : (
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              )}
-              <XAxis
-                dataKey="time"
-                stroke={darkMode ? "#9CA3AF" : "#666"}
-                axisLine
-                tickLine
-              />
-              <YAxis
-                domain={[0, 100]}
-                stroke={darkMode ? "#9CA3AF" : "#666"}
-                axisLine
-                tickLine
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Area
-                type="monotone"
-                dataKey="level"
-                stroke="#8b5cf6"
-                fill="#8b5cf6"
-                fillOpacity={0.2}
-                strokeWidth={3}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </MetricCard>
+        <StressDataComponent
+          darkMode={darkMode}
+          onStressDataUpdate={setStressApiData}
+          selectedUserId={selectedUserId}
+          dateRange={dateRange}
+        />
 
-        {/* Blood Pressure & HRV */}
         <div className="space-y-4 md:space-y-6">
-          <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-            }`}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 md:p-4 rounded-xl bg-orange-500 bg-opacity-20 shadow-lg">
-                <Thermometer className="w-6 h-6 md:w-8 md:h-8 text-orange-500" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>Blood Pressure</h3>
-                  <div className={`p-1 rounded-md ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                    <Gauge className="w-3 h-3 text-gray-500" />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-lg md:text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {bloodPressureData && bloodPressureData.length > 0
-                      ? `${bloodPressureData[bloodPressureData.length - 1].sbp}/${bloodPressureData[bloodPressureData.length - 1].dbp}`
-                      : '120/80'
-                    }
-                  </span>
-                  <span className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>mmHg</span>
-                </div>
-                {bloodPressureData && bloodPressureData.length > 0 && (
-                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'} mt-1`}>
-                    {new Date(bloodPressureData[bloodPressureData.length - 1].date).toLocaleDateString()} • {new Date(bloodPressureData[bloodPressureData.length - 1].date).toLocaleTimeString('en-US', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: true
-                    })}
-                  </div>
-                )}
-                {(!bloodPressureData || bloodPressureData.length === 0) && (
-                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'} mt-1`}>
-                    No data available
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className={`px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium ${bloodPressureData && bloodPressureData.length > 0
-                ? (() => {
-                  const latest = bloodPressureData[bloodPressureData.length - 1];
-                  const sbp = latest.sbp;
-                  const dbp = latest.dbp;
+          <BloodPressureDataComponent
+            darkMode={darkMode}
+            onBloodPressureDataUpdate={setBloodPressureData}
+            selectedUserId={selectedUserId}
+            dateRange={dateRange}
+          />
 
-                  if (sbp < 120 && dbp < 80) {
-                    return 'text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400';
-                  } else if (sbp < 140 && dbp < 90) {
-                    return 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 dark:text-yellow-400';
-                  } else {
-                    return 'text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400';
-                  }
-                })()
-                : 'text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400'
-                }`}>
-                {bloodPressureData && bloodPressureData.length > 0
-                  ? (() => {
-                    const latest = bloodPressureData[bloodPressureData.length - 1];
-                    const sbp = latest.sbp;
-                    const dbp = latest.dbp;
-
-                    if (sbp < 120 && dbp < 80) return 'Normal Range';
-                    if (sbp < 140 && dbp < 90) return 'Elevated';
-                    return 'High';
-                  })()
-                  : 'Normal Range'
-                }
-              </span>
-              <Clock className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
-            </div>
-          </div>
-
-          <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-            }`}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 md:p-4 rounded-xl bg-yellow-500 bg-opacity-20 shadow-lg">
-                <Zap className="w-6 h-6 md:w-8 md:h-8 text-yellow-500" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>HRV Score</h3>
-                  <div className={`p-1 rounded-md ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                    <ActivityIcon className="w-3 h-3 text-gray-500" />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-lg md:text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {hrvApiData && hrvApiData.length > 0
-                      ? hrvApiData[hrvApiData.length - 1].hrv
-                      : '45'
-                    }
-                  </span>
-                  <span className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>ms</span>
-                </div>
-                {hrvApiData && hrvApiData.length > 0 && (
-                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'} mt-1`}>
-                    {new Date(hrvApiData[hrvApiData.length - 1].date).toLocaleDateString()} • {new Date(hrvApiData[hrvApiData.length - 1].date).toLocaleTimeString('en-US', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: true
-                    })}
-                  </div>
-                )}
-                {(!hrvApiData || hrvApiData.length === 0) && (
-                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'} mt-1`}>
-                    No data available
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className={`px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium ${hrvApiData && hrvApiData.length > 0
-                ? (() => {
-                  const hrv = hrvApiData[hrvApiData.length - 1].hrv;
-                  if (hrv >= 50) {
-                    return 'text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400';
-                  } else if (hrv >= 30) {
-                    return 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 dark:text-yellow-400';
-                  } else {
-                    return 'text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400';
-                  }
-                })()
-                : 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400'
-                }`}>
-                {hrvApiData && hrvApiData.length > 0
-                  ? (() => {
-                    const hrv = hrvApiData[hrvApiData.length - 1].hrv;
-                    if (hrv >= 50) return 'Good Recovery';
-                    if (hrv >= 30) return 'Moderate';
-                    return 'Poor Recovery';
-                  })()
-                  : 'Good Recovery'
-                }
-              </span>
-              <div className={`w-16 md:w-24 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-full h-2`}>
-                <div className="bg-yellow-500 h-2 rounded-full" style={{
-                  width: hrvApiData && hrvApiData.length > 0
-                    ? `${Math.min((hrvApiData[hrvApiData.length - 1].hrv / 100) * 100, 100)}%`
-                    : '75%'
-                }}></div>
-              </div>
-            </div>
-          </div>
+          <HRVDataComponent
+            darkMode={darkMode}
+            onHRVDataUpdate={setHrvApiData}
+            selectedUserId={selectedUserId}
+            dateRange={dateRange}
+          />
         </div>
       </div>
 
       {/* Health Summary */}
-      <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-        }`}>
+      <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
         <div className="flex items-center justify-between">
           <div className="flex-1">
-            <h3 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-2`}>Health Summary</h3>
+            <h3 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-2`}>
+              Health Summary
+            </h3>
             <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Great job maintaining your health metrics today! Your heart rate variability indicates good recovery,
-              and your stress levels are well-managed. Keep up the excellent sleep routine.
+              {dateRange.customRange 
+                ? `Showing health data from ${dateRange.from} to ${dateRange.to}. `
+                : `Showing health data for the last ${dateRange.period === 'today' ? '24 hours' : dateRange.period}. `
+              }
+              Your metrics are being tracked and analyzed to provide you with the best insights for your health journey.
             </p>
           </div>
           <div className="flex items-center gap-4 ml-4">
             <div className="text-center">
-              <div className="text-xl md:text-2xl font-bold text-green-500">A+</div>
-              <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Overall Score</div>
+              <div className="text-xl md:text-2xl font-bold text-green-500">
+                {heartRateData && sleepData && spo2Data ? 'A+' : 'N/A'}
+              </div>
+              <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Overall Score
+              </div>
             </div>
           </div>
         </div>
