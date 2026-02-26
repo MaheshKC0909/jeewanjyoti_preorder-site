@@ -41,6 +41,16 @@ const Dashboard = () => {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [selectionFeedback, setSelectionFeedback] = useState(null);
 
+  // Global filter states
+  const [globalDateFilter, setGlobalDateFilter] = useState('today'); // 'today', 'week', 'month', 'custom'
+  const [showGlobalFilterDropdown, setShowGlobalFilterDropdown] = useState(false);
+  const [globalDateRange, setGlobalDateRange] = useState({
+    from: null,
+    to: null,
+    customRange: false,
+    period: 'today'
+  });
+
   // Check authentication status
   useEffect(() => {
     const checkAuthentication = () => {
@@ -177,13 +187,16 @@ const Dashboard = () => {
       if (showUserDropdown && !event.target.closest('.user-dropdown')) {
         setShowUserDropdown(false);
       }
+      if (showGlobalFilterDropdown && !event.target.closest('.global-filter-dropdown')) {
+        setShowGlobalFilterDropdown(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showFilterDropdown, showUserDropdown]);
+  }, [showFilterDropdown, showUserDropdown, showGlobalFilterDropdown]);
 
   // Fetch mapped users
   const fetchMappedUsers = async () => {
@@ -266,6 +279,79 @@ const Dashboard = () => {
 
     // Clear feedback after data loads (components will handle this)
     setTimeout(() => setSelectionFeedback(null), 2000);
+  };
+
+  // Handle global filter change
+  const handleGlobalFilterChange = (filterType) => {
+    setGlobalDateFilter(filterType);
+    
+    if (filterType === 'custom') {
+      setShowGlobalFilterDropdown(false);
+      // You might want to open a date range picker modal here
+      // For now, we'll just set it to custom
+      setGlobalDateRange({
+        from: null,
+        to: null,
+        customRange: true,
+        period: 'custom'
+      });
+    } else {
+      setGlobalDateRange({
+        from: null,
+        to: null,
+        customRange: false,
+        period: filterType
+      });
+    }
+    setShowGlobalFilterDropdown(false);
+  };
+
+  // Format date for API
+  const formatDateForAPI = (date) => {
+    if (!date) return null;
+    const d = new Date(date);
+    return d.toISOString().split('T')[0];
+  };
+
+  // Handle custom date range (if you want to add a date picker)
+  const handleCustomDateApply = (from, to) => {
+    setGlobalDateRange({
+      from: formatDateForAPI(from),
+      to: formatDateForAPI(to),
+      customRange: true,
+      period: 'custom'
+    });
+    setGlobalDateFilter('custom');
+  };
+
+  // Function to get currently viewed user info
+  const getCurrentViewedUser = () => {
+    // If a mapped user is selected, return that user's info
+    if (selectedUserId) {
+      const mappedUser = mappedUsers.find(m => m.mapped_user.id === selectedUserId);
+      if (mappedUser) {
+        return {
+          id: mappedUser.mapped_user.id,
+          name: mappedUser.nickname || mappedUser.mapped_user.full_name,
+          fullName: mappedUser.mapped_user.full_name,
+          firstName: mappedUser.mapped_user.first_name,
+          profileImage: mappedUser.mapped_user.profile_image,
+          email: mappedUser.mapped_user.email,
+          isMappedUser: true
+        };
+      }
+    }
+    
+    // Otherwise return the logged-in user's info
+    return {
+      id: backendUser?.id || user?.uid,
+      name: backendUser?.first_name || user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'User',
+      fullName: backendUser?.full_name || user?.displayName || user?.email?.split('@')[0] || 'User',
+      firstName: backendUser?.first_name,
+      profileImage: backendUser?.profile_image || user?.photoURL,
+      email: backendUser?.email || user?.email,
+      isMappedUser: false
+    };
   };
 
   // Handle tab change with persistence
@@ -351,7 +437,7 @@ const Dashboard = () => {
   const renderContent = () => {
     console.log('Dashboard renderContent - activeTab:', activeTab, 'user:', !!user, 'backendUser:', !!backendUser);
 
-    // Get the selected user info
+    // Get the selected user info for HomeTab
     const getSelectedUserInfo = () => {
       if (selectedUserId) {
         const mappedUser = mappedUsers.find(m => m.mapped_user.id === selectedUserId);
@@ -373,7 +459,15 @@ const Dashboard = () => {
 
     switch (activeTab) {
       case 'home':
-        return <HomeTab darkMode={darkMode} selectedPeriod={selectedPeriod} setSelectedPeriod={setSelectedPeriod} selectedUserId={selectedUserId} selectedUserInfo={getSelectedUserInfo()} />;
+        return (
+          <HomeTab 
+            darkMode={darkMode} 
+            selectedUserId={selectedUserId} 
+            selectedUserInfo={getSelectedUserInfo()}
+            globalDateFilter={globalDateFilter}
+            globalDateRange={globalDateRange}
+          />
+        );
       case 'appointments':
         console.log('Rendering AppointmentsTab with ErrorBoundary...');
         return (
@@ -491,60 +585,132 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              {/* User Dropdown - Before dark mode */}
+              {/* User Dropdown - Shows currently viewed user */}
               <div className="hidden lg:flex items-center gap-2 px-2 py-1.5 rounded-lg whitespace-nowrap user-dropdown relative">
                 <button
                   onClick={() => setShowUserDropdown(!showUserDropdown)}
-                  className={`flex items-center gap-2 transition-all duration-200 transform hover:scale-105 ${darkMode
-                    ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    } rounded-lg px-2 py-1.5`}
+                  className={`flex items-center gap-2 transition-all duration-200 transform hover:scale-105 ${
+                    darkMode
+                      ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  } rounded-lg px-2 py-1.5`}
                 >
-                  <User className="w-4 h-4 text-gray-500" />
+                  {/* Show profile image if available */}
+                  {getCurrentViewedUser().profileImage ? (
+                    <img 
+                      src={getCurrentViewedUser().profileImage} 
+                      alt={getCurrentViewedUser().name}
+                      className="w-5 h-5 rounded-full object-cover"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <User className="w-4 h-4 text-gray-500" />
+                  )}
                   <span className="text-sm font-medium truncate max-w-[8rem]">
-                    {backendUser?.first_name || user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'User'}
+                    {getCurrentViewedUser().name}
                   </span>
                   <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${showUserDropdown ? 'rotate-180' : ''}`} />
                 </button>
 
-                {/* User Dropdown */}
+                {/* User Dropdown Menu */}
                 {showUserDropdown && (
-                  <div className={`absolute top-full left-0 mt-2 w-64 rounded-xl shadow-lg border z-50 ${darkMode
-                    ? 'bg-gray-800 border-gray-700'
-                    : 'bg-white border-gray-200'
-                    } max-h-96 overflow-y-auto`}>
-                    <div className={`p-3 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'
-                      }`}>
+                  <div className={`absolute top-full left-0 mt-2 w-64 rounded-xl shadow-lg border z-50 ${
+                    darkMode
+                      ? 'bg-gray-800 border-gray-700'
+                      : 'bg-white border-gray-200'
+                  } max-h-96 overflow-y-auto`}>
+                    {/* Currently Viewing Section */}
+                    <div className={`p-3 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                       <p className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                        CURRENT USER
+                        CURRENTLY VIEWING
                       </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <User className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm font-medium">
-                          {backendUser?.first_name || user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'User'}
-                        </span>
+                      <div className="flex items-center gap-2 mt-2">
+                        {getCurrentViewedUser().profileImage ? (
+                          <img 
+                            src={getCurrentViewedUser().profileImage} 
+                            alt={getCurrentViewedUser().name}
+                            className="w-8 h-8 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                            darkMode ? 'bg-gray-700' : 'bg-gray-200'
+                          }`}>
+                            <User className="w-4 h-4 text-gray-500" />
+                          </div>
+                        )}
+                        <div className="flex-1">
+                          <div className="text-sm font-medium truncate">
+                            {getCurrentViewedUser().fullName}
+                          </div>
+                          <div className="text-xs opacity-75">
+                            {getCurrentViewedUser().isMappedUser ? 'Mapped User' : 'Your Account'}
+                          </div>
+                        </div>
                       </div>
                     </div>
 
+                    {/* Your Account Option */}
+                    <div className="p-3">
+                      <p className={`text-xs font-medium mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        YOUR ACCOUNT
+                      </p>
+                      <button
+                        onClick={() => {
+                          handleUserSelection(null);
+                          setShowUserDropdown(false);
+                        }}
+                        className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
+                          !selectedUserId
+                            ? darkMode
+                              ? 'bg-gray-700 text-blue-400'
+                              : 'bg-blue-50 text-blue-600'
+                            : darkMode
+                              ? 'hover:bg-gray-700 text-gray-300'
+                              : 'hover:bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        <img
+                          src={backendUser?.profile_image || user?.photoURL || 'https://via.placeholder.com/24'}
+                          alt="Your account"
+                          className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                          onError={(e) => {
+                            e.target.src = 'https://via.placeholder.com/24?text=' + (backendUser?.first_name?.charAt(0) || 'U');
+                          }}
+                        />
+                        <div className="flex-1 text-left">
+                          <div className="text-xs font-medium truncate">
+                            {backendUser?.first_name || user?.displayName?.split(' ')[0] || 'My Data'}
+                          </div>
+                          {!selectedUserId && (
+                            <div className="text-xs opacity-75">Currently viewing</div>
+                          )}
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Mapped Users Section */}
                     {mappedUsers.length > 0 && (
-                      <div className={`p-3 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'
-                        }`}>
-                        <p className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      <div className={`p-3 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                        <p className={`text-xs font-medium mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                           MAPPED USERS
                         </p>
-                        <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
                           {mappedUsers.map((mapping) => (
                             <button
                               key={mapping.id}
                               onClick={() => handleUserSelection(mapping.mapped_user.id)}
-                              className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${selectedUserId === mapping.mapped_user.id
-                                ? darkMode
-                                  ? 'bg-gray-700 text-blue-400'
-                                  : 'bg-blue-50 text-blue-600'
-                                : darkMode
-                                  ? 'hover:bg-gray-700 text-gray-300'
-                                  : 'hover:bg-gray-100 text-gray-700'
-                                }`}
+                              className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
+                                selectedUserId === mapping.mapped_user.id
+                                  ? darkMode
+                                    ? 'bg-gray-700 text-blue-400'
+                                    : 'bg-blue-50 text-blue-600'
+                                  : darkMode
+                                    ? 'hover:bg-gray-700 text-gray-300'
+                                    : 'hover:bg-gray-100 text-gray-700'
+                              }`}
                             >
                               <img
                                 src={mapping.mapped_user.profile_image || 'https://via.placeholder.com/24'}
@@ -575,14 +741,6 @@ const Dashboard = () => {
                         </div>
                       </div>
                     )}
-
-                    {!loadingMappedUsers && mappedUsers.length === 0 && (
-                      <div className="p-3">
-                        <p className={`text-xs text-center ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                          No mapped users
-                        </p>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -602,85 +760,111 @@ const Dashboard = () => {
                 </span>
               </div>
 
-              {/* Period Filter - Hidden by default, show as popup button */}
-              {activeTab === 'home' && (
-                <div className="hidden lg:block relative filter-dropdown">
-                  <button
-                    onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                    className={`p-2 rounded-lg transition-all duration-200 transform hover:scale-105 ${showFilterDropdown
+              {/* Global Period Filter - Now visible for all tabs */}
+              <div className="hidden lg:block relative global-filter-dropdown">
+                <button
+                  onClick={() => setShowGlobalFilterDropdown(!showGlobalFilterDropdown)}
+                  className={`p-2 rounded-lg transition-all duration-200 transform hover:scale-105 ${
+                    showGlobalFilterDropdown || globalDateFilter !== 'today'
                       ? darkMode
                         ? 'bg-purple-600 hover:bg-purple-700'
                         : 'bg-purple-500 hover:bg-purple-600'
                       : darkMode
                         ? 'bg-gray-800 hover:bg-purple-600/20 border border-purple-500/30'
                         : 'bg-gradient-to-r from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 border border-purple-200'
-                      }`}
-                    title={`Filter: ${selectedPeriod === 'today' ? 'Today' : selectedPeriod === 'week' ? 'This Week' : 'This Month'}`}
-                  >
-                    <SlidersHorizontal className={`w-5 h-5 transition-colors ${showFilterDropdown
+                  }`}
+                  title={`Filter: ${
+                    globalDateFilter === 'today' ? 'Today' : 
+                    globalDateFilter === 'week' ? 'This Week' : 
+                    globalDateFilter === 'month' ? 'This Month' : 'Custom Range'
+                  }`}
+                >
+                  <SlidersHorizontal className={`w-5 h-5 transition-colors ${
+                    showGlobalFilterDropdown || globalDateFilter !== 'today'
                       ? 'text-white'
                       : 'text-purple-600'
-                      }`} />
-                  </button>
+                  }`} />
+                </button>
 
-                  {/* Filter Dropdown */}
-                  {showFilterDropdown && (
-                    <div className={`absolute top-full right-0 mt-2 w-40 rounded-lg shadow-xl border z-10 ${darkMode
+                {/* Filter Dropdown */}
+                {showGlobalFilterDropdown && (
+                  <div className={`absolute top-full right-0 mt-2 w-40 rounded-lg shadow-xl border z-10 ${
+                    darkMode
                       ? 'bg-gray-800 border-purple-500/30 shadow-purple-500/20'
                       : 'bg-white border-purple-200 shadow-purple-100'
-                      }`}>
-                      <div className="py-1">
-                        <button
-                          onClick={() => {
-                            setSelectedPeriod('today');
-                            setShowFilterDropdown(false);
-                          }}
-                          className={`w-full text-left px-4 py-2 text-sm transition-colors ${selectedPeriod === 'today'
+                  }`}>
+                    <div className="py-1">
+                      <button
+                        onClick={() => handleGlobalFilterChange('today')}
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                          globalDateFilter === 'today'
                             ? darkMode
                               ? 'bg-purple-600/20 text-purple-400'
                               : 'bg-purple-50 text-purple-600'
                             : darkMode
                               ? 'text-gray-300 hover:bg-purple-600/10'
                               : 'text-gray-700 hover:bg-purple-50'
-                            }`}
-                        >
-                          Today
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedPeriod('week');
-                            setShowFilterDropdown(false);
-                          }}
-                          className={`w-full text-left px-4 py-2 text-sm transition-colors ${selectedPeriod === 'week'
+                        }`}
+                      >
+                        Today
+                      </button>
+                      <button
+                        onClick={() => handleGlobalFilterChange('week')}
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                          globalDateFilter === 'week'
                             ? darkMode
                               ? 'bg-purple-600/20 text-purple-400'
                               : 'bg-purple-50 text-purple-600'
                             : darkMode
                               ? 'text-gray-300 hover:bg-purple-600/10'
                               : 'text-gray-700 hover:bg-purple-50'
-                            }`}
-                        >
-                          This Week
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedPeriod('month');
-                            setShowFilterDropdown(false);
-                          }}
-                          className={`w-full text-left px-4 py-2 text-sm transition-colors ${selectedPeriod === 'month'
+                        }`}
+                      >
+                        This Week
+                      </button>
+                      <button
+                        onClick={() => handleGlobalFilterChange('month')}
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                          globalDateFilter === 'month'
                             ? darkMode
                               ? 'bg-purple-600/20 text-purple-400'
                               : 'bg-purple-50 text-purple-600'
                             : darkMode
                               ? 'text-gray-300 hover:bg-purple-600/10'
                               : 'text-gray-700 hover:bg-purple-50'
-                            }`}
-                        >
-                          This Month
-                        </button>
-                      </div>
+                        }`}
+                      >
+                        This Month
+                      </button>
+                      <button
+                        onClick={() => handleGlobalFilterChange('custom')}
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                          globalDateFilter === 'custom'
+                            ? darkMode
+                              ? 'bg-purple-600/20 text-purple-400'
+                              : 'bg-purple-50 text-purple-600'
+                            : darkMode
+                              ? 'text-gray-300 hover:bg-purple-600/10'
+                              : 'text-gray-700 hover:bg-purple-50'
+                        }`}
+                      >
+                        Custom Range
+                      </button>
                     </div>
-                  )}
+                  </div>
+                )}
+              </div>
+
+              {/* Show active filter indicator */}
+              {globalDateFilter !== 'today' && (
+                <div className={`hidden lg:flex items-center gap-1 px-2 py-1 rounded-lg text-xs ${
+                  darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-700'
+                }`}>
+                  <span>
+                    {globalDateFilter === 'week' ? 'This Week' : 
+                     globalDateFilter === 'month' ? 'This Month' : 
+                     globalDateFilter === 'custom' ? 'Custom' : ''}
+                  </span>
                 </div>
               )}
 
@@ -714,33 +898,103 @@ const Dashboard = () => {
                   </button>
                 </div>
 
-                {/* Mobile Profile Dropdown */}
+                {/* Mobile Profile Dropdown - Shows currently viewed user */}
                 <div className="md:hidden relative">
                   <button
                     onClick={() => setShowUserDropdown(!showUserDropdown)}
-                    className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-200 transform hover:scale-105 ${darkMode
-                      ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-200 transform hover:scale-105 ${
+                      darkMode
+                        ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
                   >
-                    <User className="w-4 h-4 text-gray-500" />
+                    {getCurrentViewedUser().profileImage ? (
+                      <img 
+                        src={getCurrentViewedUser().profileImage} 
+                        alt={getCurrentViewedUser().name}
+                        className="w-5 h-5 rounded-full object-cover"
+                      />
+                    ) : (
+                      <User className="w-4 h-4 text-gray-500" />
+                    )}
                     {showUserDropdown && (
                       <span className="text-sm font-medium truncate max-w-[6rem]">
-                        {backendUser?.first_name || user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'User'}
+                        {getCurrentViewedUser().fullName}
                       </span>
                     )}
                     <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${showUserDropdown ? 'rotate-180' : ''}`} />
                   </button>
 
                   {showUserDropdown && (
-                    <div className={`absolute right-0 mt-2 w-48 rounded-lg border shadow-lg animate-in slide-in-from-top duration-200 ${darkMode
-                      ? 'bg-gray-800 border-gray-700'
-                      : 'bg-white border-gray-200'
-                      }`}>
+                    <div className={`absolute right-0 mt-2 w-56 rounded-lg border shadow-lg animate-in slide-in-from-top duration-200 ${
+                      darkMode
+                        ? 'bg-gray-800 border-gray-700'
+                        : 'bg-white border-gray-200'
+                    }`}>
+                      {/* Currently Viewing Section */}
+                      <div className={`p-3 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                        <p className={`text-xs font-medium mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          CURRENTLY VIEWING
+                        </p>
+                        <div className="flex items-center gap-2">
+                          {getCurrentViewedUser().profileImage ? (
+                            <img 
+                              src={getCurrentViewedUser().profileImage} 
+                              alt={getCurrentViewedUser().name}
+                              className="w-8 h-8 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              darkMode ? 'bg-gray-700' : 'bg-gray-200'
+                            }`}>
+                              <User className="w-4 h-4" />
+                            </div>
+                          )}
+                          <div>
+                            <div className="text-sm font-medium truncate max-w-[150px]">
+                              {getCurrentViewedUser().fullName}
+                            </div>
+                            <div className="text-xs opacity-75">
+                              {getCurrentViewedUser().isMappedUser ? 'Mapped User' : 'Your Account'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Your Account Option */}
+                      <div className="p-2">
+                        <button
+                          onClick={() => {
+                            handleUserSelection(null);
+                            setShowUserDropdown(false);
+                          }}
+                          className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
+                            !selectedUserId
+                              ? darkMode
+                                ? 'bg-gray-700 text-blue-400'
+                                : 'bg-blue-50 text-blue-600'
+                              : darkMode
+                                ? 'hover:bg-gray-700 text-gray-300'
+                                : 'hover:bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          <img
+                            src={backendUser?.profile_image || user?.photoURL || 'https://via.placeholder.com/24'}
+                            alt="Your account"
+                            className="w-6 h-6 rounded-full object-cover"
+                          />
+                          <span className="text-sm">Your Account</span>
+                          {!selectedUserId && (
+                            <span className="text-xs ml-auto text-blue-500">Viewing</span>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Mapped Users */}
                       {mappedUsers.length > 0 && (
-                        <div className="p-2">
+                        <div className={`p-2 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                           <p className={`text-xs font-medium mb-2 px-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                            SWITCH USER
+                            MAPPED USERS
                           </p>
                           {mappedUsers.map((mapping) => (
                             <button
@@ -749,31 +1003,27 @@ const Dashboard = () => {
                                 handleUserSelection(mapping.mapped_user.id);
                                 setShowUserDropdown(false);
                               }}
-                              className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${selectedUserId === mapping.mapped_user.id
-                                ? darkMode
-                                  ? 'bg-gray-700 text-blue-400'
-                                  : 'bg-blue-50 text-blue-600'
-                                : darkMode
-                                  ? 'hover:bg-gray-700 text-gray-300'
-                                  : 'hover:bg-gray-100 text-gray-700'
-                                }`}
+                              className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
+                                selectedUserId === mapping.mapped_user.id
+                                  ? darkMode
+                                    ? 'bg-gray-700 text-blue-400'
+                                    : 'bg-blue-50 text-blue-600'
+                                  : darkMode
+                                    ? 'hover:bg-gray-700 text-gray-300'
+                                    : 'hover:bg-gray-100 text-gray-700'
+                              }`}
                             >
                               <img
                                 src={mapping.mapped_user.profile_image || 'https://via.placeholder.com/24'}
                                 alt={mapping.mapped_user.full_name}
-                                className="w-6 h-6 rounded-full object-cover flex-shrink-0"
-                                onError={(e) => {
-                                  e.target.src = 'https://via.placeholder.com/24?text=' + mapping.mapped_user.full_name.charAt(0);
-                                }}
+                                className="w-6 h-6 rounded-full object-cover"
                               />
-                              <div className="flex-1 text-left">
-                                <div className="text-xs font-medium truncate">
-                                  {mapping.nickname || mapping.mapped_user.full_name}
-                                </div>
-                                {selectedUserId === mapping.mapped_user.id && (
-                                  <div className="text-xs opacity-75">Currently viewing</div>
-                                )}
-                              </div>
+                              <span className="text-sm truncate max-w-[120px]">
+                                {mapping.nickname || mapping.mapped_user.full_name}
+                              </span>
+                              {selectedUserId === mapping.mapped_user.id && (
+                                <span className="text-xs ml-auto text-blue-500">Viewing</span>
+                              )}
                             </button>
                           ))}
                         </div>
@@ -830,29 +1080,34 @@ const Dashboard = () => {
           </div>
 
           <div className="p-4 space-y-4 overflow-y-auto h-full pb-20">
-            {/* User Section */}
+            {/* User Section - Updated to show currently viewed user */}
             <div className={`rounded-2xl p-4 border shadow-lg transition-all duration-200 hover:shadow-xl ${darkMode
               ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
               : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
               }`}>
               <div className="flex items-center gap-3 mb-4">
                 <div className="relative">
-                  <img
-                    src={user?.photoURL || 'https://via.placeholder.com/40'}
-                    alt={user?.displayName || user?.email || 'User'}
-                    className="w-12 h-12 rounded-full object-cover ring-2 ring-blue-500 ring-offset-2"
-                    onError={(e) => {
-                      e.target.src = 'https://via.placeholder.com/40?text=' + (user?.displayName?.charAt(0) || user?.email?.charAt(0) || 'U');
-                    }}
-                  />
-                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
+                  {getCurrentViewedUser().profileImage ? (
+                    <img
+                      src={getCurrentViewedUser().profileImage}
+                      alt={getCurrentViewedUser().name}
+                      className="w-12 h-12 rounded-full object-cover ring-2 ring-blue-500 ring-offset-2"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white text-xl font-bold">
+                      {getCurrentViewedUser().name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  {!getCurrentViewedUser().isMappedUser && (
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
+                  )}
                 </div>
                 <div className="flex-1">
                   <p className={`font-bold text-base ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {backendUser?.first_name || user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'User'}
+                    {getCurrentViewedUser().fullName}
                   </p>
                   <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {user?.email}
+                    {getCurrentViewedUser().isMappedUser ? 'Viewing as mapped user' : 'Your account'}
                   </p>
                 </div>
               </div>
@@ -1000,6 +1255,61 @@ const Dashboard = () => {
               </div>
             </div>
 
+            {/* Global Period Filter for Mobile - Now always visible */}
+            <div className={`rounded-2xl p-4 border shadow-lg transition-all duration-200 hover:shadow-xl ${
+              darkMode
+                ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
+                : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
+            }`}>
+              <div className="flex items-center gap-3 mb-4">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  darkMode ? 'bg-purple-600/20' : 'bg-purple-100'
+                }`}>
+                  <SlidersHorizontal className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className={`text-sm font-bold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Filter Period
+                  </p>
+                  <p className={`text-xs opacity-75 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    Select time range for all data
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {['today', 'week', 'month', 'custom'].map((period) => (
+                  <button
+                    key={period}
+                    onClick={() => {
+                      handleGlobalFilterChange(period);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 transform hover:scale-[1.02] ${
+                      globalDateFilter === period
+                        ? darkMode
+                          ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg'
+                          : 'bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-lg'
+                        : darkMode
+                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    <SlidersHorizontal className="w-4 h-4" />
+                    <span className="text-sm font-medium capitalize">
+                      {period === 'today' ? 'Today' : 
+                       period === 'week' ? 'This Week' : 
+                       period === 'month' ? 'This Month' : 'Custom Range'}
+                    </span>
+                    {globalDateFilter === period && (
+                      <div className="ml-auto">
+                        <div className="w-2 h-2 bg-white rounded-full"></div>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Dark Mode Toggle */}
             <div className={`rounded-2xl p-4 border shadow-lg transition-all duration-200 hover:shadow-xl ${darkMode
               ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
@@ -1026,58 +1336,6 @@ const Dashboard = () => {
                 </div>
               </button>
             </div>
-
-            {/* Period Filter for Home Tab */}
-            {activeTab === 'home' && (
-              <div className={`rounded-2xl p-4 border shadow-lg transition-all duration-200 hover:shadow-xl ${darkMode
-                ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
-                : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
-                }`}>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${darkMode ? 'bg-purple-600/20' : 'bg-purple-100'
-                    }`}>
-                    <SlidersHorizontal className="w-5 h-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className={`text-sm font-bold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Filter Period
-                    </p>
-                    <p className={`text-xs opacity-75 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      Select time range
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  {['today', 'week', 'month'].map((period) => (
-                    <button
-                      key={period}
-                      onClick={() => {
-                        setSelectedPeriod(period);
-                        setIsMobileMenuOpen(false);
-                      }}
-                      className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 transform hover:scale-[1.02] ${selectedPeriod === period
-                        ? darkMode
-                          ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg'
-                          : 'bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-lg'
-                        : darkMode
-                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                    >
-                      <SlidersHorizontal className="w-4 h-4" />
-                      <span className="text-sm font-medium capitalize">
-                        {period === 'today' ? 'Today' : period === 'week' ? 'This Week' : 'This Month'}
-                      </span>
-                      {selectedPeriod === period && (
-                        <div className="ml-auto">
-                          <div className="w-2 h-2 bg-white rounded-full"></div>
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Action Buttons */}
             <div className="space-y-3">
