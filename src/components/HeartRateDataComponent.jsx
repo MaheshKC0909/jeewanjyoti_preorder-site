@@ -8,6 +8,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [sliderPosition, setSliderPosition] = useState(100); // 100 = most recent, 0 = oldest
 
   // Cache and refs
   const cacheRef = useRef(new Map());
@@ -118,6 +119,8 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
         if (isMountedRef.current) {
           setHeartRateData(sortedData);
           onHeartRateDataUpdate(sortedData);
+          // Reset slider to most recent data when new data arrives
+          setSliderPosition(100);
         }
       } else {
         console.log('No heart rate data available for selected period');
@@ -159,28 +162,92 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
     };
   }, [fetchHeartRateData]);
 
-  // Process Heart Rate data for visualization
+  // Process Heart Rate data for visualization with 30-minute intervals
   const processHeartRateData = useCallback((data) => {
     if (!data || data.length === 0) return [];
 
-    return data.map((item) => ({
-      time: new Date(item.date).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      }),
-      value: item.once_heart_value,
-      fullTime: new Date(item.date).toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true
-      }),
-      date: item.date,
-      rawDate: new Date(item.date)
-    }));
+    return data.map((item) => {
+      const date = new Date(item.date);
+      return {
+        time: date.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        }),
+        value: item.once_heart_value,
+        fullTime: new Date(item.date).toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true
+        }),
+        date: item.date,
+        rawDate: new Date(item.date),
+        timestamp: new Date(item.date).getTime(),
+        // Add color information based on heart rate value
+        isNormal: item.once_heart_value >= 60 && item.once_heart_value <= 100
+      };
+    }).sort((a, b) => a.timestamp - b.timestamp);
+  }, []);
+
+  // Get visible data based on slider position (12-hour window)
+  const getVisibleData = useCallback(() => {
+    if (!heartRateData || heartRateData.length === 0) return [];
+    
+    const processedData = processHeartRateData(heartRateData);
+    if (processedData.length === 0) return [];
+    
+    // Get the time range of all data
+    const firstTimestamp = processedData[0].timestamp;
+    const lastTimestamp = processedData[processedData.length - 1].timestamp;
+    const totalDuration = lastTimestamp - firstTimestamp;
+    
+    // Calculate 12 hours in milliseconds
+    const twelveHoursMs = 12 * 60 * 60 * 1000;
+    
+    // If total duration is less than 12 hours, show all data
+    if (totalDuration <= twelveHoursMs) {
+      return processedData;
+    }
+    
+    // Calculate window position based on slider (0 = oldest, 100 = newest)
+    const maxStartTime = lastTimestamp - twelveHoursMs;
+    const startTime = firstTimestamp + ((maxStartTime - firstTimestamp) * (sliderPosition / 100));
+    const endTime = startTime + twelveHoursMs;
+    
+    // Filter data within the 12-hour window
+    return processedData.filter(item => 
+      item.timestamp >= startTime && item.timestamp <= endTime
+    );
+  }, [heartRateData, sliderPosition, processHeartRateData]);
+
+  // Generate 30-minute interval ticks for X-axis
+  const generateTimeTicks = useCallback((visibleData) => {
+    if (visibleData.length === 0) return [];
+    
+    const ticks = [];
+    const firstItem = visibleData[0];
+    const lastItem = visibleData[visibleData.length - 1];
+    
+    // Create ticks at 30-minute intervals
+    let currentTime = new Date(firstItem.timestamp);
+    // Round to nearest 30 minutes
+    const minutes = currentTime.getMinutes();
+    currentTime.setMinutes(Math.floor(minutes / 30) * 30);
+    currentTime.setSeconds(0);
+    currentTime.setMilliseconds(0);
+    
+    const lastTime = lastItem.timestamp;
+    const thirtyMinutesMs = 30 * 60 * 1000;
+    
+    while (currentTime.getTime() <= lastTime + thirtyMinutesMs) {
+      ticks.push(currentTime.getTime());
+      currentTime = new Date(currentTime.getTime() + thirtyMinutesMs);
+    }
+    
+    return ticks;
   }, []);
 
   // Calculate average Heart Rate
@@ -258,8 +325,16 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
     return null;
   };
 
-  // Memoize processed data to prevent recalculation on every render
+  // Handle slider change
+  const handleSliderChange = (e) => {
+    setSliderPosition(parseInt(e.target.value, 10));
+  };
+
+  // Memoize processed data
   const chartData = React.useMemo(() => processHeartRateData(heartRateData), [heartRateData, processHeartRateData]);
+  const visibleData = React.useMemo(() => getVisibleData(), [getVisibleData]);
+  const timeTicks = React.useMemo(() => generateTimeTicks(visibleData), [visibleData, generateTimeTicks]);
+  
   const latestReading = React.useMemo(() => getLatestReading(), [heartRateData, getLatestReading]);
   const averageHeartRate = React.useMemo(() => calculateAverageHeartRate(heartRateData), [heartRateData, calculateAverageHeartRate]);
   const { min, max } = React.useMemo(() => calculateMinMaxHeartRate(heartRateData), [heartRateData, calculateMinMaxHeartRate]);
@@ -270,6 +345,55 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
   // Determine Y-axis domain based on data
   const yMin = Math.max(40, Math.min(60, min - 10));
   const yMax = Math.min(200, Math.max(120, max + 10));
+
+  // Custom Area component with gradient based on value
+  const GradientArea = (props) => {
+    return (
+      <>
+        <defs>
+          <linearGradient id="heartRateGradient" x1="0" y1="0" x2="1" y2="0">
+            {visibleData.map((point, index, array) => {
+              if (index === array.length - 1) return null;
+              
+              // Calculate position based on index
+              const position = index / (array.length - 1);
+              const nextPosition = (index + 1) / (array.length - 1);
+              
+              // Determine colors based on values
+              const currentColor = point.isNormal ? '#10b981' : '#ef4444';
+              const nextColor = array[index + 1].isNormal ? '#10b981' : '#ef4444';
+              
+              return (
+                <React.Fragment key={index}>
+                  <stop offset={`${position * 100}%`} stopColor={currentColor} stopOpacity={1} />
+                  <stop offset={`${nextPosition * 100}%`} stopColor={nextColor} stopOpacity={1} />
+                </React.Fragment>
+              );
+            })}
+          </linearGradient>
+          <linearGradient id="heartRateFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#ef4444" stopOpacity={0.2} />
+            <stop offset="100%" stopColor="#ef4444" stopOpacity={0.05} />
+          </linearGradient>
+        </defs>
+        <Area
+          {...props}
+          stroke="url(#heartRateGradient)"
+          fill="url(#heartRateFill)"
+        />
+      </>
+    );
+  };
+
+  // Format X-axis tick to show 30-minute intervals
+  const formatXAxis = (timestamp) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
 
   if (loading) {
     return (
@@ -386,69 +510,90 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
         </div>
       </div>
 
-      {/* Heart Rate Chart */}
+      {/* Heart Rate Chart with 12-hour window and slider */}
       <div className="mb-6">
-        {/* Data Count Indicator */}
-        <div className={`mb-3 flex items-center justify-between text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-          <span>
-            {dateRange?.customRange ? 'Selected period' : 'Last 24 hours'}
-          </span>
-          <span className={`font-medium ${heartRateData.length < 20 ? 'text-yellow-500' : 'text-green-500'}`}>
-            {heartRateData.length} reading{heartRateData.length !== 1 ? 's' : ''} available
-          </span>
+        {/* Color Legend */}
+        <div className="mb-3 flex items-center gap-4 text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+            <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Normal Range (60-100 BPM)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+            <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Outside Normal Range</span>
+          </div>
         </div>
-        <ResponsiveContainer width="100%" height={200}>
-          <AreaChart data={chartData}>
-            {darkMode ? (
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false} vertical={false} />
-            ) : (
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            )}
-            <XAxis
-              dataKey="time"
-              stroke={darkMode ? "#9CA3AF" : "#666"}
-              axisLine
-              tickLine
-              tick={{ fontSize: 12 }}
-              interval="preserveStartEnd"
-            />
-            <YAxis
-              domain={[yMin, yMax]}
-              stroke={darkMode ? "#9CA3AF" : "#666"}
-              axisLine
-              tickLine
-              tick={{ fontSize: 12 }}
-            />
-            <Tooltip content={<CustomTooltip />} />
 
-            {/* Low Zone (<60 BPM) - Light red */}
-            <ReferenceArea
-              y1={40}
-              y2={60}
-              fill="#ef4444"
-              fillOpacity={0.1}
-              ifOverflow="extendDomain"
-            />
+        {/* Chart Container */}
+        <div>
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart data={visibleData}>
+              {darkMode ? (
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false} vertical={false} />
+              ) : (
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              )}
+              <XAxis
+                dataKey="timestamp"
+                domain={['dataMin', 'dataMax']}
+                ticks={timeTicks}
+                tickFormatter={formatXAxis}
+                stroke={darkMode ? "#9CA3AF" : "#666"}
+                axisLine
+                tickLine
+                tick={{ fontSize: 12 }}
+                type="number"
+                scale="time"
+                interval="preserveStartEnd"
+              />
+              <YAxis
+                domain={[yMin, yMax]}
+                stroke={darkMode ? "#9CA3AF" : "#666"}
+                axisLine
+                tickLine
+                tick={{ fontSize: 12 }}
+              />
+              <Tooltip content={<CustomTooltip />} />
 
-            {/* High Zone (>100 BPM) - Light red */}
-            <ReferenceArea
-              y1={100}
-              y2={200}
-              fill="#ef4444"
-              fillOpacity={0.1}
-              ifOverflow="extendDomain"
-            />
+              {/* Reference areas for normal range */}
+              <ReferenceArea
+                y1={60}
+                y2={100}
+                fill="#10b981"
+                fillOpacity={0.1}
+                ifOverflow="extendDomain"
+              />
 
-            <Area
-              type="monotone"
-              dataKey="value"
-              stroke="#ef4444"
-              fill="#ef4444"
-              fillOpacity={0.1}
-              strokeWidth={3}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+              <GradientArea
+                type="monotone"
+                dataKey="value"
+                strokeWidth={3}
+                dot={false}
+                activeDot={{ r: 6, strokeWidth: 0, fill: "#ef4444" }}
+                isAnimationActive={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        
+        {/* Slider Control */}
+        <div className="mt-4 px-2">
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={sliderPosition}
+            onChange={handleSliderChange}
+            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+            style={{
+              background: `linear-gradient(to right, ${darkMode ? '#ef4444' : '#f87171'} 0%, ${darkMode ? '#ef4444' : '#f87171'} ${sliderPosition}%, ${darkMode ? '#374151' : '#e5e7eb'} ${sliderPosition}%, ${darkMode ? '#374151' : '#e5e7eb'} 100%)`
+            }}
+          />
+          <div className="flex justify-between mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <span>Older</span>
+            <span>Newer</span>
+          </div>
+        </div>
       </div>
 
       {/* Detailed View */}

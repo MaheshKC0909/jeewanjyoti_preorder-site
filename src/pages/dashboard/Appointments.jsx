@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Plus, Video, Phone, MapPin, X, Search, Star, GraduationCap, Building, Mail, User, CreditCard, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, Plus, Video, Phone, MapPin, X, Search, Star, GraduationCap, Building, Mail, User, CreditCard, ChevronRight, Activity, Heart, Thermometer, Droplets, Brain, FileText, Pill, Camera, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react';
 import { getDoctorList, API_BASE_URL, getUserEmailProfile } from '../../lib/api';
-import RealTimeHealthDashboard from '../../components/RealTimeHealthDashboard';
+import { useNavigate } from 'react-router-dom';
 
 const AppointmentsTab = ({ darkMode }) => {
   console.log('AppointmentsTab component rendering...', { darkMode });
+  
+  const navigate = useNavigate();
 
   const [showDoctorModal, setShowDoctorModal] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -40,12 +42,32 @@ const AppointmentsTab = ({ darkMode }) => {
     interval_minutes: 15
   });
 
-  // State for health dashboard popup
-  const [showHealthDashboard, setShowHealthDashboard] = useState(false);
+  // New states for data type selection and patient data
+  const [showDataOptionsModal, setShowDataOptionsModal] = useState(false);
+  const [selectedDataType, setSelectedDataType] = useState(null);
   const [selectedPatient, setSelectedPatient] = useState(null);
+  
+  // State for real-time vitals data
+  const [vitalsData, setVitalsData] = useState({
+    heartRate: 72,
+    bloodPressure: { systolic: 120, diastolic: 80 },
+    oxygenSaturation: 98,
+    temperature: 36.6,
+    respiratoryRate: 16,
+    glucose: 95,
+    timestamp: new Date().toISOString()
+  });
+
+  // State for patient health dashboard data (to be populated from API)
+  const [patientDashboardData, setPatientDashboardData] = useState({
+    vitals: {},
+    medications: [],
+    labResults: [],
+    appointments: [],
+    healthMetrics: {}
+  });
 
   // Determine if current user is a doctor based on role from API
-  // Role is normalized to uppercase in state, so check uppercase variants
   const isDoctor = userRole && (
     userRole === 'DOCTOR' ||
     userRole === 'DR' ||
@@ -53,14 +75,11 @@ const AppointmentsTab = ({ darkMode }) => {
   );
 
   // API base URL - use environment variable or fallback to the API_BASE_URL from api.js
-  // In dev mode, use proxy '/api', in production use the full API URL
-  // If API_BASE_URL doesn't include '/api', we need to add it for the endpoints
   const getApiBase = () => {
     if (import.meta.env.DEV) {
       return '/api';
     }
     const base = import.meta.env.VITE_API_BASE_URL || API_BASE_URL;
-    // If base doesn't end with /api, add it
     return base.includes('/api') ? base : `${base}/api`;
   };
   const API_BASE = getApiBase();
@@ -73,21 +92,14 @@ const AppointmentsTab = ({ darkMode }) => {
         console.log('Fetching user role from API...');
         const profileData = await getUserEmailProfile();
         console.log('User profile data received:', profileData);
-        console.log('Profile data keys:', profileData ? Object.keys(profileData) : 'No data');
 
-        // Check for role in different possible locations
         let role = null;
         if (profileData) {
-          // Check direct role field
           if (profileData.role) {
             role = profileData.role;
-          }
-          // Check if role is nested in user object
-          else if (profileData.user && profileData.user.role) {
+          } else if (profileData.user && profileData.user.role) {
             role = profileData.user.role;
-          }
-          // Check if it's in a nested data structure
-          else if (profileData.data && profileData.data.role) {
+          } else if (profileData.data && profileData.data.role) {
             role = profileData.data.role;
           }
         }
@@ -96,29 +108,21 @@ const AppointmentsTab = ({ darkMode }) => {
           const normalizedRole = typeof role === 'string' ? role.toUpperCase().trim() : String(role).toUpperCase().trim();
           setUserRole(normalizedRole);
           console.log('User role set to:', normalizedRole);
-          console.log('Is doctor:', normalizedRole === 'DOCTOR');
 
-          // Update localStorage for consistency (but API is the source of truth)
           const currentUserData = JSON.parse(localStorage.getItem('user_data') || '{}');
           const updatedUserData = { ...currentUserData, role: role };
           localStorage.setItem('user_data', JSON.stringify(updatedUserData));
-          console.log('Role saved to localStorage:', role);
         } else {
-          console.warn('No role found in profile data. Available keys:', profileData ? Object.keys(profileData) : 'No profile data');
-          console.warn('Profile data full object:', profileData);
+          console.warn('No role found in profile data');
           setUserRole(null);
         }
       } catch (err) {
         console.error('Error fetching user role:', err);
-        console.error('Error details:', err.message, err.stack);
-        // Fallback to localStorage if API fails
         const userData = JSON.parse(localStorage.getItem('user_data') || '{}');
         if (userData && userData.role) {
           const fallbackRole = typeof userData.role === 'string' ? userData.role.toUpperCase().trim() : String(userData.role).toUpperCase().trim();
           setUserRole(fallbackRole);
-          console.log('Using role from localStorage as fallback:', fallbackRole);
         } else {
-          console.warn('No role found in localStorage either');
           setUserRole(null);
         }
       } finally {
@@ -189,6 +193,28 @@ const AppointmentsTab = ({ darkMode }) => {
     }
   }, [searchTerm, searchFilter, doctors]);
 
+  // Simulate real-time vitals updates (remove this when connecting to actual API)
+  useEffect(() => {
+    if (showDataOptionsModal) {
+      const interval = setInterval(() => {
+        setVitalsData(prev => ({
+          heartRate: Math.floor(Math.random() * (80 - 60) + 60),
+          bloodPressure: {
+            systolic: Math.floor(Math.random() * (130 - 110) + 110),
+            diastolic: Math.floor(Math.random() * (85 - 70) + 70)
+          },
+          oxygenSaturation: Math.floor(Math.random() * (100 - 95) + 95),
+          temperature: Number((Math.random() * (37.2 - 36.4) + 36.4).toFixed(1)),
+          respiratoryRate: Math.floor(Math.random() * (20 - 12) + 12),
+          glucose: Math.floor(Math.random() * (110 - 85) + 85),
+          timestamp: new Date().toISOString()
+        }));
+      }, 5000); // Update every 5 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [showDataOptionsModal]);
+
   // Fetch appointments from backend
   const fetchAppointments = async () => {
     try {
@@ -205,8 +231,6 @@ const AppointmentsTab = ({ darkMode }) => {
         return;
       }
 
-      // Construct the full URL
-      // API_BASE should already include '/api' (either as /api or https://domain.com/api)
       const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE;
       const endpoint = 'appointment_list/';
       const url = `${base}/${endpoint}`;
@@ -223,17 +247,13 @@ const AppointmentsTab = ({ darkMode }) => {
       console.log('Appointments response status:', response.status);
 
       if (!response.ok) {
-        // Try to get error message from response
         let errorMessage = `Failed to fetch appointments (${response.status})`;
         try {
           const errorData = await response.json();
           errorMessage = errorData.detail || errorData.message || errorMessage;
 
-          // Handle authentication errors
           if (response.status === 401 || response.status === 403) {
             errorMessage = 'Session expired. Please log in again.';
-            // Optionally redirect to login
-            // window.location.href = '/login';
           }
         } catch (parseError) {
           console.error('Could not parse error response:', parseError);
@@ -248,17 +268,13 @@ const AppointmentsTab = ({ darkMode }) => {
       const data = await response.json();
       console.log('Appointments data:', data);
 
-      // Handle different response formats
       if (Array.isArray(data)) {
         setAppointments(data);
       } else if (data.results && Array.isArray(data.results)) {
-        // Paginated response
         setAppointments(data.results);
       } else if (data.appointments && Array.isArray(data.appointments)) {
-        // Nested appointments object
         setAppointments(data.appointments);
       } else if (data.data && Array.isArray(data.data)) {
-        // Nested data object
         setAppointments(data.data);
       } else {
         console.warn('Unexpected appointments response format:', data);
@@ -366,6 +382,59 @@ const AppointmentsTab = ({ darkMode }) => {
     }
   };
 
+  // Fetch patient health dashboard data
+  const fetchPatientDashboardData = async (patientId) => {
+    try {
+      console.log('Fetching patient dashboard data for patient:', patientId);
+      
+      // This is where you'll integrate the actual API
+      // const token = localStorage.getItem('access_token');
+      // const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE;
+      // const url = `${base}/patient_dashboard/${patientId}/`;
+      
+      // const response = await fetch(url, {
+      //   headers: {
+      //     'Authorization': `Bearer ${token}`,
+      //     'Content-Type': 'application/json'
+      //   }
+      // });
+      
+      // if (response.ok) {
+      //   const data = await response.json();
+      //   setPatientDashboardData(data);
+      // }
+
+      // Placeholder data until API is integrated
+      setPatientDashboardData({
+        vitals: {
+          ...vitalsData
+        },
+        medications: [
+          { name: 'Lisinopril', dosage: '10mg', frequency: 'Once daily', startDate: '2024-01-15', status: 'active' },
+          { name: 'Metformin', dosage: '500mg', frequency: 'Twice daily', startDate: '2024-02-01', status: 'active' },
+          { name: 'Atorvastatin', dosage: '20mg', frequency: 'Once daily', startDate: '2024-01-20', status: 'active' }
+        ],
+        labResults: [
+          { test: 'Complete Blood Count', date: '2024-03-01', result: 'Normal', value: 'Within range' },
+          { test: 'Lipid Panel', date: '2024-03-01', result: 'Borderline', value: 'LDL: 130 mg/dL' },
+          { test: 'HbA1c', date: '2024-02-15', result: 'Normal', value: '5.7%' }
+        ],
+        appointments: [
+          { date: '2024-03-15', type: 'Follow-up', doctor: 'Dr. Smith', status: 'scheduled' },
+          { date: '2024-02-28', type: 'Regular Checkup', doctor: 'Dr. Smith', status: 'completed' }
+        ],
+        healthMetrics: {
+          bmi: 24.5,
+          bloodType: 'A+',
+          allergies: ['Penicillin', 'Peanuts'],
+          chronicConditions: ['Hypertension', 'Type 2 Diabetes']
+        }
+      });
+    } catch (err) {
+      console.error('Error fetching patient dashboard data:', err);
+    }
+  };
+
   const initializePayment = async (invoiceNo) => {
     try {
       const token = localStorage.getItem("access_token");
@@ -374,9 +443,8 @@ const AppointmentsTab = ({ darkMode }) => {
         return;
       }
 
-      const amount = 100; // You can make this dynamic (doctor.fee or so)
+      const amount = 100;
 
-      // Construct the full URL
       const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE;
       const endpoint = 'initialize_payment/';
       const url = `${base}/${endpoint}`;
@@ -406,7 +474,6 @@ const AppointmentsTab = ({ darkMode }) => {
         throw new Error("Invalid payment response from server");
       }
 
-      // Redirect to Khalti test payment page
       window.location.href = `https://test-pay.khalti.com/wallet?pidx=${data.pidx}`;
     } catch (err) {
       console.error("Payment init error:", err);
@@ -485,8 +552,18 @@ const AppointmentsTab = ({ darkMode }) => {
           is_immediate: false,
           user_report: null
         });
+        
+        // Refresh appointments after booking
+        fetchAppointments();
       } else {
-        // error handling...
+        let errorMessage = 'Failed to book appointment';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch (parseError) {
+          errorMessage = `Failed with status ${response.status}`;
+        }
+        setError(errorMessage);
       }
     } catch (err) {
       setError(`Failed to book appointment: ${err.message}`);
@@ -509,13 +586,11 @@ const AppointmentsTab = ({ darkMode }) => {
     e.preventDefault();
     console.log('Creating availability with data:', availabilityData);
 
-    // Validate required fields
     if (!availabilityData.available_date || !availabilityData.start_time || !availabilityData.end_time) {
       setError('Please fill in all required fields');
       return;
     }
 
-    // Validate that end time is after start time
     if (availabilityData.start_time >= availabilityData.end_time) {
       setError('End time must be after start time');
       return;
@@ -532,7 +607,6 @@ const AppointmentsTab = ({ darkMode }) => {
         return;
       }
 
-      // Prepare request body
       const requestBody = {
         available_date: availabilityData.available_date,
         start_time: availabilityData.start_time,
@@ -542,7 +616,6 @@ const AppointmentsTab = ({ darkMode }) => {
 
       console.log('Sending availability data:', requestBody);
 
-      // Construct the full URL
       const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE;
       const endpoint = 'create_doctor_availability/';
       const url = `${base}/${endpoint}`;
@@ -560,24 +633,15 @@ const AppointmentsTab = ({ darkMode }) => {
         const data = await response.json();
         console.log('Availability created successfully:', data);
 
-        // Show success message
         alert('Availability created successfully!');
-
-        // Close modal
         setShowAvailabilityModal(false);
-
-        // Reset form
         setAvailabilityData({
           available_date: '',
           start_time: '',
           end_time: '',
           interval_minutes: 15
         });
-
-        // Refresh availabilities list
         fetchDoctorAvailabilities();
-
-        // Optionally refresh appointments list
         fetchAppointments();
       } else {
         let errorMessage = 'Failed to create availability';
@@ -585,7 +649,6 @@ const AppointmentsTab = ({ darkMode }) => {
           const errorData = await response.json();
           errorMessage = errorData.detail || errorData.message || errorMessage;
 
-          // Handle authentication errors
           if (response.status === 401 || response.status === 403) {
             errorMessage = 'Session expired. Please log in again.';
           }
@@ -600,6 +663,174 @@ const AppointmentsTab = ({ darkMode }) => {
       setError(`Failed to create availability: ${err.message}. Please try again.`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Handle appointment click for doctors
+  const handleAppointmentClick = (appointment, patientId, patientName) => {
+    console.log('Appointment card clicked!', {
+      isDoctor,
+      userRole,
+      appointment,
+      patientId,
+      hasPatientId: !!patientId
+    });
+
+    if (isDoctor && patientId) {
+      console.log('✅ Opening data options for patient:', patientId);
+      setSelectedPatient({
+        id: patientId,
+        name: patientName
+      });
+      setShowDataOptionsModal(true);
+    } else {
+      console.log('❌ Click condition not met:', {
+        isDoctor,
+        hasPatientId: !!patientId,
+        patientId
+      });
+
+      if (isDoctor && !patientId) {
+        alert('No patient ID found for this appointment');
+      }
+    }
+  };
+
+  // Handle data type selection - NOW WITH NAVIGATION
+  const handleDataTypeSelect = async (dataType) => {
+    console.log('Selected data type:', dataType);
+    setSelectedDataType(dataType);
+    setShowDataOptionsModal(false);
+
+    if (!selectedPatient) {
+      console.error('No patient selected');
+      return;
+    }
+
+    switch (dataType) {
+      case 'ecg':
+        // Navigate to home with ECG data
+        navigate('/', {
+          state: {
+            patientContext: {
+              id: selectedPatient.id,
+              name: selectedPatient.name,
+              viewMode: 'ecg',
+              heartRate: vitalsData.heartRate,
+              vitals: vitalsData,
+              timestamp: new Date().toISOString(),
+              source: 'appointments-tab'
+            }
+          }
+        });
+        break;
+        
+      case 'patient':
+        // Fetch patient dashboard data before navigating
+        await fetchPatientDashboardData(selectedPatient.id);
+        
+        // Navigate to home with full patient dashboard data
+        navigate('/', {
+          state: {
+            patientContext: {
+              id: selectedPatient.id,
+              name: selectedPatient.name,
+              viewMode: 'full-dashboard',
+              dashboardData: patientDashboardData,
+              vitals: vitalsData,
+              medications: patientDashboardData.medications,
+              labResults: patientDashboardData.labResults,
+              appointments: patientDashboardData.appointments,
+              healthMetrics: patientDashboardData.healthMetrics,
+              timestamp: new Date().toISOString(),
+              source: 'appointments-tab'
+            }
+          }
+        });
+        break;
+        
+      case 'vitals':
+        // Navigate to home with real-time vitals data
+        navigate('/', {
+          state: {
+            patientContext: {
+              id: selectedPatient.id,
+              name: selectedPatient.name,
+              viewMode: 'vitals-only',
+              vitals: vitalsData,
+              timestamp: new Date().toISOString(),
+              source: 'appointments-tab',
+              autoRefresh: true
+            }
+          }
+        });
+        break;
+        
+      case 'lab':
+        // Navigate to home with lab results
+        await fetchPatientDashboardData(selectedPatient.id);
+        navigate('/', {
+          state: {
+            patientContext: {
+              id: selectedPatient.id,
+              name: selectedPatient.name,
+              viewMode: 'lab-results',
+              labResults: patientDashboardData.labResults,
+              timestamp: new Date().toISOString(),
+              source: 'appointments-tab'
+            }
+          }
+        });
+        break;
+        
+      case 'imaging':
+        // Navigate to home with imaging data
+        navigate('/', {
+          state: {
+            patientContext: {
+              id: selectedPatient.id,
+              name: selectedPatient.name,
+              viewMode: 'imaging',
+              timestamp: new Date().toISOString(),
+              source: 'appointments-tab'
+            }
+          }
+        });
+        break;
+        
+      case 'prescriptions':
+        // Navigate to home with prescriptions
+        await fetchPatientDashboardData(selectedPatient.id);
+        navigate('/', {
+          state: {
+            patientContext: {
+              id: selectedPatient.id,
+              name: selectedPatient.name,
+              viewMode: 'prescriptions',
+              medications: patientDashboardData.medications,
+              timestamp: new Date().toISOString(),
+              source: 'appointments-tab'
+            }
+          }
+        });
+        break;
+        
+      default:
+        // Default to full dashboard
+        await fetchPatientDashboardData(selectedPatient.id);
+        navigate('/', {
+          state: {
+            patientContext: {
+              id: selectedPatient.id,
+              name: selectedPatient.name,
+              viewMode: 'full-dashboard',
+              dashboardData: patientDashboardData,
+              vitals: vitalsData,
+              timestamp: new Date().toISOString(),
+              source: 'appointments-tab'
+            }
+          }
+        });
     }
   };
 
@@ -626,27 +857,229 @@ const AppointmentsTab = ({ darkMode }) => {
     }
   };
 
+  // Get vitals status color
+  const getVitalStatusColor = (value, type) => {
+    const ranges = {
+      heartRate: { low: 60, high: 100 },
+      systolic: { low: 90, high: 140 },
+      diastolic: { low: 60, high: 90 },
+      oxygenSaturation: { low: 95, high: 100 },
+      temperature: { low: 36.1, high: 37.2 },
+      respiratoryRate: { low: 12, high: 20 },
+      glucose: { low: 70, high: 140 }
+    };
+
+    const range = ranges[type];
+    if (!range) return 'text-gray-500';
+
+    if (value < range.low) return 'text-blue-500';
+    if (value > range.high) return 'text-red-500';
+    return 'text-green-500';
+  };
+
+  // Data Type Selection Modal Component
+  const DataTypeSelectionModal = () => {
+    if (!showDataOptionsModal) return null;
+
+    const dataTypes = [
+      {
+        id: 'patient',
+        title: 'Patient Health Dashboard',
+        description: 'Complete patient dashboard with vitals, medications, lab results, and health metrics',
+        icon: <Activity className="w-8 h-8" />,
+        color: 'blue',
+        features: ['Real-time vitals monitoring', 'Medication history & adherence', 'Lab results & reports', 'Health metrics & trends', 'Appointment history']
+      },
+      {
+        id: 'vitals',
+        title: 'Real-Time Vital Signs',
+        description: 'Live monitoring of patient vital signs with automatic updates and critical alerts',
+        icon: <Thermometer className="w-8 h-8" />,
+        color: 'green',
+        features: ['Heart rate (BPM)', 'Blood pressure (mmHg)', 'Oxygen saturation (SpO2)', 'Body temperature (°C)', 'Respiratory rate', 'Blood glucose']
+      },
+      {
+        id: 'ecg',
+        title: 'ECG / Heart Monitoring',
+        description: 'View real-time electrocardiogram (ECG) data, heart rate, and rhythm analysis',
+        icon: <Heart className="w-8 h-8" />,
+        color: 'red',
+        features: ['Real-time ECG waveform', 'Heart rate variability', 'Arrhythmia detection', 'Historical trends']
+      },
+      {
+        id: 'lab',
+        title: 'Laboratory Results',
+        description: 'View recent lab tests, blood work, and diagnostic reports',
+        icon: <Droplets className="w-8 h-8" />,
+        color: 'purple',
+        features: ['Blood count', 'Chemistry panels', 'Microbiology results', 'Pathology reports']
+      },
+      {
+        id: 'imaging',
+        title: 'Medical Imaging',
+        description: 'Access X-rays, MRIs, CT scans, and other imaging studies',
+        icon: <Camera className="w-8 h-8" />,
+        color: 'orange',
+        features: ['X-ray images', 'MRI scans', 'CT reports', 'Ultrasound results']
+      },
+      {
+        id: 'prescriptions',
+        title: 'Prescription History',
+        description: 'View current and past medications, dosages, and adherence',
+        icon: <Pill className="w-8 h-8" />,
+        color: 'yellow',
+        features: ['Current medications', 'Dosage history', 'Refill status', 'Drug interactions']
+      }
+    ];
+
+    const getColorClasses = (color) => {
+      const colors = {
+        red: {
+          bg: darkMode ? 'bg-red-900/20' : 'bg-red-50',
+          border: darkMode ? 'border-red-800' : 'border-red-200',
+          text: darkMode ? 'text-red-400' : 'text-red-600',
+          hover: darkMode ? 'hover:bg-red-900/30' : 'hover:bg-red-100',
+          icon: darkMode ? 'text-red-400' : 'text-red-600'
+        },
+        blue: {
+          bg: darkMode ? 'bg-blue-900/20' : 'bg-blue-50',
+          border: darkMode ? 'border-blue-800' : 'border-blue-200',
+          text: darkMode ? 'text-blue-400' : 'text-blue-600',
+          hover: darkMode ? 'hover:bg-blue-900/30' : 'hover:bg-blue-100',
+          icon: darkMode ? 'text-blue-400' : 'text-blue-600'
+        },
+        green: {
+          bg: darkMode ? 'bg-green-900/20' : 'bg-green-50',
+          border: darkMode ? 'border-green-800' : 'border-green-200',
+          text: darkMode ? 'text-green-400' : 'text-green-600',
+          hover: darkMode ? 'hover:bg-green-900/30' : 'hover:bg-green-100',
+          icon: darkMode ? 'text-green-400' : 'text-green-600'
+        },
+        purple: {
+          bg: darkMode ? 'bg-purple-900/20' : 'bg-purple-50',
+          border: darkMode ? 'border-purple-800' : 'border-purple-200',
+          text: darkMode ? 'text-purple-400' : 'text-purple-600',
+          hover: darkMode ? 'hover:bg-purple-900/30' : 'hover:bg-purple-100',
+          icon: darkMode ? 'text-purple-400' : 'text-purple-600'
+        },
+        orange: {
+          bg: darkMode ? 'bg-orange-900/20' : 'bg-orange-50',
+          border: darkMode ? 'border-orange-800' : 'border-orange-200',
+          text: darkMode ? 'text-orange-400' : 'text-orange-600',
+          hover: darkMode ? 'hover:bg-orange-900/30' : 'hover:bg-orange-100',
+          icon: darkMode ? 'text-orange-400' : 'text-orange-600'
+        },
+        yellow: {
+          bg: darkMode ? 'bg-yellow-900/20' : 'bg-yellow-50',
+          border: darkMode ? 'border-yellow-800' : 'border-yellow-200',
+          text: darkMode ? 'text-yellow-400' : 'text-yellow-600',
+          hover: darkMode ? 'hover:bg-yellow-900/30' : 'hover:bg-yellow-100',
+          icon: darkMode ? 'text-yellow-400' : 'text-yellow-600'
+        }
+      };
+      return colors[color] || colors.blue;
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+        <div className={`w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          {/* Header */}
+          <div className={`flex items-center justify-between p-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+            <div>
+              <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                Select Patient Data Type
+              </h3>
+              {selectedPatient && (
+                <p className={`mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Viewing data for: <span className="font-semibold">{selectedPatient.name}</span>
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => setShowDataOptionsModal(false)}
+              className={`p-2 rounded-lg hover:bg-gray-100 ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Data Type Grid */}
+          <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {dataTypes.map((type) => {
+                const colors = getColorClasses(type.color);
+                return (
+                  <div
+                    key={type.id}
+                    onClick={() => handleDataTypeSelect(type.id)}
+                    className={`rounded-xl border-2 p-5 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-xl ${colors.bg} ${colors.border} ${colors.hover}`}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className={colors.icon}>
+                        {type.icon}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className={`text-lg font-semibold mb-2 ${colors.text}`}>
+                          {type.title}
+                        </h4>
+                        <p className={`text-sm mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                          {type.description}
+                        </p>
+                        <ul className="space-y-1">
+                          {type.features.map((feature, idx) => (
+                            <li key={idx} className="flex items-center gap-2 text-xs">
+                              <span className={`w-1 h-1 rounded-full ${colors.text}`}></span>
+                              <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>
+                                {feature}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className={`p-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowDataOptionsModal(false)}
+                className={`px-4 py-2 rounded-lg ${darkMode
+                  ? 'bg-gray-700 text-white hover:bg-gray-600'
+                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                }`}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div>
       {/* Header with buttons on opposite sides */}
       <div className="flex items-center justify-between mb-6">
-        {/* Left side - Show different content based on user role */}
         <div className="flex gap-2">
           {isDoctor ? (
-            // Doctor sees "My Appointment Schedule" button on left
             <button
               onClick={() => setShowAvailabilityListModal(true)}
               className={`px-4 py-2 rounded-xl flex items-center gap-2 transition-colors text-sm md:text-base border ${darkMode
                 ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 text-white'
                 : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-800'
-                }`}
+              }`}
             >
               <Calendar className="w-4 h-4 md:w-5 md:h-5" />
               <span>My Appointment Schedule</span>
               <ChevronRight className="w-4 h-4 md:w-5 md:h-5" />
             </button>
           ) : (
-            // Patient sees "Book Appointment" button on left
             <button
               onClick={() => setShowDoctorModal(true)}
               className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors text-sm md:text-base"
@@ -657,7 +1090,6 @@ const AppointmentsTab = ({ darkMode }) => {
           )}
         </div>
 
-        {/* Right side - Only show for doctors */}
         {isDoctor && (
           <div className="flex gap-2">
             <button
@@ -693,21 +1125,17 @@ const AppointmentsTab = ({ darkMode }) => {
           </p>
         </div>
       ) : appointments.length > 0 ? (
-        // Appointments list
         <div className="grid gap-4 md:gap-6">
           {appointments.map((appointment) => {
-            // Add null checks for appointment data
             if (!appointment) {
               console.warn('Invalid appointment data:', appointment);
               return null;
             }
 
-            // Handle new response format
             const doctorName = appointment.doctor_name || 'Doctor';
             const patientName = appointment.user_name || appointment.patient_name || appointment.name || 'Patient';
             const specialization = appointment.doctor_specialization || 'General Practice';
 
-            // Try to find patient ID from various possible fields
             const patientId = appointment.user_id ||
               appointment.patient_id ||
               appointment.user ||
@@ -715,7 +1143,6 @@ const AppointmentsTab = ({ darkMode }) => {
               appointment.userId ||
               appointment.patientId;
 
-            // Determine what to show based on user role
             const primaryName = isDoctor ? patientName : doctorName;
             const primaryInitials = isDoctor
               ? (patientName !== 'Patient' ? patientName.split(' ').map(name => name[0]).join('').toUpperCase() : 'PT')
@@ -724,36 +1151,7 @@ const AppointmentsTab = ({ darkMode }) => {
             return (
               <div
                 key={appointment.appointment_id || appointment.id || Math.random()}
-                onClick={() => {
-                  console.log('Appointment card clicked!', {
-                    isDoctor,
-                    userRole,
-                    appointment,
-                    patientId,
-                    hasPatientId: !!patientId
-                  });
-
-                  // Allow doctors to click if we have a patient ID
-                  if (isDoctor && patientId) {
-                    console.log('✅ Opening health dashboard for patient:', patientId);
-                    setSelectedPatient({
-                      id: patientId,
-                      name: patientName
-                    });
-                    setShowHealthDashboard(true);
-                  } else {
-                    console.log('❌ Click condition not met:', {
-                      isDoctor,
-                      hasPatientId: !!patientId,
-                      patientId
-                    });
-
-                    // If doctor but no patient ID, show warning
-                    if (isDoctor && !patientId) {
-                      alert('No patient ID found for this appointment');
-                    }
-                  }
-                }}
+                onClick={() => handleAppointmentClick(appointment, patientId, patientName)}
                 className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border hover:shadow-xl transition-all duration-300 ${isDoctor && patientId ? 'cursor-pointer hover:ring-2 hover:ring-blue-500' : ''
                   } ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
                   }`}
@@ -784,8 +1182,9 @@ const AppointmentsTab = ({ darkMode }) => {
                             {specialization}
                           </p>
                           {patientId && (
-                            <p className={`text-xs md:text-sm ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-                              Patient ID: {patientId} (click to view health data)
+                            <p className={`text-xs md:text-sm ${darkMode ? 'text-blue-400' : 'text-blue-600'} flex items-center gap-1`}>
+                              <Activity className="w-3 h-3" />
+                              Click to view patient data
                             </p>
                           )}
                         </>
@@ -839,7 +1238,6 @@ const AppointmentsTab = ({ darkMode }) => {
                         }`}>
                         {appointment.status || 'UNKNOWN'}
                       </span>
-                      {/* Only show payment status if appointment is confirmed and paid, or if not confirmed */}
                       {appointment.status !== 'CONFIRMED' && (
                         <div className={`flex items-center gap-1 text-xs md:text-sm ${appointment.is_paid
                           ? (darkMode ? 'text-green-400' : 'text-green-600')
@@ -889,26 +1287,21 @@ const AppointmentsTab = ({ darkMode }) => {
           })}
         </div>
       ) : (
-        // Empty state UI - Only shows when loading is complete and no appointments exist
         <div className={`rounded-2xl p-8 md:p-12 text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg border ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
-          {/* Main Icon */}
           <div className="flex justify-center mb-6">
             <div className={`p-6 rounded-full ${darkMode ? 'bg-gradient-to-r from-blue-600 to-purple-600' : 'bg-gradient-to-r from-blue-50 to-purple-50'} border-2 ${darkMode ? 'border-blue-500' : 'border-blue-200'}`}>
               <Calendar className={`w-16 h-16 ${darkMode ? 'text-blue-300' : 'text-blue-600'}`} />
             </div>
           </div>
 
-          {/* Main Heading */}
           <h3 className={`text-2xl md:text-3xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
             No Appointments Scheduled
           </h3>
 
-          {/* Description */}
           <p className={`mb-8 max-w-lg mx-auto text-lg ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
             You don't have any upcoming appointments at the moment. Book your first appointment with one of our qualified healthcare professionals to get started.
           </p>
 
-          {/* Features List */}
           <div className={`mb-8 max-w-md mx-auto ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-xl p-6`}>
             <h4 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
               Why choose our healthcare services?
@@ -941,7 +1334,6 @@ const AppointmentsTab = ({ darkMode }) => {
             </div>
           </div>
 
-          {/* Call to Action Button - Only show for non-doctors */}
           {!isDoctor && (
             <button
               onClick={() => setShowDoctorModal(true)}
@@ -952,7 +1344,6 @@ const AppointmentsTab = ({ darkMode }) => {
             </button>
           )}
 
-          {/* Additional Info */}
           <p className={`mt-6 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
             {!isDoctor ? 'Need help? Contact our support team for assistance with booking.' : 'You have no appointments scheduled at the moment.'}
           </p>
@@ -964,7 +1355,6 @@ const AppointmentsTab = ({ darkMode }) => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className={`w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'
             }`}>
-            {/* Modal Header */}
             <div className={`flex items-center justify-between p-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'
               }`}>
               <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
@@ -979,10 +1369,8 @@ const AppointmentsTab = ({ darkMode }) => {
               </button>
             </div>
 
-            {/* Search Bar */}
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="space-y-4">
-                {/* Filter Options */}
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => setSearchFilter('all')}
@@ -1030,7 +1418,6 @@ const AppointmentsTab = ({ darkMode }) => {
                   </button>
                 </div>
 
-                {/* Search Input */}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
@@ -1047,7 +1434,6 @@ const AppointmentsTab = ({ darkMode }) => {
               </div>
             </div>
 
-            {/* Doctor List */}
             <div className="p-6 max-h-96 overflow-y-auto">
               {loading ? (
                 <div className="flex items-center justify-center py-8">
@@ -1086,7 +1472,6 @@ const AppointmentsTab = ({ darkMode }) => {
                         }`}
                     >
                       <div className="flex items-start gap-4">
-                        {/* Doctor Avatar */}
                         {doctor.profile_image ? (
                           <img
                             src={`${API_BASE_URL}${doctor.profile_image}`}
@@ -1099,7 +1484,6 @@ const AppointmentsTab = ({ darkMode }) => {
                           </div>
                         )}
 
-                        {/* Doctor Info */}
                         <div className="flex-1">
                           <div className="flex items-start justify-between">
                             <div>
@@ -1118,7 +1502,6 @@ const AppointmentsTab = ({ darkMode }) => {
                             </button>
                           </div>
 
-                          {/* Doctor Details */}
                           <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div className="flex items-center gap-2">
                               <Building className="w-4 h-4 text-gray-400" />
@@ -1146,7 +1529,6 @@ const AppointmentsTab = ({ darkMode }) => {
                             </div>
                           </div>
 
-                          {/* Education */}
                           {doctor.education && (
                             <div className="mt-2">
                               <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -1155,7 +1537,6 @@ const AppointmentsTab = ({ darkMode }) => {
                             </div>
                           )}
 
-                          {/* Description */}
                           {doctor.description && (
                             <div className="mt-2">
                               <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -1205,7 +1586,6 @@ const AppointmentsTab = ({ darkMode }) => {
 
             <form onSubmit={handleBookAppointment}>
               <div className="space-y-4">
-                {/* Step 1: Select Date */}
                 <div>
                   <label htmlFor="appointment_date" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                     Select Appointment Date <span className="text-red-500">*</span>
@@ -1229,7 +1609,6 @@ const AppointmentsTab = ({ darkMode }) => {
                   />
                 </div>
 
-                {/* Step 2: Show Available Slots */}
                 {selectedDate && (
                   <div>
                     <label className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
@@ -1281,7 +1660,6 @@ const AppointmentsTab = ({ darkMode }) => {
                   </div>
                 )}
 
-                {/* Step 3: Problem Description */}
                 {bookingData.appointment_time && (
                   <div>
                     <label htmlFor="problem_description" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
@@ -1303,7 +1681,6 @@ const AppointmentsTab = ({ darkMode }) => {
                   </div>
                 )}
 
-                {/* Action Buttons */}
                 <div className="flex justify-end gap-4 mt-6">
                   <button
                     type="button"
@@ -1358,7 +1735,6 @@ const AppointmentsTab = ({ darkMode }) => {
 
             <form onSubmit={handleCreateAvailability}>
               <div className="space-y-4">
-                {/* Available Date */}
                 <div>
                   <label htmlFor="available_date" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                     Available Date <span className="text-red-500">*</span>
@@ -1379,7 +1755,6 @@ const AppointmentsTab = ({ darkMode }) => {
                   />
                 </div>
 
-                {/* Start Time */}
                 <div>
                   <label htmlFor="start_time" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                     Start Time <span className="text-red-500">*</span>
@@ -1398,7 +1773,6 @@ const AppointmentsTab = ({ darkMode }) => {
                   />
                 </div>
 
-                {/* End Time */}
                 <div>
                   <label htmlFor="end_time" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                     End Time <span className="text-red-500">*</span>
@@ -1417,7 +1791,6 @@ const AppointmentsTab = ({ darkMode }) => {
                   />
                 </div>
 
-                {/* Interval Minutes */}
                 <div>
                   <label htmlFor="interval_minutes" className={`block mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                     Appointment Interval (minutes) <span className="text-red-500">*</span>
@@ -1443,7 +1816,6 @@ const AppointmentsTab = ({ darkMode }) => {
                   </p>
                 </div>
 
-                {/* Preview */}
                 {availabilityData.available_date && availabilityData.start_time && availabilityData.end_time && (
                   <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
                     <h4 className={`font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
@@ -1457,7 +1829,6 @@ const AppointmentsTab = ({ darkMode }) => {
                   </div>
                 )}
 
-                {/* Action Buttons */}
                 <div className="flex justify-end gap-4 mt-6">
                   <button
                     type="button"
@@ -1505,7 +1876,6 @@ const AppointmentsTab = ({ darkMode }) => {
       {showAvailabilityListModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className={`w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-            {/* Modal Header */}
             <div className={`flex items-center justify-between p-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
               <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                 My Appointment Schedule
@@ -1519,7 +1889,6 @@ const AppointmentsTab = ({ darkMode }) => {
               </button>
             </div>
 
-            {/* Modal Content */}
             <div className="p-6 max-h-[70vh] overflow-y-auto">
               {loadingAvailabilities ? (
                 <div className="flex items-center justify-center py-12">
@@ -1587,7 +1956,6 @@ const AppointmentsTab = ({ darkMode }) => {
               )}
             </div>
 
-            {/* Modal Footer */}
             <div className={`p-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
               <div className="flex justify-end">
                 <button
@@ -1605,19 +1973,8 @@ const AppointmentsTab = ({ darkMode }) => {
         </div>
       )}
 
-      {/* Real-time Health Dashboard Popup - Only shown for doctors */}
-      <RealTimeHealthDashboard
-        isOpen={showHealthDashboard}
-        onClose={() => {
-          console.log('Closing health dashboard');
-          setShowHealthDashboard(false);
-          setSelectedPatient(null);
-        }}
-        patientId={selectedPatient?.id}
-        patientName={selectedPatient?.name}
-        darkMode={darkMode}
-        accessToken={localStorage.getItem('access_token')}
-      />
+      {/* Data Type Selection Modal */}
+      <DataTypeSelectionModal />
     </div>
   );
 };

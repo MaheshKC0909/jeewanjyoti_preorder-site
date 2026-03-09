@@ -8,6 +8,7 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [sliderPosition, setSliderPosition] = useState(100); // 100 = most recent, 0 = oldest
 
   // Cache and refs
   const cacheRef = useRef(new Map());
@@ -82,6 +83,8 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
               onSpO2DataUpdate(cachedData.data);
             }
             setLoading(false);
+            // Reset slider to most recent data when new data loads
+            setSliderPosition(100);
           }
           return;
         } else {
@@ -122,6 +125,8 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
           if (onSpO2DataUpdate) {
             onSpO2DataUpdate(sortedData);
           }
+          // Reset slider to most recent data when new data arrives
+          setSliderPosition(100);
         }
       } else {
         console.log('No SpO2 data available for selected period');
@@ -165,7 +170,7 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
     };
   }, [fetchSpO2Data]);
 
-  // Process SpO2 data for visualization
+  // Process SpO2 data for visualization with proper timestamps
   const processSpO2Data = useCallback((data) => {
     if (!data || data.length === 0) return [];
 
@@ -184,7 +189,7 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
     // Sort by date
     const sortedData = uniqueData.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    return sortedData.map((item, index) => ({
+    return sortedData.map((item) => ({
       time: new Date(item.date).toLocaleTimeString('en-US', {
         hour: '2-digit',
         minute: '2-digit',
@@ -200,8 +205,67 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
         hour12: true
       }),
       date: item.date,
+      timestamp: new Date(item.date).getTime(),
       rawDate: new Date(item.date)
     }));
+  }, []);
+
+  // Get visible data based on slider position (12-hour window)
+  const getVisibleData = useCallback(() => {
+    if (!spo2Data || spo2Data.length === 0) return [];
+    
+    const processedData = processSpO2Data(spo2Data);
+    if (processedData.length === 0) return [];
+    
+    // Get the time range of all data
+    const firstTimestamp = processedData[0].timestamp;
+    const lastTimestamp = processedData[processedData.length - 1].timestamp;
+    const totalDuration = lastTimestamp - firstTimestamp;
+    
+    // Calculate 12 hours in milliseconds
+    const twelveHoursMs = 12 * 60 * 60 * 1000;
+    
+    // If total duration is less than 12 hours, show all data
+    if (totalDuration <= twelveHoursMs) {
+      return processedData;
+    }
+    
+    // Calculate window position based on slider (0 = oldest, 100 = newest)
+    const maxStartTime = lastTimestamp - twelveHoursMs;
+    const startTime = firstTimestamp + ((maxStartTime - firstTimestamp) * (sliderPosition / 100));
+    const endTime = startTime + twelveHoursMs;
+    
+    // Filter data within the 12-hour window
+    return processedData.filter(item => 
+      item.timestamp >= startTime && item.timestamp <= endTime
+    );
+  }, [spo2Data, sliderPosition, processSpO2Data]);
+
+  // Generate 30-minute interval ticks for X-axis
+  const generateTimeTicks = useCallback((visibleData) => {
+    if (visibleData.length === 0) return [];
+    
+    const ticks = [];
+    const firstItem = visibleData[0];
+    const lastItem = visibleData[visibleData.length - 1];
+    
+    // Create ticks at 30-minute intervals
+    let currentTime = new Date(firstItem.timestamp);
+    // Round to nearest 30 minutes
+    const minutes = currentTime.getMinutes();
+    currentTime.setMinutes(Math.floor(minutes / 30) * 30);
+    currentTime.setSeconds(0);
+    currentTime.setMilliseconds(0);
+    
+    const lastTime = lastItem.timestamp;
+    const thirtyMinutesMs = 30 * 60 * 1000;
+    
+    while (currentTime.getTime() <= lastTime + thirtyMinutesMs) {
+      ticks.push(currentTime.getTime());
+      currentTime = new Date(currentTime.getTime() + thirtyMinutesMs);
+    }
+    
+    return ticks;
   }, []);
 
   // Calculate average SpO2
@@ -252,6 +316,21 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
     return `${firstDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${lastDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
   }, [spo2Data]);
 
+  // Handle slider change
+  const handleSliderChange = (e) => {
+    setSliderPosition(parseInt(e.target.value, 10));
+  };
+
+  // Format X-axis tick to show 30-minute intervals
+  const formatXAxis = (timestamp) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
@@ -268,8 +347,11 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
     return null;
   };
 
-  // Memoize processed data to prevent recalculation on every render
+  // Memoize processed data
   const chartData = React.useMemo(() => processSpO2Data(spo2Data), [spo2Data, processSpO2Data]);
+  const visibleData = React.useMemo(() => getVisibleData(), [getVisibleData]);
+  const timeTicks = React.useMemo(() => generateTimeTicks(visibleData), [visibleData, generateTimeTicks]);
+  
   const latestReading = React.useMemo(() => getLatestReading(), [spo2Data, getLatestReading]);
   const averageSpO2 = React.useMemo(() => calculateAverageSpO2(spo2Data), [spo2Data, calculateAverageSpO2]);
   const { min, max } = React.useMemo(() => calculateMinMaxSpO2(spo2Data), [spo2Data, calculateMinMaxSpO2]);
@@ -385,50 +467,102 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
         </div>
       </div>
 
-      {/* SpO2 Chart */}
+      {/* SpO2 Chart with 12-hour window and slider */}
       <div className="mb-6">
-        {/* Data Count Indicator */}
-        <div className={`mb-3 flex items-center justify-between text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-          <span>
-            {dateRange?.customRange ? 'Selected period' : 'Last 24 hours'}
-          </span>
-          <span className={`font-medium ${spo2Data.length < 20 ? 'text-yellow-500' : 'text-green-500'}`}>
-            {spo2Data.length} reading{spo2Data.length !== 1 ? 's' : ''} available
-          </span>
+        {/* Color Legend */}
+        <div className="mb-3 flex items-center gap-4 text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+            <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Normal (≥95%)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+            <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Low (90-94%)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+            <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Critical (&lt;90%)</span>
+          </div>
         </div>
-        <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={chartData}>
-            {darkMode ? (
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false} vertical={false} />
-            ) : (
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            )}
-            <XAxis
-              dataKey="time"
-              stroke={darkMode ? "#9CA3AF" : "#666"}
-              axisLine
-              tickLine
-              tick={{ fontSize: 12 }}
-              interval="preserveStartEnd"
-            />
-            <YAxis
-              domain={[Math.max(85, min - 2), Math.min(100, max + 1)]}
-              stroke={darkMode ? "#9CA3AF" : "#666"}
-              axisLine
-              tickLine
-              tick={{ fontSize: 12 }}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Line
-              type="monotone"
-              dataKey="value"
-              stroke="#3b82f6"
-              strokeWidth={3}
-              dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
-              activeDot={{ r: 6 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+
+        {/* Chart Container */}
+        <div>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={visibleData}>
+              {darkMode ? (
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false} vertical={false} />
+              ) : (
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              )}
+              <XAxis
+                dataKey="timestamp"
+                domain={['dataMin', 'dataMax']}
+                ticks={timeTicks}
+                tickFormatter={formatXAxis}
+                stroke={darkMode ? "#9CA3AF" : "#666"}
+                axisLine
+                tickLine
+                tick={{ fontSize: 12 }}
+                type="number"
+                scale="time"
+                interval="preserveStartEnd"
+              />
+              <YAxis
+                domain={[Math.max(85, min - 2), Math.min(100, max + 1)]}
+                stroke={darkMode ? "#9CA3AF" : "#666"}
+                axisLine
+                tickLine
+                tick={{ fontSize: 12 }}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke="#3b82f6"
+                strokeWidth={3}
+                dot={(props) => {
+                  const { payload, cx, cy } = props;
+                  let dotColor = '#3b82f6';
+                  if (payload.value < 90) {
+                    dotColor = '#ef4444';
+                  } else if (payload.value < 95) {
+                    dotColor = '#eab308';
+                  }
+                  return (
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={4}
+                      fill={dotColor}
+                      stroke="none"
+                    />
+                  );
+                }}
+                activeDot={{ r: 6, fill: '#3b82f6' }}
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        
+        {/* Slider Control */}
+        <div className="mt-4 px-2">
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={sliderPosition}
+            onChange={handleSliderChange}
+            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+            style={{
+              background: `linear-gradient(to right, ${darkMode ? '#3b82f6' : '#60a5fa'} 0%, ${darkMode ? '#3b82f6' : '#60a5fa'} ${sliderPosition}%, ${darkMode ? '#374151' : '#e5e7eb'} ${sliderPosition}%, ${darkMode ? '#374151' : '#e5e7eb'} 100%)`
+            }}
+          />
+          <div className="flex justify-between mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <span>Older</span>
+            <span>Newer</span>
+          </div>
+        </div>
       </div>
 
       {/* Detailed View */}
