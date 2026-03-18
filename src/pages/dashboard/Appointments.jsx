@@ -1,13 +1,15 @@
+import ChatTab from './Chat';
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, Plus, Video, Phone, MapPin, X, Search, Star, GraduationCap, Building, Mail, User, CreditCard, ChevronRight, Activity, Heart, Thermometer, Droplets, Brain, FileText, Pill, Camera, MessageCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { getDoctorList, API_BASE_URL, getUserEmailProfile } from '../../lib/api';
 import RealTimeHealthDashboard from '../../components/RealTimeHealthDashboard';
 
-const AppointmentsTab = ({ darkMode }) => {
-  console.log('AppointmentsTab component rendering...', { darkMode });
+// CHANGE 2: Add onSwitchToChat to component props
+const AppointmentsTab = ({ darkMode, onSwitchToChat }) => {
+  console.log('AppointmentsTab component rendering...', { darkMode, onSwitchToChat });
 
-  const navigate = useNavigate();
+  // CHANGE 1: Removed useNavigate import and usage
+  // const navigate = useNavigate(); - DELETED
 
   const [showDoctorModal, setShowDoctorModal] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -1086,19 +1088,40 @@ const AppointmentsTab = ({ darkMode }) => {
                     </div>
                   </div>
                   <div className="flex items-center justify-between md:justify-end gap-3">
-                    {/* Message button for doctors */}
-                    {isDoctor && patientId && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/chat/${patientId}`);
-                        }}
-                        className="p-2 rounded-full bg-blue-500 hover:bg-blue-600 text-white transition-colors"
-                        title="Message Patient"
-                      >
-                        <MessageCircle className="w-4 h-4" />
-                      </button>
-                    )}
+                      {/* Message button for doctors */}
+                      {isDoctor && patientId && (
+                        <div
+                          className="relative z-50"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              console.log('Message button clicked for patient:', patientId);
+                              if (window.startChatWithAppointment) {
+                                window.startChatWithAppointment({
+                                  ...appointment,
+                                  user_id: patientId,
+                                  user_name: patientName,
+                                  doctor_name: doctorName,
+                                });
+                              }
+                              if (onSwitchToChat) {
+                                setTimeout(() => onSwitchToChat(), 50);
+                              }
+                            }}
+                            className="p-2 rounded-full bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white transition-colors cursor-pointer"
+                            title="Message Patient"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     <div className="flex flex-col items-center gap-2">
                       <span className={`px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium ${appointment.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
                         appointment.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :

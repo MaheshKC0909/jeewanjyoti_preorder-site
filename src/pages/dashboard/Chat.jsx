@@ -1,10 +1,11 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   Bell, Send, Paperclip, Mic, Video, Phone, X, Smile, Image, 
   File, Download, Search, MoreHorizontal, Circle, ArrowLeft, Plus
 } from 'lucide-react';
 import { API_BASE_URL } from '../../lib/api';
-
+import AppointmentsTab from './Appointments';
 // Enhanced EmojiPicker component
 const EmojiPicker = ({ onEmojiClick, theme, height, width, emojiAsFile, setEmojiAsFile, onClose }) => {
   const emojis = [
@@ -756,10 +757,9 @@ const ChatTab = ({ darkMode = false, onChatRoomStateChange }) => {
           console.warn('No partner id found in appointment to start chat');
           return;
         }
-        // Derive name fields if available
         const rawName = role === 'DOCTOR' ? (appointment.user_name || '') : (appointment.doctor_name || '');
-        const cleaned = rawName.replace(/^Dr\.?\s*/i, '');
-        const parts = cleaned.trim().split(/\s+/);
+        const cleaned = rawName.replace(/^Dr\.?\s*/i, '').trim();
+        const parts = cleaned.split(/\s+/);
         const first_name = parts[0] || cleaned || '';
         const last_name = parts.slice(1).join(' ');
         const partner = {
@@ -767,23 +767,26 @@ const ChatTab = ({ darkMode = false, onChatRoomStateChange }) => {
           first_name,
           last_name,
           username: role === 'DOCTOR' ? 'Patient' : 'Doctor',
+          profile_image: appointment.user_profile_image || appointment.doctor_profile_image || null,
         };
         ensureConversationForUser(partner);
-        setSelectedChat(String(partnerId));
-        setShowChatRoom(true);
-        setShowAddModal(false);
+
+        // Defer setSelectedChat so ensureConversationForUser state update flushes first
+        requestAnimationFrame(() => {
+          setSelectedChat(String(partnerId));
+          setShowChatRoom(true);
+          setShowAddModal(false);
+        });
       } catch (e) {
         console.error('Failed to start chat from appointment:', e);
       }
     };
 
-    // Attach to window for external triggers (e.g., Appointments page)
     window.startChatWithAppointment = handler;
     return () => {
       try { delete window.startChatWithAppointment; } catch {}
     };
   }, []);
-
   // Fetch conversation history via HTTP - FIXED MESSAGE ALIGNMENT
   const fetchHistory = async (userId) => {
     if (!userId) return;
