@@ -685,16 +685,55 @@ const ChatTab = ({ darkMode = false, onChatRoomStateChange }) => {
   });
 
   const ensureConversationForUser = (partner) => {
-    if (!partner || !partner.id) return;
+    console.log('ensureConversationForUser called with partner:', partner);
+    if (!partner || !partner.id) {
+      console.log('No partner or partner.id, returning');
+      return;
+    }
     const userIdNum = Number(partner.id);
+    console.log('Looking for userIdNum:', userIdNum);
+    
     setConversations(prev => {
-      const exists = (prev || []).some(c => Number(c?.user?.id) === userIdNum);
-      if (exists) return prev;
+      console.log('Current conversations:', prev);
+      
+      // More precise check - ensure we're matching exact user ID, not just any existing conversation
+      const exists = (prev || []).some(c => 
+        c?.user && Number(c.user.id) === userIdNum
+      );
+      console.log('Conversation exists:', exists);
+      
+      if (exists) {
+        // If conversation exists, make sure it's the correct one
+        const existingConv = prev.find(c => 
+          c?.user && Number(c.user.id) === userIdNum
+        );
+        console.log('Found existing conversation:', existingConv);
+        if (existingConv) {
+          // Update existing conversation with latest partner info
+          return prev.map(c => 
+            (c?.user && Number(c.user.id) === userIdNum)
+              ? {
+                  ...c,
+                  user: {
+                    ...c.user,
+                    first_name: partner.first_name || c.user.first_name,
+                    last_name: partner.last_name || c.user.last_name,
+                    username: partner.username || c.user.username,
+                    profile_image: partner.profile_image || c.user.profile_image,
+                  }
+                }
+              : c
+          );
+        }
+        return prev;
+      }
+      
       // Build minimal conversation object so UI can render immediately
       const firstName = partner.first_name || (partner.name ? String(partner.name).split(' ')[0] : '');
       const lastName = partner.last_name || (partner.name ? String(partner.name).split(' ').slice(1).join(' ') : '');
       const username = partner.username || partner.role || '';
       const profile_image = partner.profile_image || null;
+      
       const newConv = {
         user: {
           id: userIdNum,
@@ -709,6 +748,8 @@ const ChatTab = ({ darkMode = false, onChatRoomStateChange }) => {
         last_message_time: null,
         unread_count: 0,
       };
+      
+      console.log('Creating new conversation:', newConv);
       return [...(prev || []), newConv];
     });
   };

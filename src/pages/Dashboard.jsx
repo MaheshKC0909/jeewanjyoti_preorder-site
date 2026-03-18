@@ -472,7 +472,10 @@ const Dashboard = () => {
         console.log('Rendering AppointmentsTab with ErrorBoundary...');
         return (
           <ErrorBoundary>
-            <AppointmentsTab darkMode={darkMode} />
+            <AppointmentsTab 
+              darkMode={darkMode} 
+              onSwitchToChat={() => setActiveTab('chat')}
+            />
           </ErrorBoundary>
         );
       case 'chat':
