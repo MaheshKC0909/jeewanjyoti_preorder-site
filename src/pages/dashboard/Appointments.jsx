@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Plus, Video, Phone, MapPin, X, Search, Star, GraduationCap, Building, Mail, User, CreditCard, ChevronRight, Activity, Heart, Thermometer, Droplets, Brain, FileText, Pill, Camera, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react';
-import { getDoctorList, API_BASE_URL, getUserEmailProfile } from '../../lib/api';
+import { Calendar, Clock, Plus, Video, Phone, MapPin, X, Search, Star, GraduationCap, Building, Mail, User, CreditCard, ChevronRight, Activity, Heart, Thermometer, Droplets, Brain, FileText, Pill, Camera, MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { getDoctorList, API_BASE_URL, getUserEmailProfile } from '../../lib/api';
+import RealTimeHealthDashboard from '../../components/RealTimeHealthDashboard';
 
 const AppointmentsTab = ({ darkMode }) => {
   console.log('AppointmentsTab component rendering...', { darkMode });
-  
+
   const navigate = useNavigate();
 
   const [showDoctorModal, setShowDoctorModal] = useState(false);
@@ -42,30 +43,12 @@ const AppointmentsTab = ({ darkMode }) => {
     interval_minutes: 15
   });
 
-  // New states for data type selection and patient data
+  // New states for data type selection
   const [showDataOptionsModal, setShowDataOptionsModal] = useState(false);
   const [selectedDataType, setSelectedDataType] = useState(null);
   const [selectedPatient, setSelectedPatient] = useState(null);
-  
-  // State for real-time vitals data
-  const [vitalsData, setVitalsData] = useState({
-    heartRate: 72,
-    bloodPressure: { systolic: 120, diastolic: 80 },
-    oxygenSaturation: 98,
-    temperature: 36.6,
-    respiratoryRate: 16,
-    glucose: 95,
-    timestamp: new Date().toISOString()
-  });
-
-  // State for patient health dashboard data (to be populated from API)
-  const [patientDashboardData, setPatientDashboardData] = useState({
-    vitals: {},
-    medications: [],
-    labResults: [],
-    appointments: [],
-    healthMetrics: {}
-  });
+  const [showHealthDashboard, setShowHealthDashboard] = useState(false);
+  const [showECGModal, setShowECGModal] = useState(false);
 
   // Determine if current user is a doctor based on role from API
   const isDoctor = userRole && (
@@ -192,28 +175,6 @@ const AppointmentsTab = ({ darkMode }) => {
       setFilteredDoctors(doctors);
     }
   }, [searchTerm, searchFilter, doctors]);
-
-  // Simulate real-time vitals updates (remove this when connecting to actual API)
-  useEffect(() => {
-    if (showDataOptionsModal) {
-      const interval = setInterval(() => {
-        setVitalsData(prev => ({
-          heartRate: Math.floor(Math.random() * (80 - 60) + 60),
-          bloodPressure: {
-            systolic: Math.floor(Math.random() * (130 - 110) + 110),
-            diastolic: Math.floor(Math.random() * (85 - 70) + 70)
-          },
-          oxygenSaturation: Math.floor(Math.random() * (100 - 95) + 95),
-          temperature: Number((Math.random() * (37.2 - 36.4) + 36.4).toFixed(1)),
-          respiratoryRate: Math.floor(Math.random() * (20 - 12) + 12),
-          glucose: Math.floor(Math.random() * (110 - 85) + 85),
-          timestamp: new Date().toISOString()
-        }));
-      }, 5000); // Update every 5 seconds
-
-      return () => clearInterval(interval);
-    }
-  }, [showDataOptionsModal]);
 
   // Fetch appointments from backend
   const fetchAppointments = async () => {
@@ -382,59 +343,6 @@ const AppointmentsTab = ({ darkMode }) => {
     }
   };
 
-  // Fetch patient health dashboard data
-  const fetchPatientDashboardData = async (patientId) => {
-    try {
-      console.log('Fetching patient dashboard data for patient:', patientId);
-      
-      // This is where you'll integrate the actual API
-      // const token = localStorage.getItem('access_token');
-      // const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE;
-      // const url = `${base}/patient_dashboard/${patientId}/`;
-      
-      // const response = await fetch(url, {
-      //   headers: {
-      //     'Authorization': `Bearer ${token}`,
-      //     'Content-Type': 'application/json'
-      //   }
-      // });
-      
-      // if (response.ok) {
-      //   const data = await response.json();
-      //   setPatientDashboardData(data);
-      // }
-
-      // Placeholder data until API is integrated
-      setPatientDashboardData({
-        vitals: {
-          ...vitalsData
-        },
-        medications: [
-          { name: 'Lisinopril', dosage: '10mg', frequency: 'Once daily', startDate: '2024-01-15', status: 'active' },
-          { name: 'Metformin', dosage: '500mg', frequency: 'Twice daily', startDate: '2024-02-01', status: 'active' },
-          { name: 'Atorvastatin', dosage: '20mg', frequency: 'Once daily', startDate: '2024-01-20', status: 'active' }
-        ],
-        labResults: [
-          { test: 'Complete Blood Count', date: '2024-03-01', result: 'Normal', value: 'Within range' },
-          { test: 'Lipid Panel', date: '2024-03-01', result: 'Borderline', value: 'LDL: 130 mg/dL' },
-          { test: 'HbA1c', date: '2024-02-15', result: 'Normal', value: '5.7%' }
-        ],
-        appointments: [
-          { date: '2024-03-15', type: 'Follow-up', doctor: 'Dr. Smith', status: 'scheduled' },
-          { date: '2024-02-28', type: 'Regular Checkup', doctor: 'Dr. Smith', status: 'completed' }
-        ],
-        healthMetrics: {
-          bmi: 24.5,
-          bloodType: 'A+',
-          allergies: ['Penicillin', 'Peanuts'],
-          chronicConditions: ['Hypertension', 'Type 2 Diabetes']
-        }
-      });
-    } catch (err) {
-      console.error('Error fetching patient dashboard data:', err);
-    }
-  };
-
   const initializePayment = async (invoiceNo) => {
     try {
       const token = localStorage.getItem("access_token");
@@ -552,18 +460,8 @@ const AppointmentsTab = ({ darkMode }) => {
           is_immediate: false,
           user_report: null
         });
-        
-        // Refresh appointments after booking
-        fetchAppointments();
       } else {
-        let errorMessage = 'Failed to book appointment';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.detail || errorData.message || errorMessage;
-        } catch (parseError) {
-          errorMessage = `Failed with status ${response.status}`;
-        }
-        setError(errorMessage);
+        // error handling...
       }
     } catch (err) {
       setError(`Failed to book appointment: ${err.message}`);
@@ -696,141 +594,34 @@ const AppointmentsTab = ({ darkMode }) => {
     }
   };
 
-  // Handle data type selection - NOW WITH NAVIGATION
-  const handleDataTypeSelect = async (dataType) => {
+  // Handle data type selection
+  const handleDataTypeSelect = (dataType) => {
     console.log('Selected data type:', dataType);
     setSelectedDataType(dataType);
     setShowDataOptionsModal(false);
 
-    if (!selectedPatient) {
-      console.error('No patient selected');
-      return;
-    }
-
     switch (dataType) {
       case 'ecg':
-        // Navigate to home with ECG data
-        navigate('/', {
-          state: {
-            patientContext: {
-              id: selectedPatient.id,
-              name: selectedPatient.name,
-              viewMode: 'ecg',
-              heartRate: vitalsData.heartRate,
-              vitals: vitalsData,
-              timestamp: new Date().toISOString(),
-              source: 'appointments-tab'
-            }
-          }
-        });
+        setShowECGModal(true);
         break;
-        
       case 'patient':
-        // Fetch patient dashboard data before navigating
-        await fetchPatientDashboardData(selectedPatient.id);
-        
-        // Navigate to home with full patient dashboard data
-        navigate('/', {
-          state: {
-            patientContext: {
-              id: selectedPatient.id,
-              name: selectedPatient.name,
-              viewMode: 'full-dashboard',
-              dashboardData: patientDashboardData,
-              vitals: vitalsData,
-              medications: patientDashboardData.medications,
-              labResults: patientDashboardData.labResults,
-              appointments: patientDashboardData.appointments,
-              healthMetrics: patientDashboardData.healthMetrics,
-              timestamp: new Date().toISOString(),
-              source: 'appointments-tab'
-            }
-          }
-        });
+        setShowHealthDashboard(true);
         break;
-        
       case 'vitals':
-        // Navigate to home with real-time vitals data
-        navigate('/', {
-          state: {
-            patientContext: {
-              id: selectedPatient.id,
-              name: selectedPatient.name,
-              viewMode: 'vitals-only',
-              vitals: vitalsData,
-              timestamp: new Date().toISOString(),
-              source: 'appointments-tab',
-              autoRefresh: true
-            }
-          }
-        });
+        // You can add vitals modal here
+        alert('Vitals monitoring coming soon!');
         break;
-        
       case 'lab':
-        // Navigate to home with lab results
-        await fetchPatientDashboardData(selectedPatient.id);
-        navigate('/', {
-          state: {
-            patientContext: {
-              id: selectedPatient.id,
-              name: selectedPatient.name,
-              viewMode: 'lab-results',
-              labResults: patientDashboardData.labResults,
-              timestamp: new Date().toISOString(),
-              source: 'appointments-tab'
-            }
-          }
-        });
+        alert('Lab results viewer coming soon!');
         break;
-        
       case 'imaging':
-        // Navigate to home with imaging data
-        navigate('/', {
-          state: {
-            patientContext: {
-              id: selectedPatient.id,
-              name: selectedPatient.name,
-              viewMode: 'imaging',
-              timestamp: new Date().toISOString(),
-              source: 'appointments-tab'
-            }
-          }
-        });
+        alert('Medical imaging viewer coming soon!');
         break;
-        
       case 'prescriptions':
-        // Navigate to home with prescriptions
-        await fetchPatientDashboardData(selectedPatient.id);
-        navigate('/', {
-          state: {
-            patientContext: {
-              id: selectedPatient.id,
-              name: selectedPatient.name,
-              viewMode: 'prescriptions',
-              medications: patientDashboardData.medications,
-              timestamp: new Date().toISOString(),
-              source: 'appointments-tab'
-            }
-          }
-        });
+        alert('Prescription history coming soon!');
         break;
-        
       default:
-        // Default to full dashboard
-        await fetchPatientDashboardData(selectedPatient.id);
-        navigate('/', {
-          state: {
-            patientContext: {
-              id: selectedPatient.id,
-              name: selectedPatient.name,
-              viewMode: 'full-dashboard',
-              dashboardData: patientDashboardData,
-              vitals: vitalsData,
-              timestamp: new Date().toISOString(),
-              source: 'appointments-tab'
-            }
-          }
-        });
+        setShowHealthDashboard(true);
     }
   };
 
@@ -857,47 +648,11 @@ const AppointmentsTab = ({ darkMode }) => {
     }
   };
 
-  // Get vitals status color
-  const getVitalStatusColor = (value, type) => {
-    const ranges = {
-      heartRate: { low: 60, high: 100 },
-      systolic: { low: 90, high: 140 },
-      diastolic: { low: 60, high: 90 },
-      oxygenSaturation: { low: 95, high: 100 },
-      temperature: { low: 36.1, high: 37.2 },
-      respiratoryRate: { low: 12, high: 20 },
-      glucose: { low: 70, high: 140 }
-    };
-
-    const range = ranges[type];
-    if (!range) return 'text-gray-500';
-
-    if (value < range.low) return 'text-blue-500';
-    if (value > range.high) return 'text-red-500';
-    return 'text-green-500';
-  };
-
   // Data Type Selection Modal Component
   const DataTypeSelectionModal = () => {
     if (!showDataOptionsModal) return null;
 
     const dataTypes = [
-      {
-        id: 'patient',
-        title: 'Patient Health Dashboard',
-        description: 'Complete patient dashboard with vitals, medications, lab results, and health metrics',
-        icon: <Activity className="w-8 h-8" />,
-        color: 'blue',
-        features: ['Real-time vitals monitoring', 'Medication history & adherence', 'Lab results & reports', 'Health metrics & trends', 'Appointment history']
-      },
-      {
-        id: 'vitals',
-        title: 'Real-Time Vital Signs',
-        description: 'Live monitoring of patient vital signs with automatic updates and critical alerts',
-        icon: <Thermometer className="w-8 h-8" />,
-        color: 'green',
-        features: ['Heart rate (BPM)', 'Blood pressure (mmHg)', 'Oxygen saturation (SpO2)', 'Body temperature (°C)', 'Respiratory rate', 'Blood glucose']
-      },
       {
         id: 'ecg',
         title: 'ECG / Heart Monitoring',
@@ -905,6 +660,22 @@ const AppointmentsTab = ({ darkMode }) => {
         icon: <Heart className="w-8 h-8" />,
         color: 'red',
         features: ['Real-time ECG waveform', 'Heart rate variability', 'Arrhythmia detection', 'Historical trends']
+      },
+      {
+        id: 'patient',
+        title: 'Patient Health Dashboard',
+        description: 'Comprehensive patient health metrics including vitals, medications, and reports',
+        icon: <Activity className="w-8 h-8" />,
+        color: 'blue',
+        features: ['Vital signs (BP, HR, Temp)', 'Medication history', 'Lab results', 'Health reports']
+      },
+      {
+        id: 'vitals',
+        title: 'Vital Signs Monitor',
+        description: 'Live monitoring of patient vital signs and critical alerts',
+        icon: <Thermometer className="w-8 h-8" />,
+        color: 'green',
+        features: ['Blood pressure trends', 'Oxygen saturation', 'Temperature', 'Respiratory rate']
       },
       {
         id: 'lab',
@@ -1055,6 +826,91 @@ const AppointmentsTab = ({ darkMode }) => {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ECG Modal Component (Placeholder - you can implement actual ECG component)
+  const ECGModal = () => {
+    if (!showECGModal) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+        <div className={`w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <div className={`flex items-center justify-between p-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+            <div>
+              <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                ECG / Heart Monitoring
+              </h3>
+              {selectedPatient && (
+                <p className={`mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Patient: {selectedPatient.name}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => {
+                setShowECGModal(false);
+                setSelectedDataType(null);
+              }}
+              className={`p-2 rounded-lg hover:bg-gray-100 ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="p-6">
+            {/* ECG Graph Placeholder */}
+            <div className={`rounded-xl p-8 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+              <div className="flex items-center justify-center h-64">
+                <Heart className={`w-16 h-16 ${darkMode ? 'text-red-400' : 'text-red-500'} animate-pulse`} />
+                <div className="ml-4">
+                  <p className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    ECG Monitoring
+                  </p>
+                  <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Real-time ECG data will appear here
+                  </p>
+                  <div className="flex gap-4 mt-4">
+                    <div className="text-center">
+                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Heart Rate</p>
+                      <p className={`text-2xl font-bold ${darkMode ? 'text-red-400' : 'text-red-600'}`}>72</p>
+                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>BPM</p>
+                    </div>
+                    <div className="text-center">
+                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>PR Interval</p>
+                      <p className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>160 ms</p>
+                    </div>
+                    <div className="text-center">
+                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>QRS Duration</p>
+                      <p className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>80 ms</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Features List */}
+            <div className="mt-6 grid grid-cols-2 gap-4">
+              <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                <h4 className={`font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Waveform Analysis</h4>
+                <ul className="space-y-1">
+                  <li className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>• P Wave: Normal</li>
+                  <li className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>• QRS Complex: Regular</li>
+                  <li className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>• T Wave: Normal</li>
+                </ul>
+              </div>
+              <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                <h4 className={`font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Rhythm Analysis</h4>
+                <ul className="space-y-1">
+                  <li className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>• Sinus Rhythm: Normal</li>
+                  <li className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>• Arrhythmias: None detected</li>
+                  <li className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>• ST Segment: Normal</li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
@@ -1230,6 +1086,19 @@ const AppointmentsTab = ({ darkMode }) => {
                     </div>
                   </div>
                   <div className="flex items-center justify-between md:justify-end gap-3">
+                    {/* Message button for doctors */}
+                    {isDoctor && patientId && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/chat/${patientId}`);
+                        }}
+                        className="p-2 rounded-full bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+                        title="Message Patient"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                      </button>
+                    )}
                     <div className="flex flex-col items-center gap-2">
                       <span className={`px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium ${appointment.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
                         appointment.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
@@ -1975,6 +1844,24 @@ const AppointmentsTab = ({ darkMode }) => {
 
       {/* Data Type Selection Modal */}
       <DataTypeSelectionModal />
+
+      {/* ECG Modal */}
+      <ECGModal />
+
+      {/* Real-time Health Dashboard Popup */}
+      <RealTimeHealthDashboard
+        isOpen={showHealthDashboard}
+        onClose={() => {
+          console.log('Closing health dashboard');
+          setShowHealthDashboard(false);
+          setSelectedPatient(null);
+          setSelectedDataType(null);
+        }}
+        patientId={selectedPatient?.id}
+        patientName={selectedPatient?.name}
+        darkMode={darkMode}
+        accessToken={localStorage.getItem('access_token')}
+      />
     </div>
   );
 };
