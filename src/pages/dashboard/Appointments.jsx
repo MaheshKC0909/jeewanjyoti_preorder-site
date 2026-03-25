@@ -1,8 +1,9 @@
 import ChatTab from './Chat';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Calendar, Clock, Plus, Video, Phone, MapPin, X, Search, Star, GraduationCap, Building, Mail, User, CreditCard, ChevronRight, Activity, Heart, Thermometer, Droplets, Brain, FileText, Pill, Camera, MessageCircle } from 'lucide-react';
 import { getDoctorList, API_BASE_URL, getUserEmailProfile } from '../../lib/api';
 import RealTimeHealthDashboard from '../../components/RealTimeHealthDashboard';
+import ECGMonitor from '../../components/ECGMonitor';
 
 // CHANGE 2: Add onSwitchToChat to component props
 const AppointmentsTab = ({ darkMode, onSwitchToChat }) => {
@@ -462,8 +463,18 @@ const AppointmentsTab = ({ darkMode, onSwitchToChat }) => {
           is_immediate: false,
           user_report: null
         });
+
+        // Refresh appointments after booking
+        fetchAppointments();
       } else {
-        // error handling...
+        let errorMessage = 'Failed to book appointment';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch (parseError) {
+          errorMessage = `Failed with status ${response.status}`;
+        }
+        setError(errorMessage);
       }
     } catch (err) {
       setError(`Failed to book appointment: ${err.message}`);
@@ -610,7 +621,6 @@ const AppointmentsTab = ({ darkMode, onSwitchToChat }) => {
         setShowHealthDashboard(true);
         break;
       case 'vitals':
-        // You can add vitals modal here
         alert('Vitals monitoring coming soon!');
         break;
       case 'lab':
@@ -665,19 +675,19 @@ const AppointmentsTab = ({ darkMode, onSwitchToChat }) => {
       },
       {
         id: 'patient',
-        title: 'Patient Health Dashboard',
-        description: 'Comprehensive patient health metrics including vitals, medications, and reports',
+        title: 'Real time data',
+        description: 'Live monitoring of patient vital signs and critical alerts',
         icon: <Activity className="w-8 h-8" />,
         color: 'blue',
-        features: ['Vital signs (BP, HR, Temp)', 'Medication history', 'Lab results', 'Health reports']
+        features: ['Blood pressure trends', 'Oxygen saturation', 'Temperature', 'Stress', 'HRV']
       },
       {
         id: 'vitals',
-        title: 'Vital Signs Monitor',
-        description: 'Live monitoring of patient vital signs and critical alerts',
+        title: 'Patient Health Dashboard',
+        description: 'Comprehensive patient health metrics including vitals, medications, and reports',
         icon: <Thermometer className="w-8 h-8" />,
         color: 'green',
-        features: ['Blood pressure trends', 'Oxygen saturation', 'Temperature', 'Respiratory rate']
+        features: ['Vital signs (BP, HR, Temp)', 'Medication history', 'Lab results', 'Health reports']
       },
       {
         id: 'lab',
@@ -824,7 +834,7 @@ const AppointmentsTab = ({ darkMode, onSwitchToChat }) => {
                 className={`px-4 py-2 rounded-lg ${darkMode
                   ? 'bg-gray-700 text-white hover:bg-gray-600'
                   : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                }`}
+                  }`}
               >
                 Cancel
               </button>
@@ -835,88 +845,21 @@ const AppointmentsTab = ({ darkMode, onSwitchToChat }) => {
     );
   };
 
-  // ECG Modal Component (Placeholder - you can implement actual ECG component)
+  // ECG Modal Component - Using the imported ECGMonitor
   const ECGModal = () => {
-    if (!showECGModal) return null;
-
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
-        <div className={`w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-          <div className={`flex items-center justify-between p-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-            <div>
-              <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                ECG / Heart Monitoring
-              </h3>
-              {selectedPatient && (
-                <p className={`mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Patient: {selectedPatient.name}
-                </p>
-              )}
-            </div>
-            <button
-              onClick={() => {
-                setShowECGModal(false);
-                setSelectedDataType(null);
-              }}
-              className={`p-2 rounded-lg hover:bg-gray-100 ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="p-6">
-            {/* ECG Graph Placeholder */}
-            <div className={`rounded-xl p-8 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-              <div className="flex items-center justify-center h-64">
-                <Heart className={`w-16 h-16 ${darkMode ? 'text-red-400' : 'text-red-500'} animate-pulse`} />
-                <div className="ml-4">
-                  <p className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                    ECG Monitoring
-                  </p>
-                  <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Real-time ECG data will appear here
-                  </p>
-                  <div className="flex gap-4 mt-4">
-                    <div className="text-center">
-                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Heart Rate</p>
-                      <p className={`text-2xl font-bold ${darkMode ? 'text-red-400' : 'text-red-600'}`}>72</p>
-                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>BPM</p>
-                    </div>
-                    <div className="text-center">
-                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>PR Interval</p>
-                      <p className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>160 ms</p>
-                    </div>
-                    <div className="text-center">
-                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>QRS Duration</p>
-                      <p className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>80 ms</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Features List */}
-            <div className="mt-6 grid grid-cols-2 gap-4">
-              <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                <h4 className={`font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Waveform Analysis</h4>
-                <ul className="space-y-1">
-                  <li className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>• P Wave: Normal</li>
-                  <li className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>• QRS Complex: Regular</li>
-                  <li className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>• T Wave: Normal</li>
-                </ul>
-              </div>
-              <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                <h4 className={`font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Rhythm Analysis</h4>
-                <ul className="space-y-1">
-                  <li className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>• Sinus Rhythm: Normal</li>
-                  <li className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>• Arrhythmias: None detected</li>
-                  <li className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>• ST Segment: Normal</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <ECGMonitor
+        isOpen={showECGModal}
+        onClose={() => {
+          setShowECGModal(false);
+          setSelectedDataType(null);
+        }}
+        selectedPatient={selectedPatient}
+        darkMode={darkMode}
+        onRequestSent={() => console.log('ECG request sent')}
+        onRequestAccepted={() => console.log('ECG request accepted')}
+        onRequestRejected={() => console.log('ECG request rejected')}
+      />
     );
   };
 
@@ -931,7 +874,7 @@ const AppointmentsTab = ({ darkMode, onSwitchToChat }) => {
               className={`px-4 py-2 rounded-xl flex items-center gap-2 transition-colors text-sm md:text-base border ${darkMode
                 ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 text-white'
                 : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-800'
-              }`}
+                }`}
             >
               <Calendar className="w-4 h-4 md:w-5 md:h-5" />
               <span>My Appointment Schedule</span>
@@ -1088,40 +1031,40 @@ const AppointmentsTab = ({ darkMode, onSwitchToChat }) => {
                     </div>
                   </div>
                   <div className="flex items-center justify-between md:justify-end gap-3">
-                      {/* Message button for doctors */}
-                      {isDoctor && patientId && (
-                        <div
-                          className="relative z-50"
+                    {/* Message button for doctors */}
+                    {isDoctor && patientId && (
+                      <div
+                        className="relative z-50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                        }}
+                      >
+                        <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
+                            console.log('Message button clicked for patient:', patientId);
+                            if (window.startChatWithAppointment) {
+                              window.startChatWithAppointment({
+                                ...appointment,
+                                user_id: patientId,
+                                user_name: patientName,
+                                doctor_name: doctorName,
+                              });
+                            }
+                            if (onSwitchToChat) {
+                              setTimeout(() => onSwitchToChat(), 50);
+                            }
                           }}
+                          className="p-2 rounded-full bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white transition-colors cursor-pointer"
+                          title="Message Patient"
                         >
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              e.preventDefault();
-                              console.log('Message button clicked for patient:', patientId);
-                              if (window.startChatWithAppointment) {
-                                window.startChatWithAppointment({
-                                  ...appointment,
-                                  user_id: patientId,
-                                  user_name: patientName,
-                                  doctor_name: doctorName,
-                                });
-                              }
-                              if (onSwitchToChat) {
-                                setTimeout(() => onSwitchToChat(), 50);
-                              }
-                            }}
-                            className="p-2 rounded-full bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white transition-colors cursor-pointer"
-                            title="Message Patient"
-                          >
-                            <MessageCircle className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
+                          <MessageCircle className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                     <div className="flex flex-col items-center gap-2">
                       <span className={`px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium ${appointment.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
                         appointment.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
@@ -1868,7 +1811,7 @@ const AppointmentsTab = ({ darkMode, onSwitchToChat }) => {
       {/* Data Type Selection Modal */}
       <DataTypeSelectionModal />
 
-      {/* ECG Modal */}
+      {/* ECG Modal - Using the imported ECGMonitor component */}
       <ECGModal />
 
       {/* Real-time Health Dashboard Popup */}
