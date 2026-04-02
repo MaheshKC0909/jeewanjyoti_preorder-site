@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
-import { MapPin, Navigation, RefreshCw, AlertCircle } from 'lucide-react';
+import { MapPin, Navigation, RefreshCw, AlertCircle, Calendar, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { getLocationData } from '../lib/locationApi';
@@ -26,12 +26,20 @@ const MapController = ({ center }) => {
     return null;
 };
 
-const TrailMap = ({ darkMode, userId = null }) => {
+const TrailMap = ({ darkMode, userId = null, globalDateFilter, globalDateRange }) => {
     const [trailPoints, setTrailPoints] = useState([]);
+    const [filteredTrailPoints, setFilteredTrailPoints] = useState([]);
     const [mapCenter, setMapCenter] = useState([27.7172, 85.3240]); // Default: Kathmandu, Nepal
     const [mapZoom, setMapZoom] = useState(13);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
+    
+    // Local date filter state - syncs with global filter
+    const [localDateFilter, setLocalDateFilter] = useState(globalDateFilter || 'today');
+    const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+    const [customDateFrom, setCustomDateFrom] = useState('');
+    const [customDateTo, setCustomDateTo] = useState('');
+    const [showCustomDateModal, setShowCustomDateModal] = useState(false);
 
     // Fetch location data from API
     const fetchLocationData = async () => {
@@ -85,14 +93,110 @@ const TrailMap = ({ darkMode, userId = null }) => {
         fetchLocationData();
     }, [userId]);
 
-    // Calculate total distance (approximate)
+    // Sync local filter with global filter when it changes
+    useEffect(() => {
+        if (globalDateFilter) {
+            setLocalDateFilter(globalDateFilter);
+        }
+        if (globalDateRange?.from && globalDateRange?.to) {
+            setCustomDateFrom(globalDateRange.from);
+            setCustomDateTo(globalDateRange.to);
+        }
+    }, [globalDateFilter, globalDateRange]);
+
+    // Calculate date range based on filter type
+    const getDateRange = (filterType) => {
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+        
+        switch (filterType) {
+            case 'today':
+                return { from: todayStr, to: todayStr };
+            case 'week': {
+                const weekAgo = new Date(today);
+                weekAgo.setDate(today.getDate() - 7);
+                return { from: weekAgo.toISOString().split('T')[0], to: todayStr };
+            }
+            case 'month': {
+                const monthAgo = new Date(today);
+                monthAgo.setDate(today.getDate() - 30);
+                return { from: monthAgo.toISOString().split('T')[0], to: todayStr };
+            }
+            case 'custom':
+                if (customDateFrom && customDateTo) {
+                    return { from: customDateFrom, to: customDateTo };
+                }
+                return { from: todayStr, to: todayStr };
+            default:
+                return { from: todayStr, to: todayStr };
+        }
+    };
+
+    // Filter trail points by date range
+    const filterTrailPointsByDate = () => {
+        if (!trailPoints.length) return;
+        
+        const { from, to } = getDateRange(localDateFilter);
+        
+        if (!from || !to) {
+            setFilteredTrailPoints(trailPoints);
+            return;
+        }
+        
+        const fromDate = new Date(from);
+        const toDate = new Date(to);
+        toDate.setHours(23, 59, 59, 999); // Include the full end date
+        
+        const filtered = trailPoints.filter(point => {
+            const pointDate = new Date(point.timestamp);
+            return pointDate >= fromDate && pointDate <= toDate;
+        });
+        
+        setFilteredTrailPoints(filtered);
+        
+        // Update map center to first filtered point
+        if (filtered.length > 0) {
+            setMapCenter([filtered[0].lat, filtered[0].lng]);
+        }
+    };
+
+    // Apply filtering when data or filter changes
+    useEffect(() => {
+        filterTrailPointsByDate();
+    }, [trailPoints, localDateFilter, customDateFrom, customDateTo]);
+
+    // Handle local filter change
+    const handleLocalFilterChange = (filterType) => {
+        setLocalDateFilter(filterType);
+        setShowFilterDropdown(false);
+        
+        if (filterType === 'custom') {
+            setShowCustomDateModal(true);
+            const today = new Date().toISOString().split('T')[0];
+            setCustomDateFrom(today);
+            setCustomDateTo(today);
+        }
+    };
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (showFilterDropdown && !event.target.closest('.trail-map-filter')) {
+                setShowFilterDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showFilterDropdown]);
+
+    // Calculate total distance for filtered points (approximate)
     const calculateDistance = () => {
-        if (trailPoints.length < 2) return 0;
+        if (filteredTrailPoints.length < 2) return 0;
 
         let totalDistance = 0;
-        for (let i = 0; i < trailPoints.length - 1; i++) {
-            const p1 = trailPoints[i];
-            const p2 = trailPoints[i + 1];
+        for (let i = 0; i < filteredTrailPoints.length - 1; i++) {
+            const p1 = filteredTrailPoints[i];
+            const p2 = filteredTrailPoints[i + 1];
 
             // Haversine formula for distance calculation
             const R = 6371; // Earth's radius in km
@@ -112,7 +216,7 @@ const TrailMap = ({ darkMode, userId = null }) => {
     return (
         <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
             }`}>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-3">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center">
                         <Navigation className="w-5 h-5 text-white" />
@@ -126,18 +230,99 @@ const TrailMap = ({ darkMode, userId = null }) => {
                         </p>
                     </div>
                 </div>
-                <button
-                    onClick={fetchLocationData}
-                    disabled={isLoading}
-                    className={`px-3 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm ${isLoading
-                        ? 'bg-gray-400 cursor-not-allowed'
-                        : 'bg-green-500 hover:bg-green-600 text-white'
-                        }`}
-                >
-                    <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-                    Refresh
-                </button>
+                
+                {/* Filter and Refresh Controls */}
+                <div className="flex items-center gap-2">
+                    {/* Date Filter Dropdown */}
+                    <div className="relative trail-map-filter">
+                        <button
+                            onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                            className={`px-3 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm ${
+                                showFilterDropdown || localDateFilter !== 'today'
+                                    ? darkMode
+                                        ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                                        : 'bg-purple-500 hover:bg-purple-600 text-white'
+                                    : darkMode
+                                        ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                            }`}
+                        >
+                            <SlidersHorizontal className="w-4 h-4" />
+                            <span className="hidden sm:inline">
+                                {localDateFilter === 'today' ? 'Today' :
+                                 localDateFilter === 'week' ? 'This Week' :
+                                 localDateFilter === 'month' ? 'This Month' : 'Custom'}
+                            </span>
+                            <ChevronDown className={`w-3 h-3 transition-transform ${showFilterDropdown ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {/* Filter Dropdown Menu */}
+                        {showFilterDropdown && (
+                            <div className={`absolute top-full right-0 mt-2 w-40 rounded-lg shadow-xl border z-20 ${
+                                darkMode
+                                    ? 'bg-gray-700 border-gray-600'
+                                    : 'bg-white border-gray-200'
+                            }`}>
+                                <div className="py-1">
+                                    {['today', 'week', 'month', 'custom'].map((filter) => (
+                                        <button
+                                            key={filter}
+                                            onClick={() => handleLocalFilterChange(filter)}
+                                            className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                                                localDateFilter === filter
+                                                    ? darkMode
+                                                        ? 'bg-purple-600/20 text-purple-400'
+                                                        : 'bg-purple-50 text-purple-600'
+                                                    : darkMode
+                                                        ? 'text-gray-300 hover:bg-gray-600'
+                                                        : 'text-gray-700 hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            {filter === 'today' && 'Today'}
+                                            {filter === 'week' && 'This Week'}
+                                            {filter === 'month' && 'This Month'}
+                                            {filter === 'custom' && 'Custom Range'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Refresh Button */}
+                    <button
+                        onClick={fetchLocationData}
+                        disabled={isLoading}
+                        className={`px-3 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm ${isLoading
+                            ? 'bg-gray-400 cursor-not-allowed'
+                            : 'bg-green-500 hover:bg-green-600 text-white'
+                            }`}
+                    >
+                        <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                        <span className="hidden sm:inline">Refresh</span>
+                    </button>
+                </div>
             </div>
+
+            {/* Active Filter Indicator */}
+            {localDateFilter !== 'today' && (
+                <div className={`mb-4 p-3 rounded-lg ${darkMode ? 'bg-purple-900/20 border border-purple-800' : 'bg-purple-50 border border-purple-200'}`}>
+                    <div className="flex items-center gap-2">
+                        <Calendar className={`w-4 h-4 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+                        <span className={`text-sm ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                            Showing data for: 
+                            <strong>
+                                {localDateFilter === 'today' && 'Today'}
+                                {localDateFilter === 'week' && 'Last 7 Days'}
+                                {localDateFilter === 'month' && 'Last 30 Days'}
+                                {localDateFilter === 'custom' && customDateFrom && customDateTo && 
+                                    `${customDateFrom} to ${customDateTo}`}
+                            </strong>
+                            {' '}({filteredTrailPoints.length} points)
+                        </span>
+                    </div>
+                </div>
+            )}
 
             {/* Loading State */}
             {isLoading && (
@@ -167,13 +352,13 @@ const TrailMap = ({ darkMode, userId = null }) => {
                 </div>
             )}
 
-            {/* Trail Statistics */}
-            {!isLoading && !error && trailPoints.length > 0 && (
+            {/* Trail Statistics - Showing Filtered Data */}
+            {!isLoading && !error && filteredTrailPoints.length > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
                     <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
-                        <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-blue-600'}`}>Total Points</div>
+                        <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-blue-600'}`}>Filtered Points</div>
                         <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-blue-700'}`}>
-                            {trailPoints.length}
+                            {filteredTrailPoints.length}
                         </div>
                     </div>
                     <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-green-50'}`}>
@@ -185,8 +370,8 @@ const TrailMap = ({ darkMode, userId = null }) => {
                     <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-purple-50'} col-span-2 md:col-span-1`}>
                         <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-purple-600'}`}>Last Updated</div>
                         <div className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-purple-700'}`}>
-                            {trailPoints.length > 0
-                                ? new Date(trailPoints[trailPoints.length - 1].timestamp).toLocaleString()
+                            {filteredTrailPoints.length > 0
+                                ? new Date(filteredTrailPoints[filteredTrailPoints.length - 1].timestamp).toLocaleString()
                                 : 'N/A'
                             }
                         </div>
@@ -209,10 +394,10 @@ const TrailMap = ({ darkMode, userId = null }) => {
                             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                         />
 
-                        {/* Draw trail line */}
-                        {trailPoints.length > 1 && (
+                        {/* Draw trail line - Using filtered points */}
+                        {filteredTrailPoints.length > 1 && (
                             <Polyline
-                                positions={trailPoints.map(p => [p.lat, p.lng])}
+                                positions={filteredTrailPoints.map(p => [p.lat, p.lng])}
                                 color="#10b981"
                                 weight={5}
                                 opacity={0.8}
@@ -220,15 +405,14 @@ const TrailMap = ({ darkMode, userId = null }) => {
                             />
                         )}
 
-                        {/* Add directional arrow markers at intervals to avoid clutter */}
-                        {trailPoints.length > 1 && trailPoints.map((point, index) => {
+                        {/* Add directional arrow markers using filtered points */}
+                        {filteredTrailPoints.length > 1 && filteredTrailPoints.map((point, index) => {
                             // Only show arrows at intervals to reduce clutter
-                            // Show arrow every 3 points, or if there are few points, show more frequently
-                            const interval = trailPoints.length <= 5 ? 1 : trailPoints.length <= 10 ? 2 : 3;
+                            const interval = filteredTrailPoints.length <= 5 ? 1 : filteredTrailPoints.length <= 10 ? 2 : 3;
 
-                            if (index === trailPoints.length - 1 || index % interval !== 0) return null;
+                            if (index === filteredTrailPoints.length - 1 || index % interval !== 0) return null;
 
-                            const nextPoint = trailPoints[index + 1];
+                            const nextPoint = filteredTrailPoints[index + 1];
                             const midLat = (point.lat + nextPoint.lat) / 2;
                             const midLng = (point.lng + nextPoint.lng) / 2;
 
@@ -263,13 +447,13 @@ const TrailMap = ({ darkMode, userId = null }) => {
                             );
                         })}
 
-                        {/* Add markers for start and end points only to reduce clutter */}
-                        {trailPoints.length > 0 && (
+                        {/* Add markers for start and end points using filtered points */}
+                        {filteredTrailPoints.length > 0 && (
                             <>
                                 {/* Start Point */}
                                 <Marker
                                     key="start"
-                                    position={[trailPoints[0].lat, trailPoints[0].lng]}
+                                    position={[filteredTrailPoints[0].lat, filteredTrailPoints[0].lng]}
                                     icon={L.divIcon({
                                         className: 'custom-marker',
                                         html: `
@@ -295,21 +479,21 @@ const TrailMap = ({ darkMode, userId = null }) => {
                                     <Popup>
                                         <div className="text-sm">
                                             <strong className="text-blue-600">Start Point</strong><br />
-                                            <strong>Location:</strong> {trailPoints[0].locality || 'Unknown'}<br />
-                                            <strong>City:</strong> {trailPoints[0].city || 'Unknown'}<br />
+                                            <strong>Location:</strong> {filteredTrailPoints[0].locality || 'Unknown'}<br />
+                                            <strong>City:</strong> {filteredTrailPoints[0].city || 'Unknown'}<br />
                                             <strong>Coordinates:</strong><br />
-                                            Lat: {trailPoints[0].lat.toFixed(6)}<br />
-                                            Lng: {trailPoints[0].lng.toFixed(6)}<br />
-                                            <strong>Time:</strong> {new Date(trailPoints[0].timestamp).toLocaleString()}
+                                            Lat: {filteredTrailPoints[0].lat.toFixed(6)}<br />
+                                            Lng: {filteredTrailPoints[0].lng.toFixed(6)}<br />
+                                            <strong>Time:</strong> {new Date(filteredTrailPoints[0].timestamp).toLocaleString()}
                                         </div>
                                     </Popup>
                                 </Marker>
 
                                 {/* End Point */}
-                                {trailPoints.length > 1 && (
+                                {filteredTrailPoints.length > 1 && (
                                     <Marker
                                         key="end"
-                                        position={[trailPoints[trailPoints.length - 1].lat, trailPoints[trailPoints.length - 1].lng]}
+                                        position={[filteredTrailPoints[filteredTrailPoints.length - 1].lat, filteredTrailPoints[filteredTrailPoints.length - 1].lng]}
                                         icon={L.divIcon({
                                             className: 'custom-marker',
                                             html: `
@@ -335,12 +519,12 @@ const TrailMap = ({ darkMode, userId = null }) => {
                                         <Popup>
                                             <div className="text-sm">
                                                 <strong className="text-red-600">End Point</strong><br />
-                                                <strong>Location:</strong> {trailPoints[trailPoints.length - 1].locality || 'Unknown'}<br />
-                                                <strong>City:</strong> {trailPoints[trailPoints.length - 1].city || 'Unknown'}<br />
+                                                <strong>Location:</strong> {filteredTrailPoints[filteredTrailPoints.length - 1].locality || 'Unknown'}<br />
+                                                <strong>City:</strong> {filteredTrailPoints[filteredTrailPoints.length - 1].city || 'Unknown'}<br />
                                                 <strong>Coordinates:</strong><br />
-                                                Lat: {trailPoints[trailPoints.length - 1].lat.toFixed(6)}<br />
-                                                Lng: {trailPoints[trailPoints.length - 1].lng.toFixed(6)}<br />
-                                                <strong>Time:</strong> {new Date(trailPoints[trailPoints.length - 1].timestamp).toLocaleString()}
+                                                Lat: {filteredTrailPoints[filteredTrailPoints.length - 1].lat.toFixed(6)}<br />
+                                                Lng: {filteredTrailPoints[filteredTrailPoints.length - 1].lng.toFixed(6)}<br />
+                                                <strong>Time:</strong> {new Date(filteredTrailPoints[filteredTrailPoints.length - 1].timestamp).toLocaleString()}
                                             </div>
                                         </Popup>
                                     </Marker>
@@ -351,25 +535,28 @@ const TrailMap = ({ darkMode, userId = null }) => {
                 </div>
             )}
 
-            {/* Empty State */}
-            {!isLoading && !error && trailPoints.length === 0 && (
+            {/* Empty State - No Filtered Data */}
+            {!isLoading && !error && filteredTrailPoints.length === 0 && (
                 <div className={`mt-4 p-8 rounded-lg border-2 border-dashed text-center ${darkMode ? 'border-gray-600 bg-gray-700/50' : 'border-gray-300 bg-gray-50'
                     }`}>
                     <MapPin className={`w-12 h-12 mx-auto mb-3 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
                     <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        No location data available yet. Your GPS trail will appear here once location data is recorded.
+                        {trailPoints.length > 0 
+                            ? `No location data found for the selected ${localDateFilter === 'custom' ? 'date range' : 'time period'}. Try selecting a different date range.`
+                            : 'No location data available yet. Your GPS trail will appear here once location data is recorded.'
+                        }
                     </p>
                 </div>
             )}
 
-            {/* Trail Points List */}
-            {!isLoading && !error && trailPoints.length > 0 && (
+            {/* Trail Points List - Showing Filtered Data */}
+            {!isLoading && !error && filteredTrailPoints.length > 0 && (
                 <div className="mt-4">
                     <h4 className={`text-sm font-semibold mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Trail Points ({trailPoints.length})
+                        Trail Points ({filteredTrailPoints.length} of {trailPoints.length} total)
                     </h4>
                     <div className="max-h-40 overflow-y-auto space-y-2">
-                        {trailPoints.map((point, index) => (
+                        {filteredTrailPoints.map((point, index) => (
                             <div
                                 key={point.id || index}
                                 className={`flex items-center justify-between p-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'
@@ -391,6 +578,101 @@ const TrailMap = ({ darkMode, userId = null }) => {
                                 </span>
                             </div>
                         ))}
+                    </div>
+                </div>
+            )}
+            {/* Custom Date Range Modal */}
+            {showCustomDateModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                    <div className={`rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                                Custom Date Range
+                            </h3>
+                            <button
+                                onClick={() => setShowCustomDateModal(false)}
+                                className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
+                            >
+                                <span className="sr-only">Close</span>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            {/* From Date */}
+                            <div>
+                                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    From Date
+                                </label>
+                                <input
+                                    type="date"
+                                    value={customDateFrom}
+                                    onChange={(e) => setCustomDateFrom(e.target.value)}
+                                    className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-green-500 focus:border-transparent ${
+                                        darkMode
+                                            ? 'bg-gray-700 border-gray-600 text-white'
+                                            : 'bg-white border-gray-300 text-gray-900'
+                                    }`}
+                                />
+                            </div>
+
+                            {/* To Date */}
+                            <div>
+                                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    To Date
+                                </label>
+                                <input
+                                    type="date"
+                                    value={customDateTo}
+                                    onChange={(e) => setCustomDateTo(e.target.value)}
+                                    className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-green-500 focus:border-transparent ${
+                                        darkMode
+                                            ? 'bg-gray-700 border-gray-600 text-white'
+                                            : 'bg-white border-gray-300 text-gray-900'
+                                    }`}
+                                />
+                            </div>
+
+                            {/* Date Range Preview */}
+                            {customDateFrom && customDateTo && (
+                                <div className={`p-3 rounded-lg ${darkMode ? 'bg-green-900/20' : 'bg-green-50'}`}>
+                                    <p className={`text-sm ${darkMode ? 'text-green-300' : 'text-green-700'}`}>
+                                        Selected range: <strong>{customDateFrom}</strong> to <strong>{customDateTo}</strong>
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => setShowCustomDateModal(false)}
+                                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                                    darkMode
+                                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                }`}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (customDateFrom && customDateTo) {
+                                        setShowCustomDateModal(false);
+                                    }
+                                }}
+                                disabled={!customDateFrom || !customDateTo}
+                                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                                    customDateFrom && customDateTo
+                                        ? 'bg-green-500 hover:bg-green-600 text-white'
+                                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                }`}
+                            >
+                                Apply Filter
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

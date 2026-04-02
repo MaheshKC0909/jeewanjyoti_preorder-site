@@ -44,6 +44,9 @@ const Dashboard = () => {
   // Global filter states
   const [globalDateFilter, setGlobalDateFilter] = useState('today'); // 'today', 'week', 'month', 'custom'
   const [showGlobalFilterDropdown, setShowGlobalFilterDropdown] = useState(false);
+  const [showCustomDateModal, setShowCustomDateModal] = useState(false);
+  const [customDateFrom, setCustomDateFrom] = useState('');
+  const [customDateTo, setCustomDateTo] = useState('');
   const [globalDateRange, setGlobalDateRange] = useState({
     from: null,
     to: null,
@@ -287,14 +290,12 @@ const Dashboard = () => {
     
     if (filterType === 'custom') {
       setShowGlobalFilterDropdown(false);
-      // You might want to open a date range picker modal here
-      // For now, we'll just set it to custom
-      setGlobalDateRange({
-        from: null,
-        to: null,
-        customRange: true,
-        period: 'custom'
-      });
+      // Open custom date picker modal
+      setShowCustomDateModal(true);
+      // Set default dates (today to today)
+      const today = new Date().toISOString().split('T')[0];
+      setCustomDateFrom(today);
+      setCustomDateTo(today);
     } else {
       setGlobalDateRange({
         from: null,
@@ -306,14 +307,7 @@ const Dashboard = () => {
     setShowGlobalFilterDropdown(false);
   };
 
-  // Format date for API
-  const formatDateForAPI = (date) => {
-    if (!date) return null;
-    const d = new Date(date);
-    return d.toISOString().split('T')[0];
-  };
-
-  // Handle custom date range (if you want to add a date picker)
+  // Handle custom date range apply
   const handleCustomDateApply = (from, to) => {
     setGlobalDateRange({
       from: formatDateForAPI(from),
@@ -322,6 +316,13 @@ const Dashboard = () => {
       period: 'custom'
     });
     setGlobalDateFilter('custom');
+  };
+
+  // Format date for API
+  const formatDateForAPI = (date) => {
+    if (!date) return null;
+    const d = new Date(date);
+    return d.toISOString().split('T')[0];
   };
 
   // Function to get currently viewed user info
@@ -481,7 +482,7 @@ const Dashboard = () => {
       case 'chat':
         return <ChatTab darkMode={darkMode} onChatRoomStateChange={handleChatRoomStateChange} />;
       case 'profile':
-        return <ProfileTab darkMode={darkMode} selectedUserId={selectedUserId} />;
+        return <ProfileTab darkMode={darkMode} selectedUserId={selectedUserId} globalDateFilter={globalDateFilter} globalDateRange={globalDateRange} />;
       case 'settings':
         return <SettingsTab darkMode={darkMode} />;
       default:
@@ -1508,6 +1509,100 @@ const Dashboard = () => {
           onClose={handleProfileFormClose}
           onSuccess={handleProfileFormSuccess}
         />
+      )}
+
+      {/* Custom Date Range Modal */}
+      {showCustomDateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className={`rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                Custom Date Range
+              </h3>
+              <button
+                onClick={() => setShowCustomDateModal(false)}
+                className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* From Date */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  From Date
+                </label>
+                <input
+                  type="date"
+                  value={customDateFrom}
+                  onChange={(e) => setCustomDateFrom(e.target.value)}
+                  className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-300 text-gray-900'
+                  }`}
+                />
+              </div>
+
+              {/* To Date */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  To Date
+                </label>
+                <input
+                  type="date"
+                  value={customDateTo}
+                  onChange={(e) => setCustomDateTo(e.target.value)}
+                  className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-300 text-gray-900'
+                  }`}
+                />
+              </div>
+
+              {/* Date Range Preview */}
+              {customDateFrom && customDateTo && (
+                <div className={`p-3 rounded-lg ${darkMode ? 'bg-purple-900/20' : 'bg-purple-50'}`}>
+                  <p className={`text-sm ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                    Selected range: <strong>{customDateFrom}</strong> to <strong>{customDateTo}</strong>
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowCustomDateModal(false)}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  darkMode
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (customDateFrom && customDateTo) {
+                    handleCustomDateApply(customDateFrom, customDateTo);
+                    setShowCustomDateModal(false);
+                  }
+                }}
+                disabled={!customDateFrom || !customDateTo}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  customDateFrom && customDateTo
+                    ? 'bg-purple-500 hover:bg-purple-600 text-white'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                Apply Filter
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Selection Feedback Toast */}

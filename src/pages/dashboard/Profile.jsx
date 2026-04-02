@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Edit3, Mail, Phone, MapPin, Calendar, Users, Award, Star, Heart, Camera, Trash2, AlertTriangle, X, User, UserCircle, Ruler, Scale, Droplets } from 'lucide-react';
+import { Edit3, Mail, Phone, MapPin, Calendar, Users, Award, Star, Heart, Camera, X, User, UserCircle, Ruler, Scale, Droplets } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clearTokens, getUserData } from '../../lib/tokenManager';
 import { getSleepData, getSpO2Data, getHeartRateData, getBloodPressureData, getStressData, getHRVData, getUserEmailProfile, updateProfile, getDayTotalActivity } from '../../lib/api';
@@ -37,11 +37,8 @@ const InputField = React.memo(({ icon: Icon, label, name, type = 'text', require
   );
 });
 
-const ProfileTab = ({ darkMode, selectedUserId = null }) => {
+const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalDateRange }) => {
   const navigate = useNavigate();
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState(null);
   const [sleepData, setSleepData] = useState(null);
   const [spo2Data, setSpO2Data] = useState(null);
   const [heartRateData, setHeartRateData] = useState(null);
@@ -161,48 +158,6 @@ const ProfileTab = ({ darkMode, selectedUserId = null }) => {
     };
     fetchHealthData();
   }, [selectedUserId]);
-
-  // Handle delete account
-  const handleDeleteAccount = async () => {
-    setIsDeleting(true);
-    setDeleteError(null);
-
-    try {
-      const token = localStorage.getItem('access_token');
-
-      // Prepare request based on user type
-      let requestBody = {};
-      if (isAdmin) {
-        // Admin users: send user ID in payload to delete specific account
-        requestBody = { id: userData.id };
-      }
-      // Regular users: send empty body (will delete their own account)
-
-      const response = await fetch('https://jeewanjyoti-backend.smart.org.np/api/delete-account/', {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: Object.keys(requestBody).length > 0 ? JSON.stringify(requestBody) : undefined
-      });
-
-      if (response.ok) {
-        // Account deleted successfully
-        clearTokens();
-        navigate('/login');
-        alert('Your account has been deleted successfully.');
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to delete account');
-      }
-    } catch (error) {
-      console.error('Error deleting account:', error);
-      setDeleteError(error.message);
-    } finally {
-      setIsDeleting(false);
-    }
-  };
 
   // Handle profile image upload
   const handleProfileImageSelect = () => {
@@ -604,129 +559,15 @@ const ProfileTab = ({ darkMode, selectedUserId = null }) => {
             </div>
           )}
 
-          {/* Settings Section */}
-          <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-            }`}>
-            <h3 className={`text-base md:text-lg font-semibold ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-4`}>Account Settings</h3>
-            <div className="space-y-4">
-              <div className={`p-4 rounded-xl border ${darkMode ? 'bg-red-900/20 border-red-800' : 'bg-red-50 border-red-200'
-                }`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${darkMode ? 'bg-red-800' : 'bg-red-100'}`}>
-                      <Trash2 className={`w-5 h-5 ${darkMode ? 'text-red-300' : 'text-red-600'}`} />
-                    </div>
-                    <div>
-                      <h4 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-red-200' : 'text-red-800'}`}>
-                        Delete Account
-                      </h4>
-                      <p className={`text-xs md:text-sm ${darkMode ? 'text-red-300' : 'text-red-600'}`}>
-                        {isAdmin
-                          ? 'Permanently delete your account and all associated data'
-                          : 'Permanently delete your own account and all associated data'
-                        }
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setShowDeleteModal(true)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${darkMode
-                      ? 'bg-red-800 text-red-200 hover:bg-red-700'
-                      : 'bg-red-600 text-white hover:bg-red-700'
-                      }`}
-                  >
-                    Delete Account
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Trail Map Section */}
-          <TrailMap darkMode={darkMode} userId={selectedUserId} />
+          <TrailMap 
+            darkMode={darkMode} 
+            userId={selectedUserId} 
+            globalDateFilter={globalDateFilter}
+            globalDateRange={globalDateRange}
+          />
         </div>
       </div>
-
-      {/* Delete Account Confirmation Modal */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className={`w-full max-w-md rounded-2xl shadow-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'} p-6`}>
-            <div className="flex items-center justify-between mb-6">
-              <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                Delete Account
-              </h3>
-              <button
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setDeleteError(null);
-                }}
-                className={`p-2 rounded-lg hover:bg-gray-100 ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
-                  }`}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="mb-6">
-              <div className={`flex items-center gap-3 p-4 rounded-xl mb-4 ${darkMode ? 'bg-red-900/20 border border-red-800' : 'bg-red-50 border border-red-200'
-                }`}>
-                <AlertTriangle className={`w-6 h-6 ${darkMode ? 'text-red-400' : 'text-red-600'}`} />
-                <div>
-                  <h4 className={`font-semibold ${darkMode ? 'text-red-200' : 'text-red-800'}`}>
-                    Warning: This action cannot be undone
-                  </h4>
-                  <p className={`text-sm ${darkMode ? 'text-red-300' : 'text-red-600'}`}>
-                    All your data, appointments, and account information will be permanently deleted.
-                  </p>
-                </div>
-              </div>
-
-              {deleteError && (
-                <div className={`p-3 rounded-lg mb-4 ${darkMode ? 'bg-red-900 text-red-200' : 'bg-red-100 text-red-800'}`}>
-                  {deleteError}
-                </div>
-              )}
-
-              <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                Are you sure you want to delete your account? This action is irreversible and will remove all your data from our system.
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setDeleteError(null);
-                }}
-                className={`flex-1 px-4 py-2 rounded-lg ${darkMode
-                  ? 'bg-gray-700 text-white hover:bg-gray-600'
-                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                  }`}
-                disabled={isDeleting}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteAccount}
-                disabled={isDeleting}
-                className={`flex-1 px-4 py-2 rounded-lg text-white font-medium transition-colors ${isDeleting
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-red-600 hover:bg-red-700'
-                  }`}
-              >
-                {isDeleting ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Deleting...
-                  </div>
-                ) : (
-                  'Delete Account'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Full Image Modal */}
       {showImageModal && userProfile?.profile_image && (
