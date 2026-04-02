@@ -217,6 +217,42 @@ const HomeTab = ({
     { time: '8PM', level: 20 }
   ];
 
+  // Get latest timestamps
+  const latestHeartRateTime = useMemo(() => {
+    return heartRateData && heartRateData.length > 0 ? heartRateData[heartRateData.length - 1]?.measure_time || heartRateData[heartRateData.length - 1]?.created_at || heartRateData[heartRateData.length - 1]?.date : null;
+  }, [heartRateData]);
+  
+  const latestSpO2Time = useMemo(() => {
+    return spo2Data && spo2Data.length > 0 ? spo2Data[spo2Data.length - 1]?.measure_time || spo2Data[spo2Data.length - 1]?.created_at || spo2Data[spo2Data.length - 1]?.date : null;
+  }, [spo2Data]);
+  
+  const latestSleepTime = useMemo(() => {
+    return sleepData && sleepData.length > 0 ? sleepData[0]?.date : null;
+  }, [sleepData]);
+  
+  const latestStepsTime = useMemo(() => {
+    return stepsData?.date || null;
+  }, [stepsData]);
+
+  const formatDateTime = (dateString, isDateOnly = false) => {
+    if (!dateString) return null;
+    try {
+      if (typeof dateString === 'string' && dateString.length <= 10 && dateString.includes('-')) {
+        const parts = dateString.split('-');
+        if (parts.length === 3) {
+           const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+           return `${months[parseInt(parts[1])-1]} ${parseInt(parts[2])}, ${parts[0]}`;
+        }
+      }
+      const d = new Date(dateString);
+      if (isNaN(d.getTime())) return dateString;
+      return isDateOnly ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) 
+                        : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute:'2-digit' });
+    } catch {
+      return dateString;
+    }
+  };
+
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
@@ -292,11 +328,14 @@ const HomeTab = ({
               <Heart className="w-6 h-6 md:w-8 md:h-8 text-white" />
             </div>
           </div>
-          {heartRateData && heartRateData.length > 1 && (
-            <div className="mt-2 text-xs text-red-100">
-              Range: {Math.min(...heartRateData.map(d => d.once_heart_value))} - {Math.max(...heartRateData.map(d => d.once_heart_value))} BPM
+          <div className="mt-2 text-xs text-red-100 flex justify-between items-center gap-2">
+            <div>
+              {heartRateData && heartRateData.length > 1 && (
+                <span>Range: {Math.min(...heartRateData.map(d => d.once_heart_value))} - {Math.max(...heartRateData.map(d => d.once_heart_value))} BPM</span>
+              )}
             </div>
-          )}
+            {latestHeartRateTime && <div className="text-right whitespace-nowrap opacity-90">{formatDateTime(latestHeartRateTime)}</div>}
+          </div>
         </div>
 
         <div className="rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg bg-gradient-to-br from-indigo-500 to-indigo-600 text-white">
@@ -311,11 +350,14 @@ const HomeTab = ({
               <Moon className="w-6 h-6 md:w-8 md:h-8 text-white" />
             </div>
           </div>
-          {sleepData && sleepData.length > 0 && (
-            <div className="mt-2 text-xs text-indigo-100">
-              Duration: {sleepData[0]?.duration || 0} hrs
+          <div className="mt-2 text-xs text-indigo-100 flex justify-between items-center gap-2">
+            <div>
+              {sleepData && sleepData.length > 0 && (
+                <span>Duration: {sleepData[0]?.duration || 0} hrs</span>
+              )}
             </div>
-          )}
+            {latestSleepTime && <div className="text-right whitespace-nowrap opacity-90">{formatDateTime(latestSleepTime, true)}</div>}
+          </div>
         </div>
 
         <div className="rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg bg-gradient-to-br from-green-500 to-green-600 text-white">
@@ -330,11 +372,14 @@ const HomeTab = ({
               <Activity className="w-6 h-6 md:w-8 md:h-8 text-white" />
             </div>
           </div>
-          {stepsData && stepsData.step && (
-            <div className="mt-2 text-xs text-green-100">
-              Goal: {stepsData.step_goal || 10000} steps
+          <div className="mt-2 text-xs text-green-100 flex justify-between items-center gap-2">
+            <div>
+              {stepsData && stepsData.step && (
+                <span>Goal: {stepsData.step_goal || 10000} steps</span>
+              )}
             </div>
-          )}
+            {latestStepsTime && <div className="text-right whitespace-nowrap opacity-90">{formatDateTime(latestStepsTime, true)}</div>}
+          </div>
         </div>
 
         <div className="rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white">
@@ -349,11 +394,14 @@ const HomeTab = ({
               <Droplets className="w-6 h-6 md:w-8 md:h-8 text-white" />
             </div>
           </div>
-          {spo2Data && spo2Data.length > 1 && (
-            <div className="mt-2 text-xs text-blue-100">
-              Range: {Math.min(...spo2Data.map(d => d.Blood_oxygen))} - {Math.max(...spo2Data.map(d => d.Blood_oxygen))}%
+          <div className="mt-2 text-xs text-blue-100 flex justify-between items-center gap-2">
+            <div>
+              {spo2Data && spo2Data.length > 1 && (
+                <span>Range: {Math.min(...spo2Data.map(d => d.Blood_oxygen))} - {Math.max(...spo2Data.map(d => d.Blood_oxygen))}%</span>
+              )}
             </div>
-          )}
+            {latestSpO2Time && <div className="text-right whitespace-nowrap opacity-90">{formatDateTime(latestSpO2Time)}</div>}
+          </div>
         </div>
       </div>
 

@@ -638,7 +638,7 @@ function Login() {
                 <img src={logo} alt="Jeewan Jyoti" className="h-16 w-auto" />
               </div>
             </div>
-            <h1 className="text-3xl md:text-4xl font-black bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
+            <h1 className="text-3xl md:text-4xl font-black text-violet-600 mb-2">
               LOG IN
             </h1>
             <p className="text-gray-600 text-base font-medium">
@@ -713,7 +713,7 @@ function Login() {
                 className={`w-full py-3 px-8 rounded-xl font-bold text-lg shadow-xl transition-all duration-300 ${
                   isLoading
                     ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 hover:from-violet-700 hover:via-purple-700 hover:to-pink-700 text-white hover:shadow-2xl'
+                    : 'bg-violet-600 hover:bg-violet-700 text-white hover:shadow-2xl'
                 }`}
               >
                 {isLoading ? (
@@ -756,19 +756,19 @@ function Login() {
                   googleLoading ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
-                <div className="w-6 h-6 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+                <div className="w-6 h-6 bg-blue-600 rounded-lg flex items-center justify-center">
                   <span className="text-white text-xs font-bold">G</span>
                 </div>
               </button>
               
               <button className="flex items-center justify-center w-12 h-12 border-2 border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all duration-300">
-                <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg flex items-center justify-center">
+                <div className="w-6 h-6 bg-blue-700 rounded-lg flex items-center justify-center">
                   <span className="text-white text-xs font-bold">f</span>
                 </div>
               </button>
 
               <button className="flex items-center justify-center w-12 h-12 border-2 border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all duration-300">
-                <div className="w-6 h-6 bg-gradient-to-r from-blue-400 to-blue-500 rounded-lg flex items-center justify-center">
+                <div className="w-6 h-6 bg-blue-500 rounded-lg flex items-center justify-center">
                   <span className="text-white text-xs font-bold">in</span>
                 </div>
               </button>
