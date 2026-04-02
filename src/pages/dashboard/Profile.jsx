@@ -149,11 +149,29 @@ const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalD
           const today = new Date().toISOString().split('T')[0];
           const todayData = activityDataResult.results.filter(item => item.date === today);
           const dataToProcess = todayData.length > 0 ? todayData : activityDataResult.results;
-          const latestData = dataToProcess[dataToProcess.length - 1];
+          // Sort by date/id descending or just pick [0] assuming API returns newest first
+          const latestData = dataToProcess[0];
           setActivityData(latestData);
+        } else if (Array.isArray(activityDataResult) && activityDataResult.length > 0) {
+          const today = new Date().toISOString().split('T')[0];
+          const todayData = activityDataResult.filter(item => item.date === today);
+          const dataToProcess = todayData.length > 0 ? todayData : activityDataResult;
+          const latestData = dataToProcess[0];
+          setActivityData(latestData);
+        } else {
+          setActivityData(null);
         }
       } catch (error) {
         console.error('Error fetching health data for profile:', error);
+        // Reset all data on error to prevent showing stale data
+        setSleepData(null);
+        setSpO2Data(null);
+        setHeartRateData(null);
+        setBloodPressureData(null);
+        setStressData(null);
+        setHrvData(null);
+        setUserProfile(null);
+        setActivityData(null);
       }
     };
     fetchHealthData();
@@ -339,8 +357,8 @@ const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalD
               <div className="text-center">
                 <div className="text-lg md:text-2xl font-bold text-blue-600">
                   {heartRateData && heartRateData.length > 0
-                    ? heartRateData[heartRateData.length - 1].once_heart_value
-                    : '72'
+                    ? heartRateData[0].once_heart_value
+                    : '—'
                   }
                 </div>
                 <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Avg Heart Rate</div>
@@ -348,8 +366,8 @@ const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalD
               <div className="text-center">
                 <div className="text-lg md:text-2xl font-bold text-green-600">
                   {sleepData && sleepData.length > 0
-                    ? calculateSleepScore(sleepData[0])
-                    : '85'
+                    ? sleepData[0].sleep_score
+                    : '—'
                   }/100
                 </div>
                 <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Sleep Score</div>
@@ -358,7 +376,7 @@ const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalD
                 <div className="text-lg md:text-2xl font-bold text-purple-600">
                   {activityData && activityData.step
                     ? activityData.step.toLocaleString()
-                    : '0'
+                    : '—'
                   }
                 </div>
                 <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Daily Steps</div>
@@ -366,8 +384,8 @@ const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalD
               <div className="text-center">
                 <div className="text-lg md:text-2xl font-bold text-orange-600">
                   {spo2Data && spo2Data.length > 0
-                    ? spo2Data[spo2Data.length - 1].Blood_oxygen
-                    : '98'
+                    ? spo2Data[0].Blood_oxygen
+                    : '—'
                   }%
                 </div>
                 <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Blood Oxygen</div>
@@ -375,8 +393,8 @@ const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalD
               <div className="text-center">
                 <div className="text-lg md:text-2xl font-bold text-red-600">
                   {bloodPressureData && bloodPressureData.length > 0
-                    ? `${bloodPressureData[bloodPressureData.length - 1].sbp}/${bloodPressureData[bloodPressureData.length - 1].dbp}`
-                    : '120/80'
+                    ? `${bloodPressureData[0].sbp}/${bloodPressureData[0].dbp}`
+                    : '—'
                   }
                 </div>
                 <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>SBP/DBP</div>
@@ -384,8 +402,8 @@ const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalD
               <div className="text-center">
                 <div className="text-lg md:text-2xl font-bold text-purple-600">
                   {stressData && stressData.length > 0
-                    ? stressData[stressData.length - 1].stress
-                    : '45'
+                    ? stressData[0].stress
+                    : '—'
                   }
                 </div>
                 <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Stress Level</div>
@@ -393,8 +411,8 @@ const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalD
               <div className="text-center">
                 <div className="text-lg md:text-2xl font-bold text-teal-600">
                   {hrvData && hrvData.length > 0
-                    ? hrvData[hrvData.length - 1].hrv
-                    : '45'
+                    ? hrvData[0].hrv
+                    : '—'
                   }
                 </div>
                 <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>HRV Score</div>

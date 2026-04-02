@@ -123,25 +123,25 @@ const HomeTab = ({
   const latestHeartRate = useMemo(() => {
     return heartRateData && Array.isArray(heartRateData) && heartRateData.length > 0
       ? heartRateData[heartRateData.length - 1]?.once_heart_value
-      : '72';
+      : '—';
   }, [heartRateData]);
 
   const sleepScore = useMemo(() => {
     return sleepData && sleepData.length > 0
       ? calculateSleepScore(sleepData[0])
-      : 85;
+      : '—';
   }, [sleepData]);
 
   const latestSpO2 = useMemo(() => {
     return spo2Data && Array.isArray(spo2Data) && spo2Data.length > 0
       ? spo2Data[spo2Data.length - 1]?.Blood_oxygen
-      : '98';
+      : '—';
   }, [spo2Data]);
 
   const dailySteps = useMemo(() => {
     return stepsData?.step
       ? stepsData.step.toLocaleString()
-      : '0';
+      : '—';
   }, [stepsData]);
 
   // Calculate overall health score

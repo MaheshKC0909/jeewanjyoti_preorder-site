@@ -523,7 +523,7 @@ const Dashboard = () => {
                 className="flex items-center gap-3 hover:opacity-80 transition-opacity duration-200"
               >
                 <img src={jjlogo} alt="JJ Logo" className="w-8 h-8" />
-                <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent whitespace-nowrap truncate">
+                <h1 className="text-xl md:text-2xl font-bold text-blue-500 whitespace-nowrap truncate">
                   DIGITAL CARE
                 </h1>
               </button>
