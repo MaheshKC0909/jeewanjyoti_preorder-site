@@ -80,16 +80,26 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
             } else {
                 // Use range parameter for predefined periods
                 if (dateRange?.period === 'today') {
-                    range = '24h';
+                    const todayStr = formatDateForAPI(new Date());
+                    fromDate = todayStr;
+                    toDate = todayStr;
+                    cacheKey = `activity-${selectedUserId || 'default'}-today-${todayStr}`;
+                    console.log('Fetching activity data for today (midnight to now):', { fromDate, toDate });
                 } else if (dateRange?.period === 'week') {
                     range = '7d';
+                    cacheKey = `activity-${selectedUserId || 'default'}-${range}`;
+                    console.log('Fetching activity data with range:', range);
                 } else if (dateRange?.period === 'month') {
                     range = '30d';
+                    cacheKey = `activity-${selectedUserId || 'default'}-${range}`;
+                    console.log('Fetching activity data with range:', range);
                 } else {
-                    range = '24h'; // default
+                    const todayStr = formatDateForAPI(new Date());
+                    fromDate = todayStr;
+                    toDate = todayStr;
+                    cacheKey = `activity-${selectedUserId || 'default'}-today-${todayStr}`;
+                    console.log('Fetching activity data for today (default, midnight to now):', { fromDate, toDate });
                 }
-                cacheKey = `activity-${selectedUserId || 'default'}-${range}`;
-                console.log('Fetching activity data with range:', range);
             }
 
             // Check cache first (5 minutes max)
@@ -113,13 +123,13 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
 
             console.log('Making API call with params:', {
                 userId: selectedUserId,
+                range,
                 fromDate,
-                toDate,
-                range
+                toDate
             });
 
             // Fetch daily activity data
-            const response = await getDayTotalActivity(selectedUserId, range);
+            const response = await getDayTotalActivity(selectedUserId, range, fromDate, toDate);
 
             // Check if component is still mounted and request wasn't aborted
             if (!isMountedRef.current || abortControllerRef.current.signal.aborted) {
@@ -135,13 +145,13 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
                 // Filter data based on date range if custom range is active
                 let dataToProcess = response.results;
 
-                if (dateRange?.customRange && fromDate && toDate) {
-                    // Filter results to only include dates within the custom range
+                if (fromDate && toDate) {
+                    // Filter results to only include dates within the custom range or today filter
                     dataToProcess = response.results.filter(item => {
                         const itemDate = item.date;
                         return itemDate >= fromDate && itemDate <= toDate;
                     });
-                    console.log(`Filtered to ${dataToProcess.length} records within custom range`);
+                    console.log(`Filtered to ${dataToProcess.length} records within date range`);
                 }
 
                 if (dataToProcess.length > 0) {

@@ -576,13 +576,23 @@ export async function getStepsData(userId = null, fromDate = null, toDate = null
  * @param {string} range - Optional time range filter (e.g., '24h', '7d', '30d')
  * @returns {Promise<object>} Daily activity data
  */
-export async function getDayTotalActivity(userId = null, range = null) {
+export async function getDayTotalActivity(userId = null, range = null, fromDate = null, toDate = null) {
   try {
     let url = '/api/Day_total_activity/';
     const params = new URLSearchParams();
 
     if (userId) params.append('user_id', userId);
-    if (range) params.append('range', range);
+    
+    if (fromDate && toDate) {
+      params.append('from', fromDate);
+      params.append('to', toDate);
+    } else if (fromDate) {
+      params.append('from', fromDate);
+    } else if (toDate) {
+      params.append('to', toDate);
+    } else if (range) {
+      params.append('range', range);
+    }
 
     if (params.toString()) {
       url += `?${params.toString()}`;

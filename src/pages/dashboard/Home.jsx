@@ -486,20 +486,20 @@ const HomeTab = ({
             {/* Data completion status */}
             <div className="flex flex-wrap gap-3 mt-3">
               <div className="flex items-center gap-1">
-                <div className={`w-2 h-2 rounded-full ${heartRateData ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                <Heart className={`w-4 h-4 ${heartRateData ? 'text-red-500' : 'text-gray-400'}`} />
                 <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Heart Rate</span>
               </div>
               <div className="flex items-center gap-1">
-                <div className={`w-2 h-2 rounded-full ${sleepData ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                <Moon className={`w-4 h-4 ${sleepData ? 'text-blue-500' : 'text-gray-400'}`} />
                 <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Sleep</span>
               </div>
               <div className="flex items-center gap-1">
-                <div className={`w-2 h-2 rounded-full ${spo2Data ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                <Droplets className={`w-4 h-4 ${spo2Data ? 'text-blue-500' : 'text-gray-400'}`} />
                 <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>SpO2</span>
               </div>
               <div className="flex items-center gap-1">
-                <div className={`w-2 h-2 rounded-full ${stepsData ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Steps</span>
+                <Activity className={`w-4 h-4 ${stepsData ? 'text-green-500' : 'text-gray-400'}`} />
+                <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Activity</span>
               </div>
             </div>
           </div>
