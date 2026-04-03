@@ -642,6 +642,21 @@ export async function getUserEmailProfile(userId = null) {
 }
 
 /**
+ * Get a user's profile by their ID (for mapped users)
+ * @param {string|number} userId - The user's ID
+ * @returns {Promise<object>} User profile data
+ */
+export async function getUserById(userId) {
+  if (!userId) throw new Error('User ID is required');
+  const response = await apiRequest(`/api/useremailprofile/?user_id=${userId}`);
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || 'Failed to fetch user profile by ID');
+  }
+  return await response.json();
+}
+
+/**
  * Logout user
  * @returns {Promise<void>}
  */

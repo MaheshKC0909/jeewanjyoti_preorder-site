@@ -291,11 +291,8 @@ const HomeTab = ({
             )}
             <div>
               <h2 className={`text-xl md:text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                {selectedUserInfo?.name}'s Health Dashboard
+                {selectedUserInfo?.name}'s Fitness Dashboard
               </h2>
-              <p className={`text-sm md:text-base ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Viewing health data for {selectedUserInfo?.fullName}
-              </p>
               <p className={`text-xs mt-1 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
                 {getDateRangeDisplay()}
               </p>

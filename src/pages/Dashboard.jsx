@@ -14,6 +14,42 @@ import { auth } from '../lib/firebase';
 import { isAuthenticated, getUserData, clearTokens } from '../lib/tokenManager';
 import { logoutUser, getUserEmailProfile } from '../lib/api';
 
+const getFullImageUrl = (url) => {
+  if (!url) return null;
+  if (url.startsWith('http')) return url;
+  if (url.startsWith('/')) return `https://jeewanjyoti-backend.smart.org.np${url}`;
+  return `https://jeewanjyoti-backend.smart.org.np/${url}`;
+};
+
+// Helper function to get valid profile image URL with fallback
+const getValidProfileImage = (userData, darkMode = false) => {
+  if (!userData) return null;
+
+  // Try to get profile image from various sources
+  let imageUrl = null;
+
+  // Check for profile_image in backendUser
+  if (userData.profile_image) {
+    imageUrl = getFullImageUrl(userData.profile_image);
+  }
+  // Check for photoURL in Firebase user
+  else if (userData.photoURL) {
+    imageUrl = userData.photoURL;
+  }
+  // Check for avatar or other image fields
+  else if (userData.avatar) {
+    imageUrl = getFullImageUrl(userData.avatar);
+  }
+
+  // Validate if URL is accessible
+  if (imageUrl) {
+    return imageUrl;
+  }
+
+  // Return null to use fallback (initials or default icon)
+  return null;
+};
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -40,9 +76,10 @@ const Dashboard = () => {
   const [loadingMappedUsers, setLoadingMappedUsers] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [selectionFeedback, setSelectionFeedback] = useState(null);
+  const [imageErrors, setImageErrors] = useState({}); // Track image loading errors
 
   // Global filter states
-  const [globalDateFilter, setGlobalDateFilter] = useState('today'); // 'today', 'week', 'month', 'custom'
+  const [globalDateFilter, setGlobalDateFilter] = useState('today');
   const [showGlobalFilterDropdown, setShowGlobalFilterDropdown] = useState(false);
   const [showCustomDateModal, setShowCustomDateModal] = useState(false);
   const [customDateFrom, setCustomDateFrom] = useState('');
@@ -57,13 +94,11 @@ const Dashboard = () => {
   // Check authentication status
   useEffect(() => {
     const checkAuthentication = () => {
-      // Check if user has valid tokens
       if (isAuthenticated()) {
         const userData = getUserData();
         setBackendUser(userData);
         setLoading(false);
       } else {
-        // Check Firebase auth as fallback
         const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
           if (firebaseUser) {
             setUser(firebaseUser);
@@ -84,45 +119,54 @@ const Dashboard = () => {
     };
   }, [navigate]);
 
+  // Silently refresh profile data
+  useEffect(() => {
+    const refreshProfile = async () => {
+      const currentObj = getUserData();
+      if (currentObj) {
+        setBackendUser(prev => ({ ...prev, ...currentObj }));
+      }
+
+      if (backendUser || user) {
+        try {
+          const freshData = await getUserEmailProfile();
+          if (freshData) {
+            setBackendUser(prev => ({ ...prev, ...freshData }));
+            const localData = getUserData() || {};
+            localStorage.setItem('user_data', JSON.stringify({ ...localData, ...freshData }));
+          }
+        } catch (error) {
+          console.error('Error silently refreshing profile:', error);
+        }
+      }
+    };
+    refreshProfile();
+  }, [user, activeTab]);
+
   // Check if profile needs completion
   useEffect(() => {
     const checkProfileCompletion = async () => {
       if (!backendUser && !user) return;
 
       try {
-        // Check if flag is set to show profile form (from login/register)
         const shouldShowForm = localStorage.getItem('show_profile_form_on_dashboard');
-
-        // Check if user data has required profile fields
         const userData = getUserData();
 
-        // If we have user data, check for missing profile fields
         if (userData) {
           const requiredFields = ['first_name', 'last_name', 'birthdate', 'gender', 'height', 'weight', 'blood_group'];
-
-          console.log('🔍 Dashboard checking profile completion with stored user data:')
-          console.log('- User data:', userData)
 
           const missingFields = requiredFields.filter(field => {
             const value = userData[field]
             const isMissing = !value || value === '' || value === '0.00' || value === null || value === undefined
-            console.log(`- ${field}: "${value}" (type: ${typeof value}) - missing: ${isMissing}`)
             return isMissing
           });
 
-          console.log(`- Missing fields count: ${missingFields.length}/7`)
-          console.log(`- Should show form flag: ${shouldShowForm}`)
-
-          // If ANY fields are missing, show the form
           if (missingFields.length > 0) {
-            // If flag is set from login/register, always show the form (ignore skip)
             if (shouldShowForm === 'true') {
               setShowProfileForm(true);
               setProfileComplete(false);
-              // Clear the flag after showing
               localStorage.removeItem('show_profile_form_on_dashboard');
             } else {
-              // Check if user has skipped the form before (to avoid showing it repeatedly)
               const hasSkippedProfileForm = localStorage.getItem('profile_form_skipped');
               if (!hasSkippedProfileForm) {
                 setShowProfileForm(true);
@@ -133,11 +177,9 @@ const Dashboard = () => {
             }
           } else {
             setProfileComplete(true);
-            // Clear flags if profile is complete
             localStorage.removeItem('show_profile_form_on_dashboard');
           }
         } else {
-          // Try to fetch user profile from API
           try {
             const profileData = await getUserEmailProfile();
             const requiredFields = ['first_name', 'last_name', 'birthdate', 'gender', 'height', 'weight', 'blood_group'];
@@ -147,11 +189,9 @@ const Dashboard = () => {
             });
 
             if (missingFields.length > 0) {
-              // If flag is set from login/register, always show the form (ignore skip)
               if (shouldShowForm === 'true') {
                 setShowProfileForm(true);
                 setProfileComplete(false);
-                // Clear the flag after showing
                 localStorage.removeItem('show_profile_form_on_dashboard');
               } else {
                 const hasSkippedProfileForm = localStorage.getItem('profile_form_skipped');
@@ -164,7 +204,6 @@ const Dashboard = () => {
               }
             } else {
               setProfileComplete(true);
-              // Clear flags if profile is complete
               localStorage.removeItem('show_profile_form_on_dashboard');
             }
           } catch (error) {
@@ -227,24 +266,14 @@ const Dashboard = () => {
 
       if (response.ok) {
         const data = await response.json();
-
-        // Get current user ID to filter out own profile from mapped users
         const userData = getUserData();
         const currentUserId = userData?.id;
 
-        console.log('Current user ID:', currentUserId);
-        console.log('Raw mapped users data:', data);
-
-        // Filter out current user from mapped users list
         const filteredMappedUsers = data.filter(mapping => {
           const isNotCurrentUser = mapping.mapped_user.id !== currentUserId;
-          if (!isNotCurrentUser) {
-            console.log('Filtering out current user from mapped list:', mapping.mapped_user.id);
-          }
           return isNotCurrentUser;
         });
 
-        console.log('Filtered mapped users:', filteredMappedUsers);
         setMappedUsers(filteredMappedUsers);
       }
     } catch (error) {
@@ -261,16 +290,12 @@ const Dashboard = () => {
     }
   }, [backendUser, user]);
 
-  // Handle user selection from dropdown with debouncing
+  // Handle user selection
   const handleUserSelection = (userId) => {
-    console.log('User selected:', userId);
-    console.log('Current selectedUserId:', selectedUserId);
     const newUserId = userId === selectedUserId ? null : userId;
-    console.log('Setting newUserId to:', newUserId);
     setSelectedUserId(newUserId);
     setShowUserDropdown(false);
 
-    // Show feedback with loading state
     if (newUserId) {
       const selectedUser = mappedUsers.find(m => m.mapped_user.id === userId);
       if (selectedUser) {
@@ -280,19 +305,16 @@ const Dashboard = () => {
       setSelectionFeedback('Loading your data...');
     }
 
-    // Clear feedback after data loads (components will handle this)
     setTimeout(() => setSelectionFeedback(null), 2000);
   };
 
   // Handle global filter change
   const handleGlobalFilterChange = (filterType) => {
     setGlobalDateFilter(filterType);
-    
+
     if (filterType === 'custom') {
       setShowGlobalFilterDropdown(false);
-      // Open custom date picker modal
       setShowCustomDateModal(true);
-      // Set default dates (today to today)
       const today = new Date().toISOString().split('T')[0];
       setCustomDateFrom(today);
       setCustomDateTo(today);
@@ -325,41 +347,56 @@ const Dashboard = () => {
     return d.toISOString().split('T')[0];
   };
 
-  // Function to get currently viewed user info
+  // Function to get currently viewed user info with proper image handling
   const getCurrentViewedUser = () => {
-    // If a mapped user is selected, return that user's info
     if (selectedUserId) {
       const mappedUser = mappedUsers.find(m => m.mapped_user.id === selectedUserId);
       if (mappedUser) {
+        const profileImage = getValidProfileImage(mappedUser.mapped_user);
         return {
           id: mappedUser.mapped_user.id,
           name: mappedUser.nickname || mappedUser.mapped_user.full_name,
           fullName: mappedUser.mapped_user.full_name,
           firstName: mappedUser.mapped_user.first_name,
-          profileImage: mappedUser.mapped_user.profile_image,
+          profileImage: profileImage,
           email: mappedUser.mapped_user.email,
-          isMappedUser: true
+          isMappedUser: true,
+          rawData: mappedUser.mapped_user
         };
       }
     }
-    
-    // Otherwise return the logged-in user's info
+
+    // Get main user data - combine backendUser and Firebase user
+    const mainUserData = {
+      ...backendUser,
+      photoURL: user?.photoURL,
+      displayName: user?.displayName
+    };
+
+    const profileImage = getValidProfileImage(mainUserData);
+
     return {
       id: backendUser?.id || user?.uid,
       name: backendUser?.first_name || user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'User',
-      fullName: backendUser?.full_name || user?.displayName || user?.email?.split('@')[0] || 'User',
+      fullName: backendUser?.full_name || user?.displayName || backendUser?.first_name || user?.email?.split('@')[0] || 'User',
       firstName: backendUser?.first_name,
-      profileImage: backendUser?.profile_image || user?.photoURL,
+      profileImage: profileImage,
       email: backendUser?.email || user?.email,
-      isMappedUser: false
+      isMappedUser: false,
+      rawData: mainUserData
     };
+  };
+
+  // Handle image load error
+  const handleImageError = (userId, imageType = 'profile') => {
+    const errorKey = `${userId}_${imageType}`;
+    setImageErrors(prev => ({ ...prev, [errorKey]: true }));
   };
 
   // Handle tab change with persistence
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     localStorage.setItem('dashboardActiveTab', tab);
-    // Update URL hash without causing a page reload
     window.history.replaceState(null, '', `#${tab}`);
   };
 
@@ -376,7 +413,6 @@ const Dashboard = () => {
   // Handle profile form close
   const handleProfileFormClose = () => {
     setShowProfileForm(false);
-    // Mark that user has seen the form (they can skip)
     localStorage.setItem('profile_form_skipped', 'true');
   };
 
@@ -384,12 +420,10 @@ const Dashboard = () => {
   const handleProfileFormSuccess = () => {
     setShowProfileForm(false);
     setProfileComplete(true);
-    // Refresh user data
     const userData = getUserData();
     if (userData) {
       setBackendUser(userData);
     }
-    // Remove the skip flag and show form flag since they completed it
     localStorage.removeItem('profile_form_skipped');
     localStorage.removeItem('show_profile_form_on_dashboard');
   };
@@ -397,20 +431,14 @@ const Dashboard = () => {
   // Handle logout confirmation
   const handleLogoutConfirm = async () => {
     try {
-      // Try to logout from backend first
       await logoutUser();
-
-      // Also sign out from Firebase if user is signed in
       if (user) {
         await signOut(auth);
       }
-
-      // Clear all tokens and redirect
       clearTokens();
       navigate('/login');
     } catch (error) {
       console.error('Error signing out:', error);
-      // Even if logout fails, clear tokens and redirect
       clearTokens();
       navigate('/login');
     }
@@ -436,9 +464,6 @@ const Dashboard = () => {
   }, [darkMode]);
 
   const renderContent = () => {
-    console.log('Dashboard renderContent - activeTab:', activeTab, 'user:', !!user, 'backendUser:', !!backendUser);
-
-    // Get the selected user info for HomeTab
     const getSelectedUserInfo = () => {
       if (selectedUserId) {
         const mappedUser = mappedUsers.find(m => m.mapped_user.id === selectedUserId);
@@ -446,35 +471,37 @@ const Dashboard = () => {
           return {
             name: mappedUser.nickname || mappedUser.mapped_user.full_name,
             fullName: mappedUser.mapped_user.full_name,
-            profileImage: mappedUser.mapped_user.profile_image
+            profileImage: getValidProfileImage(mappedUser.mapped_user)
           };
         }
       }
-      // Return current user info
+      const mainUserData = {
+        ...backendUser,
+        photoURL: user?.photoURL
+      };
       return {
         name: backendUser?.first_name || user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'User',
-        fullName: backendUser?.full_name || user?.displayName || user?.email?.split('@')[0] || 'User',
-        profileImage: backendUser?.profile_image || user?.photoURL
+        fullName: backendUser?.full_name || user?.displayName || backendUser?.first_name || user?.email?.split('@')[0] || 'User',
+        profileImage: getValidProfileImage(mainUserData)
       };
     };
 
     switch (activeTab) {
       case 'home':
         return (
-          <HomeTab 
-            darkMode={darkMode} 
-            selectedUserId={selectedUserId} 
+          <HomeTab
+            darkMode={darkMode}
+            selectedUserId={selectedUserId}
             selectedUserInfo={getSelectedUserInfo()}
             globalDateFilter={globalDateFilter}
             globalDateRange={globalDateRange}
           />
         );
       case 'appointments':
-        console.log('Rendering AppointmentsTab with ErrorBoundary...');
         return (
           <ErrorBoundary>
-            <AppointmentsTab 
-              darkMode={darkMode} 
+            <AppointmentsTab
+              darkMode={darkMode}
               onSwitchToChat={() => setActiveTab('chat')}
             />
           </ErrorBoundary>
@@ -482,7 +509,7 @@ const Dashboard = () => {
       case 'chat':
         return <ChatTab darkMode={darkMode} onChatRoomStateChange={handleChatRoomStateChange} />;
       case 'profile':
-        return <ProfileTab darkMode={darkMode} selectedUserId={selectedUserId} globalDateFilter={globalDateFilter} globalDateRange={globalDateRange} />;
+        return <ProfileTab darkMode={darkMode} selectedUserId={selectedUserId} selectedUserInfo={currentUser} globalDateFilter={globalDateFilter} globalDateRange={globalDateRange} />;
       case 'settings':
         return <SettingsTab darkMode={darkMode} />;
       default:
@@ -490,7 +517,7 @@ const Dashboard = () => {
     }
   };
 
-  // Show loading spinner while checking authentication
+  // Show loading spinner
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
@@ -502,10 +529,12 @@ const Dashboard = () => {
     );
   }
 
-  // Don't render anything if user is not authenticated (will redirect)
+  // Don't render if not authenticated
   if (!user && !backendUser) {
     return null;
   }
+
+  const currentUser = getCurrentViewedUser();
 
   return (
     <div className={`${activeTab === 'chat' ? 'h-screen overflow-hidden flex flex-col' : 'min-h-screen pb-20 md:pb-0'} ${darkMode
@@ -589,68 +618,68 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              {/* User Dropdown - Shows currently viewed user */}
+              {/* User Dropdown */}
               <div className="hidden lg:flex items-center gap-2 px-2 py-1.5 rounded-lg whitespace-nowrap user-dropdown relative">
                 <button
                   onClick={() => setShowUserDropdown(!showUserDropdown)}
-                  className={`flex items-center gap-2 transition-all duration-200 transform hover:scale-105 ${
-                    darkMode
+                  className={`flex items-center gap-2 transition-all duration-200 transform hover:scale-105 ${darkMode
                       ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  } rounded-lg px-2 py-1.5`}
+                    } rounded-lg px-2 py-1.5`}
                 >
-                  {/* Show profile image if available */}
-                  {getCurrentViewedUser().profileImage ? (
-                    <img 
-                      src={getCurrentViewedUser().profileImage} 
-                      alt={getCurrentViewedUser().name}
+                  {/* Profile Image with better fallback */}
+                  {currentUser.profileImage && !imageErrors[`${currentUser.id}_profile`] ? (
+                    <img
+                      src={currentUser.profileImage}
+                      alt={currentUser.name}
                       className="w-5 h-5 rounded-full object-cover"
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.style.display = 'none';
-                      }}
+                      onError={() => handleImageError(currentUser.id, 'profile')}
                     />
                   ) : (
-                    <User className="w-4 h-4 text-gray-500" />
+                    <div className="w-5 h-5 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">
+                        {currentUser.name?.charAt(0).toUpperCase() || 'U'}
+                      </span>
+                    </div>
                   )}
                   <span className="text-sm font-medium truncate max-w-[8rem]">
-                    {getCurrentViewedUser().name}
+                    {currentUser.name}
                   </span>
                   <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${showUserDropdown ? 'rotate-180' : ''}`} />
                 </button>
 
                 {/* User Dropdown Menu */}
                 {showUserDropdown && (
-                  <div className={`absolute top-full left-0 mt-2 w-64 rounded-xl shadow-lg border z-50 ${
-                    darkMode
+                  <div className={`absolute top-full left-0 mt-2 w-64 rounded-xl shadow-lg border z-50 ${darkMode
                       ? 'bg-gray-800 border-gray-700'
                       : 'bg-white border-gray-200'
-                  } max-h-96 overflow-y-auto`}>
+                    } max-h-96 overflow-y-auto`}>
                     {/* Currently Viewing Section */}
                     <div className={`p-3 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                       <p className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                         CURRENTLY VIEWING
                       </p>
                       <div className="flex items-center gap-2 mt-2">
-                        {getCurrentViewedUser().profileImage ? (
-                          <img 
-                            src={getCurrentViewedUser().profileImage} 
-                            alt={getCurrentViewedUser().name}
+                        {currentUser.profileImage && !imageErrors[`${currentUser.id}_profile_current`] ? (
+                          <img
+                            src={currentUser.profileImage}
+                            alt={currentUser.name}
                             className="w-8 h-8 rounded-full object-cover"
+                            onError={() => handleImageError(currentUser.id, 'profile_current')}
                           />
                         ) : (
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                            darkMode ? 'bg-gray-700' : 'bg-gray-200'
-                          }`}>
-                            <User className="w-4 h-4 text-gray-500" />
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-r from-blue-500 to-purple-500`}>
+                            <span className="text-white text-sm font-bold">
+                              {currentUser.name?.charAt(0).toUpperCase() || 'U'}
+                            </span>
                           </div>
                         )}
                         <div className="flex-1">
                           <div className="text-sm font-medium truncate">
-                            {getCurrentViewedUser().fullName}
+                            {currentUser.fullName}
                           </div>
                           <div className="text-xs opacity-75">
-                            {getCurrentViewedUser().isMappedUser ? 'Mapped User' : 'Your Account'}
+                            {currentUser.isMappedUser ? 'Mapped User' : 'Your Account'}
                           </div>
                         </div>
                       </div>
@@ -666,24 +695,29 @@ const Dashboard = () => {
                           handleUserSelection(null);
                           setShowUserDropdown(false);
                         }}
-                        className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
-                          !selectedUserId
+                        className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${!selectedUserId
                             ? darkMode
                               ? 'bg-gray-700 text-blue-400'
                               : 'bg-blue-50 text-blue-600'
                             : darkMode
                               ? 'hover:bg-gray-700 text-gray-300'
                               : 'hover:bg-gray-100 text-gray-700'
-                        }`}
+                          }`}
                       >
-                        <img
-                          src={backendUser?.profile_image || user?.photoURL || 'https://via.placeholder.com/24'}
-                          alt="Your account"
-                          className="w-6 h-6 rounded-full object-cover flex-shrink-0"
-                          onError={(e) => {
-                            e.target.src = 'https://via.placeholder.com/24?text=' + (backendUser?.first_name?.charAt(0) || 'U');
-                          }}
-                        />
+                        {getValidProfileImage({ ...backendUser, photoURL: user?.photoURL }) && !imageErrors['main_user_account'] ? (
+                          <img
+                            src={getValidProfileImage({ ...backendUser, photoURL: user?.photoURL })}
+                            alt="Your account"
+                            className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                            onError={() => handleImageError('main_user', 'account')}
+                          />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+                            <span className="text-white text-xs font-bold">
+                              {backendUser?.first_name?.charAt(0).toUpperCase() || user?.displayName?.charAt(0).toUpperCase() || 'U'}
+                            </span>
+                          </div>
+                        )}
                         <div className="flex-1 text-left">
                           <div className="text-xs font-medium truncate">
                             {backendUser?.first_name || user?.displayName?.split(' ')[0] || 'My Data'}
@@ -702,38 +736,47 @@ const Dashboard = () => {
                           MAPPED USERS
                         </p>
                         <div className="space-y-1 max-h-32 overflow-y-auto">
-                          {mappedUsers.map((mapping) => (
-                            <button
-                              key={mapping.id}
-                              onClick={() => handleUserSelection(mapping.mapped_user.id)}
-                              className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
-                                selectedUserId === mapping.mapped_user.id
-                                  ? darkMode
-                                    ? 'bg-gray-700 text-blue-400'
-                                    : 'bg-blue-50 text-blue-600'
-                                  : darkMode
-                                    ? 'hover:bg-gray-700 text-gray-300'
-                                    : 'hover:bg-gray-100 text-gray-700'
-                              }`}
-                            >
-                              <img
-                                src={mapping.mapped_user.profile_image || 'https://via.placeholder.com/24'}
-                                alt={mapping.mapped_user.full_name}
-                                className="w-6 h-6 rounded-full object-cover flex-shrink-0"
-                                onError={(e) => {
-                                  e.target.src = 'https://via.placeholder.com/24?text=' + mapping.mapped_user.full_name.charAt(0);
-                                }}
-                              />
-                              <div className="flex-1 text-left">
-                                <div className="text-xs font-medium truncate">
-                                  {mapping.nickname || mapping.mapped_user.full_name}
-                                </div>
-                                {selectedUserId === mapping.mapped_user.id && (
-                                  <div className="text-xs opacity-75">Currently viewing</div>
+                          {mappedUsers.map((mapping) => {
+                            const mappedUserImage = getValidProfileImage(mapping.mapped_user);
+                            const errorKey = `mapped_${mapping.mapped_user.id}`;
+                            return (
+                              <button
+                                key={mapping.id}
+                                onClick={() => handleUserSelection(mapping.mapped_user.id)}
+                                className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${selectedUserId === mapping.mapped_user.id
+                                    ? darkMode
+                                      ? 'bg-gray-700 text-blue-400'
+                                      : 'bg-blue-50 text-blue-600'
+                                    : darkMode
+                                      ? 'hover:bg-gray-700 text-gray-300'
+                                      : 'hover:bg-gray-100 text-gray-700'
+                                  }`}
+                              >
+                                {mappedUserImage && !imageErrors[errorKey] ? (
+                                  <img
+                                    src={mappedUserImage}
+                                    alt={mapping.mapped_user.full_name}
+                                    className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                                    onError={() => handleImageError(errorKey, 'mapped')}
+                                  />
+                                ) : (
+                                  <div className="w-6 h-6 rounded-full bg-gradient-to-r from-green-500 to-teal-500 flex items-center justify-center flex-shrink-0">
+                                    <span className="text-white text-xs font-bold">
+                                      {mapping.mapped_user.full_name?.charAt(0).toUpperCase() || 'U'}
+                                    </span>
+                                  </div>
                                 )}
-                              </div>
-                            </button>
-                          ))}
+                                <div className="flex-1 text-left">
+                                  <div className="text-xs font-medium truncate">
+                                    {mapping.nickname || mapping.mapped_user.full_name}
+                                  </div>
+                                  {selectedUserId === mapping.mapped_user.id && (
+                                    <div className="text-xs opacity-75">Currently viewing</div>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -764,93 +807,85 @@ const Dashboard = () => {
                 </span>
               </div>
 
-              {/* Global Period Filter - Now visible for all tabs */}
+              {/* Global Period Filter */}
               <div className="hidden lg:block relative global-filter-dropdown">
                 <button
                   onClick={() => setShowGlobalFilterDropdown(!showGlobalFilterDropdown)}
-                  className={`p-2 rounded-lg transition-all duration-200 transform hover:scale-105 ${
-                    showGlobalFilterDropdown || globalDateFilter !== 'today'
+                  className={`p-2 rounded-lg transition-all duration-200 transform hover:scale-105 ${showGlobalFilterDropdown || globalDateFilter !== 'today'
                       ? darkMode
                         ? 'bg-purple-600 hover:bg-purple-700'
                         : 'bg-purple-500 hover:bg-purple-600'
                       : darkMode
                         ? 'bg-gray-800 hover:bg-purple-600/20 border border-purple-500/30'
                         : 'bg-gradient-to-r from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 border border-purple-200'
-                  }`}
-                  title={`Filter: ${
-                    globalDateFilter === 'today' ? 'Today' : 
-                    globalDateFilter === 'week' ? 'This Week' : 
-                    globalDateFilter === 'month' ? 'This Month' : 'Custom Range'
-                  }`}
+                    }`}
+                  title={`Filter: ${globalDateFilter === 'today' ? 'Today' :
+                      globalDateFilter === 'week' ? 'This Week' :
+                        globalDateFilter === 'month' ? 'This Month' : 'Custom Range'
+                    }`}
                 >
-                  <SlidersHorizontal className={`w-5 h-5 transition-colors ${
-                    showGlobalFilterDropdown || globalDateFilter !== 'today'
+                  <SlidersHorizontal className={`w-5 h-5 transition-colors ${showGlobalFilterDropdown || globalDateFilter !== 'today'
                       ? 'text-white'
                       : 'text-purple-600'
-                  }`} />
+                    }`} />
                 </button>
 
                 {/* Filter Dropdown */}
                 {showGlobalFilterDropdown && (
-                  <div className={`absolute top-full right-0 mt-2 w-40 rounded-lg shadow-xl border z-10 ${
-                    darkMode
+                  <div className={`absolute top-full right-0 mt-2 w-40 rounded-lg shadow-xl border z-10 ${darkMode
                       ? 'bg-gray-800 border-purple-500/30 shadow-purple-500/20'
                       : 'bg-white border-purple-200 shadow-purple-100'
-                  }`}>
+                    }`}>
                     <div className="py-1">
                       <button
                         onClick={() => handleGlobalFilterChange('today')}
-                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                          globalDateFilter === 'today'
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${globalDateFilter === 'today'
                             ? darkMode
                               ? 'bg-purple-600/20 text-purple-400'
                               : 'bg-purple-50 text-purple-600'
                             : darkMode
                               ? 'text-gray-300 hover:bg-purple-600/10'
                               : 'text-gray-700 hover:bg-purple-50'
-                        }`}
+                          }`}
                       >
                         Today
                       </button>
                       <button
                         onClick={() => handleGlobalFilterChange('week')}
-                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                          globalDateFilter === 'week'
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${globalDateFilter === 'week'
                             ? darkMode
                               ? 'bg-purple-600/20 text-purple-400'
                               : 'bg-purple-50 text-purple-600'
                             : darkMode
                               ? 'text-gray-300 hover:bg-purple-600/10'
                               : 'text-gray-700 hover:bg-purple-50'
-                        }`}
+                          }`}
                       >
                         This Week
                       </button>
                       <button
                         onClick={() => handleGlobalFilterChange('month')}
-                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                          globalDateFilter === 'month'
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${globalDateFilter === 'month'
                             ? darkMode
                               ? 'bg-purple-600/20 text-purple-400'
                               : 'bg-purple-50 text-purple-600'
                             : darkMode
                               ? 'text-gray-300 hover:bg-purple-600/10'
                               : 'text-gray-700 hover:bg-purple-50'
-                        }`}
+                          }`}
                       >
                         This Month
                       </button>
                       <button
                         onClick={() => handleGlobalFilterChange('custom')}
-                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                          globalDateFilter === 'custom'
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${globalDateFilter === 'custom'
                             ? darkMode
                               ? 'bg-purple-600/20 text-purple-400'
                               : 'bg-purple-50 text-purple-600'
                             : darkMode
                               ? 'text-gray-300 hover:bg-purple-600/10'
                               : 'text-gray-700 hover:bg-purple-50'
-                        }`}
+                          }`}
                       >
                         Custom Range
                       </button>
@@ -861,13 +896,12 @@ const Dashboard = () => {
 
               {/* Show active filter indicator */}
               {globalDateFilter !== 'today' && (
-                <div className={`hidden lg:flex items-center gap-1 px-2 py-1 rounded-lg text-xs ${
-                  darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-700'
-                }`}>
+                <div className={`hidden lg:flex items-center gap-1 px-2 py-1 rounded-lg text-xs ${darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-700'
+                  }`}>
                   <span>
-                    {globalDateFilter === 'week' ? 'This Week' : 
-                     globalDateFilter === 'month' ? 'This Month' : 
-                     globalDateFilter === 'custom' ? 'Custom' : ''}
+                    {globalDateFilter === 'week' ? 'This Week' :
+                      globalDateFilter === 'month' ? 'This Month' :
+                        globalDateFilter === 'custom' ? 'Custom' : ''}
                   </span>
                 </div>
               )}
@@ -902,64 +936,68 @@ const Dashboard = () => {
                   </button>
                 </div>
 
-                {/* Mobile Profile Dropdown - Shows currently viewed user */}
+                {/* Mobile Profile Dropdown */}
                 <div className="md:hidden relative">
                   <button
                     onClick={() => setShowUserDropdown(!showUserDropdown)}
-                    className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-200 transform hover:scale-105 ${
-                      darkMode
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-200 transform hover:scale-105 ${darkMode
                         ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
+                      }`}
                   >
-                    {getCurrentViewedUser().profileImage ? (
-                      <img 
-                        src={getCurrentViewedUser().profileImage} 
-                        alt={getCurrentViewedUser().name}
+                    {currentUser.profileImage && !imageErrors[`${currentUser.id}_mobile`] ? (
+                      <img
+                        src={currentUser.profileImage}
+                        alt={currentUser.name}
                         className="w-5 h-5 rounded-full object-cover"
+                        onError={() => handleImageError(currentUser.id, 'mobile')}
                       />
                     ) : (
-                      <User className="w-4 h-4 text-gray-500" />
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">
+                          {currentUser.name?.charAt(0).toUpperCase() || 'U'}
+                        </span>
+                      </div>
                     )}
                     {showUserDropdown && (
                       <span className="text-sm font-medium truncate max-w-[6rem]">
-                        {getCurrentViewedUser().fullName}
+                        {currentUser.fullName}
                       </span>
                     )}
                     <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${showUserDropdown ? 'rotate-180' : ''}`} />
                   </button>
 
                   {showUserDropdown && (
-                    <div className={`absolute right-0 mt-2 w-56 rounded-lg border shadow-lg animate-in slide-in-from-top duration-200 ${
-                      darkMode
+                    <div className={`absolute right-0 mt-2 w-56 rounded-lg border shadow-lg animate-in slide-in-from-top duration-200 ${darkMode
                         ? 'bg-gray-800 border-gray-700'
                         : 'bg-white border-gray-200'
-                    }`}>
+                      }`}>
                       {/* Currently Viewing Section */}
                       <div className={`p-3 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                         <p className={`text-xs font-medium mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                           CURRENTLY VIEWING
                         </p>
                         <div className="flex items-center gap-2">
-                          {getCurrentViewedUser().profileImage ? (
-                            <img 
-                              src={getCurrentViewedUser().profileImage} 
-                              alt={getCurrentViewedUser().name}
+                          {currentUser.profileImage && !imageErrors[`${currentUser.id}_mobile_current`] ? (
+                            <img
+                              src={currentUser.profileImage}
+                              alt={currentUser.name}
                               className="w-8 h-8 rounded-full object-cover"
+                              onError={() => handleImageError(currentUser.id, 'mobile_current')}
                             />
                           ) : (
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                              darkMode ? 'bg-gray-700' : 'bg-gray-200'
-                            }`}>
-                              <User className="w-4 h-4" />
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-r from-blue-500 to-purple-500">
+                              <span className="text-white text-sm font-bold">
+                                {currentUser.name?.charAt(0).toUpperCase() || 'U'}
+                              </span>
                             </div>
                           )}
                           <div>
                             <div className="text-sm font-medium truncate max-w-[150px]">
-                              {getCurrentViewedUser().fullName}
+                              {currentUser.fullName}
                             </div>
                             <div className="text-xs opacity-75">
-                              {getCurrentViewedUser().isMappedUser ? 'Mapped User' : 'Your Account'}
+                              {currentUser.isMappedUser ? 'Mapped User' : 'Your Account'}
                             </div>
                           </div>
                         </div>
@@ -972,21 +1010,29 @@ const Dashboard = () => {
                             handleUserSelection(null);
                             setShowUserDropdown(false);
                           }}
-                          className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
-                            !selectedUserId
+                          className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${!selectedUserId
                               ? darkMode
                                 ? 'bg-gray-700 text-blue-400'
                                 : 'bg-blue-50 text-blue-600'
                               : darkMode
                                 ? 'hover:bg-gray-700 text-gray-300'
                                 : 'hover:bg-gray-100 text-gray-700'
-                          }`}
+                            }`}
                         >
-                          <img
-                            src={backendUser?.profile_image || user?.photoURL || 'https://via.placeholder.com/24'}
-                            alt="Your account"
-                            className="w-6 h-6 rounded-full object-cover"
-                          />
+                          {getValidProfileImage({ ...backendUser, photoURL: user?.photoURL }) && !imageErrors['main_user_mobile'] ? (
+                            <img
+                              src={getValidProfileImage({ ...backendUser, photoURL: user?.photoURL })}
+                              alt="Your account"
+                              className="w-6 h-6 rounded-full object-cover"
+                              onError={() => handleImageError('main_user', 'mobile')}
+                            />
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
+                              <span className="text-white text-xs font-bold">
+                                {backendUser?.first_name?.charAt(0).toUpperCase() || user?.displayName?.charAt(0).toUpperCase() || 'U'}
+                              </span>
+                            </div>
+                          )}
                           <span className="text-sm">Your Account</span>
                           {!selectedUserId && (
                             <span className="text-xs ml-auto text-blue-500">Viewing</span>
@@ -1000,36 +1046,48 @@ const Dashboard = () => {
                           <p className={`text-xs font-medium mb-2 px-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                             MAPPED USERS
                           </p>
-                          {mappedUsers.map((mapping) => (
-                            <button
-                              key={mapping.id}
-                              onClick={() => {
-                                handleUserSelection(mapping.mapped_user.id);
-                                setShowUserDropdown(false);
-                              }}
-                              className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
-                                selectedUserId === mapping.mapped_user.id
-                                  ? darkMode
-                                    ? 'bg-gray-700 text-blue-400'
-                                    : 'bg-blue-50 text-blue-600'
-                                  : darkMode
-                                    ? 'hover:bg-gray-700 text-gray-300'
-                                    : 'hover:bg-gray-100 text-gray-700'
-                              }`}
-                            >
-                              <img
-                                src={mapping.mapped_user.profile_image || 'https://via.placeholder.com/24'}
-                                alt={mapping.mapped_user.full_name}
-                                className="w-6 h-6 rounded-full object-cover"
-                              />
-                              <span className="text-sm truncate max-w-[120px]">
-                                {mapping.nickname || mapping.mapped_user.full_name}
-                              </span>
-                              {selectedUserId === mapping.mapped_user.id && (
-                                <span className="text-xs ml-auto text-blue-500">Viewing</span>
-                              )}
-                            </button>
-                          ))}
+                          {mappedUsers.map((mapping) => {
+                            const mappedUserImage = getValidProfileImage(mapping.mapped_user);
+                            const errorKey = `mapped_mobile_${mapping.mapped_user.id}`;
+                            return (
+                              <button
+                                key={mapping.id}
+                                onClick={() => {
+                                  handleUserSelection(mapping.mapped_user.id);
+                                  setShowUserDropdown(false);
+                                }}
+                                className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${selectedUserId === mapping.mapped_user.id
+                                    ? darkMode
+                                      ? 'bg-gray-700 text-blue-400'
+                                      : 'bg-blue-50 text-blue-600'
+                                    : darkMode
+                                      ? 'hover:bg-gray-700 text-gray-300'
+                                      : 'hover:bg-gray-100 text-gray-700'
+                                  }`}
+                              >
+                                {mappedUserImage && !imageErrors[errorKey] ? (
+                                  <img
+                                    src={mappedUserImage}
+                                    alt={mapping.mapped_user.full_name}
+                                    className="w-6 h-6 rounded-full object-cover"
+                                    onError={() => handleImageError(errorKey, 'mobile_mapped')}
+                                  />
+                                ) : (
+                                  <div className="w-6 h-6 rounded-full bg-gradient-to-r from-green-500 to-teal-500 flex items-center justify-center">
+                                    <span className="text-white text-xs font-bold">
+                                      {mapping.mapped_user.full_name?.charAt(0).toUpperCase() || 'U'}
+                                    </span>
+                                  </div>
+                                )}
+                                <span className="text-sm truncate max-w-[120px]">
+                                  {mapping.nickname || mapping.mapped_user.full_name}
+                                </span>
+                                {selectedUserId === mapping.mapped_user.id && (
+                                  <span className="text-xs ml-auto text-blue-500">Viewing</span>
+                                )}
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -1084,34 +1142,35 @@ const Dashboard = () => {
           </div>
 
           <div className="p-4 space-y-4 overflow-y-auto h-full pb-20">
-            {/* User Section - Updated to show currently viewed user */}
+            {/* User Section */}
             <div className={`rounded-2xl p-4 border shadow-lg transition-all duration-200 hover:shadow-xl ${darkMode
               ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
               : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
               }`}>
               <div className="flex items-center gap-3 mb-4">
                 <div className="relative">
-                  {getCurrentViewedUser().profileImage ? (
+                  {currentUser.profileImage && !imageErrors[`${currentUser.id}_menu`] ? (
                     <img
-                      src={getCurrentViewedUser().profileImage}
-                      alt={getCurrentViewedUser().name}
+                      src={currentUser.profileImage}
+                      alt={currentUser.name}
                       className="w-12 h-12 rounded-full object-cover ring-2 ring-blue-500 ring-offset-2"
+                      onError={() => handleImageError(currentUser.id, 'menu')}
                     />
                   ) : (
-                    <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white text-xl font-bold">
-                      {getCurrentViewedUser().name.charAt(0).toUpperCase()}
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white text-xl font-bold">
+                      {currentUser.name?.charAt(0).toUpperCase() || 'U'}
                     </div>
                   )}
-                  {!getCurrentViewedUser().isMappedUser && (
+                  {!currentUser.isMappedUser && (
                     <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
                   )}
                 </div>
                 <div className="flex-1">
                   <p className={`font-bold text-base ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {getCurrentViewedUser().fullName}
+                    {currentUser.fullName}
                   </p>
                   <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {getCurrentViewedUser().isMappedUser ? 'Viewing as mapped user' : 'Your account'}
+                    {currentUser.isMappedUser ? 'Viewing as mapped user' : 'Your account'}
                   </p>
                 </div>
               </div>
@@ -1151,22 +1210,28 @@ const Dashboard = () => {
                           setTimeout(() => setIsMobileMenuOpen(false), 500);
                         }}
                         className={`w-full flex items-center gap-3 p-4 rounded-xl transition-all duration-200 transform hover:scale-[1.02] touch-manipulation ${selectedUserId === null
-                            ? darkMode
-                              ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
-                              : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg'
-                            : darkMode
-                              ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          ? darkMode
+                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                            : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg'
+                          : darkMode
+                            ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
                       >
-                        <img
-                          src={backendUser?.profile_image || user?.photoURL || 'https://via.placeholder.com/32'}
-                          alt={backendUser?.first_name || 'User'}
-                          className="w-8 h-8 rounded-full object-cover flex-shrink-0 ring-2 ring-gray-300"
-                          onError={(e) => {
-                            e.target.src = 'https://via.placeholder.com/32?text=' + (backendUser?.first_name?.charAt(0) || 'U');
-                          }}
-                        />
+                        {getValidProfileImage({ ...backendUser, photoURL: user?.photoURL }) && !imageErrors['main_user_menu'] ? (
+                          <img
+                            src={getValidProfileImage({ ...backendUser, photoURL: user?.photoURL })}
+                            alt={backendUser?.first_name || 'User'}
+                            className="w-8 h-8 rounded-full object-cover flex-shrink-0 ring-2 ring-gray-300"
+                            onError={() => handleImageError('main_user', 'menu')}
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0 ring-2 ring-gray-300">
+                            <span className="text-white text-sm font-bold">
+                              {backendUser?.first_name?.charAt(0).toUpperCase() || user?.displayName?.charAt(0).toUpperCase() || 'U'}
+                            </span>
+                          </div>
+                        )}
                         <div className="flex-1 text-left">
                           <div className="text-sm font-medium truncate">
                             {backendUser?.first_name || user?.displayName?.split(' ')[0] || 'My Data'}
@@ -1184,42 +1249,50 @@ const Dashboard = () => {
                           MAPPED USERS
                         </p>
                         <div className="space-y-2">
-                          {mappedUsers.map((mapping) => (
-                            <button
-                              key={mapping.id}
-                              onClick={() => {
-                                console.log('Mobile user clicked:', mapping.mapped_user.id);
-                                handleUserSelection(mapping.mapped_user.id);
-                                // Delay menu closing to allow data to update
-                                setTimeout(() => setIsMobileMenuOpen(false), 500);
-                              }}
-                              className={`w-full flex items-center gap-3 p-4 rounded-xl transition-all duration-200 transform hover:scale-[1.02] touch-manipulation ${selectedUserId === mapping.mapped_user.id
-                                ? darkMode
-                                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
-                                  : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg'
-                                : darkMode
-                                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                            >
-                              <img
-                                src={mapping.mapped_user.profile_image || 'https://via.placeholder.com/24'}
-                                alt={mapping.mapped_user.full_name}
-                                className="w-8 h-8 rounded-full object-cover flex-shrink-0 ring-2 ring-gray-300"
-                                onError={(e) => {
-                                  e.target.src = 'https://via.placeholder.com/24?text=' + mapping.mapped_user.full_name.charAt(0);
+                          {mappedUsers.map((mapping) => {
+                            const mappedUserImage = getValidProfileImage(mapping.mapped_user);
+                            const errorKey = `mapped_menu_${mapping.mapped_user.id}`;
+                            return (
+                              <button
+                                key={mapping.id}
+                                onClick={() => {
+                                  handleUserSelection(mapping.mapped_user.id);
+                                  setTimeout(() => setIsMobileMenuOpen(false), 500);
                                 }}
-                              />
-                              <div className="flex-1 text-left">
-                                <div className="text-sm font-medium truncate">
-                                  {mapping.nickname || mapping.mapped_user.full_name}
-                                </div>
-                                {selectedUserId === mapping.mapped_user.id && (
-                                  <div className="text-xs opacity-90">Currently viewing</div>
+                                className={`w-full flex items-center gap-3 p-4 rounded-xl transition-all duration-200 transform hover:scale-[1.02] touch-manipulation ${selectedUserId === mapping.mapped_user.id
+                                  ? darkMode
+                                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                                    : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg'
+                                  : darkMode
+                                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                  }`}
+                              >
+                                {mappedUserImage && !imageErrors[errorKey] ? (
+                                  <img
+                                    src={mappedUserImage}
+                                    alt={mapping.mapped_user.full_name}
+                                    className="w-8 h-8 rounded-full object-cover flex-shrink-0 ring-2 ring-gray-300"
+                                    onError={() => handleImageError(errorKey, 'menu_mapped')}
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-500 to-teal-500 flex items-center justify-center flex-shrink-0 ring-2 ring-gray-300">
+                                    <span className="text-white text-sm font-bold">
+                                      {mapping.mapped_user.full_name?.charAt(0).toUpperCase() || 'U'}
+                                    </span>
+                                  </div>
                                 )}
-                              </div>
-                            </button>
-                          ))}
+                                <div className="flex-1 text-left">
+                                  <div className="text-sm font-medium truncate">
+                                    {mapping.nickname || mapping.mapped_user.full_name}
+                                  </div>
+                                  {selectedUserId === mapping.mapped_user.id && (
+                                    <div className="text-xs opacity-90">Currently viewing</div>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -1259,16 +1332,14 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Global Period Filter for Mobile - Now always visible */}
-            <div className={`rounded-2xl p-4 border shadow-lg transition-all duration-200 hover:shadow-xl ${
-              darkMode
+            {/* Global Period Filter for Mobile */}
+            <div className={`rounded-2xl p-4 border shadow-lg transition-all duration-200 hover:shadow-xl ${darkMode
                 ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
                 : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
-            }`}>
+              }`}>
               <div className="flex items-center gap-3 mb-4">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  darkMode ? 'bg-purple-600/20' : 'bg-purple-100'
-                }`}>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${darkMode ? 'bg-purple-600/20' : 'bg-purple-100'
+                  }`}>
                   <SlidersHorizontal className="w-5 h-5 text-purple-600" />
                 </div>
                 <div>
@@ -1288,21 +1359,20 @@ const Dashboard = () => {
                       handleGlobalFilterChange(period);
                       setIsMobileMenuOpen(false);
                     }}
-                    className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 transform hover:scale-[1.02] ${
-                      globalDateFilter === period
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 transform hover:scale-[1.02] ${globalDateFilter === period
                         ? darkMode
                           ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg'
                           : 'bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-lg'
                         : darkMode
                           ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
+                      }`}
                   >
                     <SlidersHorizontal className="w-4 h-4" />
                     <span className="text-sm font-medium capitalize">
-                      {period === 'today' ? 'Today' : 
-                       period === 'week' ? 'This Week' : 
-                       period === 'month' ? 'This Month' : 'Custom Range'}
+                      {period === 'today' ? 'Today' :
+                        period === 'week' ? 'This Week' :
+                          period === 'month' ? 'This Month' : 'Custom Range'}
                     </span>
                     {globalDateFilter === period && (
                       <div className="ml-auto">
@@ -1537,11 +1607,10 @@ const Dashboard = () => {
                   type="date"
                   value={customDateFrom}
                   onChange={(e) => setCustomDateFrom(e.target.value)}
-                  className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                    darkMode
+                  className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-purple-500 focus:border-transparent ${darkMode
                       ? 'bg-gray-700 border-gray-600 text-white'
                       : 'bg-white border-gray-300 text-gray-900'
-                  }`}
+                    }`}
                 />
               </div>
 
@@ -1554,11 +1623,10 @@ const Dashboard = () => {
                   type="date"
                   value={customDateTo}
                   onChange={(e) => setCustomDateTo(e.target.value)}
-                  className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                    darkMode
+                  className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-purple-500 focus:border-transparent ${darkMode
                       ? 'bg-gray-700 border-gray-600 text-white'
                       : 'bg-white border-gray-300 text-gray-900'
-                  }`}
+                    }`}
                 />
               </div>
 
@@ -1576,11 +1644,10 @@ const Dashboard = () => {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setShowCustomDateModal(false)}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                  darkMode
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${darkMode
                     ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
+                  }`}
               >
                 Cancel
               </button>
@@ -1592,11 +1659,10 @@ const Dashboard = () => {
                   }
                 }}
                 disabled={!customDateFrom || !customDateTo}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                  customDateFrom && customDateTo
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${customDateFrom && customDateTo
                     ? 'bg-purple-500 hover:bg-purple-600 text-white'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }`}
+                  }`}
               >
                 Apply Filter
               </button>

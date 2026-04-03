@@ -2,9 +2,18 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Edit3, Mail, Phone, MapPin, Calendar, Users, Award, Star, Heart, Camera, X, User, UserCircle, Ruler, Scale, Droplets } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clearTokens, getUserData } from '../../lib/tokenManager';
-import { getSleepData, getSpO2Data, getHeartRateData, getBloodPressureData, getStressData, getHRVData, getUserEmailProfile, updateProfile, getDayTotalActivity } from '../../lib/api';
+import { getSleepData, getSpO2Data, getHeartRateData, getBloodPressureData, getStressData, getHRVData, getUserEmailProfile, updateProfile, getDayTotalActivity, getUserById } from '../../lib/api';
 import UserMapping from './UserMapping';
 import TrailMap from '../../components/TrailMap';
+
+const API_BASE = 'https://jeewanjyoti-backend.smart.org.np';
+const getFullImageUrl = (url) => {
+  if (!url) return null;
+  if (url.startsWith('http')) return url;
+  if (url.startsWith('/')) return `${API_BASE}${url}`;
+  return `${API_BASE}/${url}`;
+};
+
 // Move InputField outside to prevent recreation on every render
 const InputField = React.memo(({ icon: Icon, label, name, type = 'text', required = false, error, value, onChange, min, max, darkMode }) => {
   return (
@@ -37,7 +46,7 @@ const InputField = React.memo(({ icon: Icon, label, name, type = 'text', require
   );
 });
 
-const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalDateRange }) => {
+const ProfileTab = ({ darkMode, selectedUserId = null, selectedUserInfo = null, globalDateFilter, globalDateRange }) => {
   const navigate = useNavigate();
   const [sleepData, setSleepData] = useState(null);
   const [spo2Data, setSpO2Data] = useState(null);
@@ -46,20 +55,29 @@ const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalD
   const [stressData, setStressData] = useState(null);
   const [hrvData, setHrvData] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
+  const [mappedUserFullProfile, setMappedUserFullProfile] = useState(null);
   const [activityData, setActivityData] = useState(null);
   const [showImageModal, setShowImageModal] = useState(false);
   const [showUserMappingModal, setShowUserMappingModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [isLoadingMappedUser, setIsLoadingMappedUser] = useState(false);
   const fileInputRef = useRef(null);
 
   // Check if user is admin/superuser
   const userData = JSON.parse(localStorage.getItem('user_data') || '{}');
   const isAdmin = userData.is_superuser || userData.role === 'ADMIN';
 
+  // Determine which profile to display (own or mapped)
+  const displayProfile = selectedUserId && mappedUserFullProfile
+    ? mappedUserFullProfile
+    : (selectedUserId && selectedUserInfo && !mappedUserFullProfile
+      ? selectedUserInfo
+      : userProfile);
+
   // Calculate BMI
   const calculateBMI = (height, weight) => {
     if (!height || !weight || height === 0 || weight === 0) return null;
-    const heightInMeters = parseFloat(height) / 100; // Convert cm to meters
+    const heightInMeters = parseFloat(height) / 100;
     const weightInKg = parseFloat(weight);
     return (weightInKg / (heightInMeters * heightInMeters)).toFixed(1);
   };
@@ -73,83 +91,75 @@ const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalD
     return 'Obese';
   };
 
-  // Calculate sleep score based on data (same as SleepDataComponent)
-  const calculateSleepScore = (data) => {
-    if (!data) return 0;
+  // Fetch complete profile for mapped user
+  useEffect(() => {
+    const fetchMappedUserFullProfile = async () => {
+      if (selectedUserId && selectedUserId !== userData?.id) {
+        setIsLoadingMappedUser(true);
+        try {
+          // Fetch complete user profile from API
+          const fullProfile = await getUserById(selectedUserId);
+          setMappedUserFullProfile(fullProfile);
+          console.log('Fetched full profile for mapped user:', fullProfile);
+        } catch (error) {
+          console.error('Error fetching mapped user full profile:', error);
+          // Fallback to selectedUserInfo if available
+          if (selectedUserInfo) {
+            setMappedUserFullProfile(selectedUserInfo);
+          }
+        } finally {
+          setIsLoadingMappedUser(false);
+        }
+      } else {
+        // Clear mapped user profile when viewing own profile
+        setMappedUserFullProfile(null);
+      }
+    };
 
-    let score = 0;
-
-    // Duration score (optimal: 7-9 hours)
-    const duration = data.duration;
-    if (duration >= 7 && duration <= 9) {
-      score += 30;
-    } else if (duration >= 6 && duration <= 10) {
-      score += 20;
-    } else {
-      score += 10;
-    }
-
-    // Deep sleep percentage (optimal: 15-20%)
-    const deepSleep = data.deep_sleep_percentage;
-    if (deepSleep >= 15 && deepSleep <= 20) {
-      score += 25;
-    } else if (deepSleep >= 10 && deepSleep <= 25) {
-      score += 15;
-    } else {
-      score += 5;
-    }
-
-    // Light sleep percentage (optimal: 45-55%)
-    const lightSleep = data.light_sleep_percentage;
-    if (lightSleep >= 45 && lightSleep <= 55) {
-      score += 25;
-    } else if (lightSleep >= 40 && lightSleep <= 60) {
-      score += 15;
-    } else {
-      score += 5;
-    }
-
-    // Awake percentage (optimal: <5%)
-    const awake = data.awake_percentage;
-    if (awake < 5) {
-      score += 20;
-    } else if (awake < 10) {
-      score += 10;
-    } else {
-      score += 5;
-    }
-
-    return Math.min(score, 100);
-  };
+    fetchMappedUserFullProfile();
+  }, [selectedUserId, userData?.id, selectedUserInfo]);
 
   // Fetch health data for health statistics
   useEffect(() => {
     const fetchHealthData = async () => {
       try {
-        const [sleepDataResult, spo2DataResult, heartRateDataResult, bloodPressureDataResult, stressDataResult, hrvDataResult, userProfileResult, activityDataResult] = await Promise.all([
+        const [
+          sleepDataResult,
+          spo2DataResult,
+          heartRateDataResult,
+          bloodPressureDataResult,
+          stressDataResult,
+          hrvDataResult,
+          userProfileResult,
+          activityDataResult
+        ] = await Promise.all([
           getSleepData(selectedUserId),
           getSpO2Data(selectedUserId),
           getHeartRateData(selectedUserId),
           getBloodPressureData(selectedUserId),
           getStressData(selectedUserId),
           getHRVData(selectedUserId),
-          selectedUserId ? getUserEmailProfile(selectedUserId) : getUserEmailProfile(),
+          getUserEmailProfile(), // Always fetch own profile
           getDayTotalActivity(selectedUserId)
         ]);
+
         setSleepData(sleepDataResult);
         setSpO2Data(spo2DataResult);
         setHeartRateData(heartRateDataResult);
         setBloodPressureData(bloodPressureDataResult);
         setStressData(stressDataResult);
         setHrvData(hrvDataResult);
-        setUserProfile(userProfileResult);
 
-        // Process activity data to get the latest entry
+        // Only set own profile when not viewing a mapped user
+        if (!selectedUserId) {
+          setUserProfile(userProfileResult);
+        }
+
+        // Process activity data
         if (activityDataResult?.results && activityDataResult.results.length > 0) {
           const today = new Date().toISOString().split('T')[0];
           const todayData = activityDataResult.results.filter(item => item.date === today);
           const dataToProcess = todayData.length > 0 ? todayData : activityDataResult.results;
-          // Sort by date/id descending or just pick [0] assuming API returns newest first
           const latestData = dataToProcess[0];
           setActivityData(latestData);
         } else if (Array.isArray(activityDataResult) && activityDataResult.length > 0) {
@@ -163,7 +173,6 @@ const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalD
         }
       } catch (error) {
         console.error('Error fetching health data for profile:', error);
-        // Reset all data on error to prevent showing stale data
         setSleepData(null);
         setSpO2Data(null);
         setHeartRateData(null);
@@ -174,6 +183,7 @@ const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalD
         setActivityData(null);
       }
     };
+
     fetchHealthData();
   }, [selectedUserId]);
 
@@ -211,7 +221,6 @@ const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalD
 
       if (newImageUrl) {
         setUserProfile((prev) => ({ ...(prev || {}), profile_image: newImageUrl }));
-        // Persist in localStorage if user_data exists
         try {
           const existing = JSON.parse(localStorage.getItem('user_data') || '{}');
           localStorage.setItem('user_data', JSON.stringify({ ...existing, profile_image: newImageUrl }));
@@ -223,23 +232,58 @@ const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalD
       console.error('Error updating profile image:', error);
       alert(error.message || 'Failed to update profile image');
     } finally {
-      // Reset input to allow re-selecting the same file if needed
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
+
+  // Helper function to get display image URL
+  const getDisplayImageUrl = () => {
+    if (selectedUserId && mappedUserFullProfile) {
+      return getFullImageUrl(mappedUserFullProfile.profile_image || mappedUserFullProfile.profileImage);
+    }
+    if (selectedUserId && selectedUserInfo && !mappedUserFullProfile) {
+      return selectedUserInfo.profileImage || selectedUserInfo.profile_image;
+    }
+    return getFullImageUrl(userProfile?.profile_image);
+  };
+
+  // Helper function to get display name
+  const getDisplayName = () => {
+    if (selectedUserId && mappedUserFullProfile) {
+      return `${mappedUserFullProfile.first_name || ''} ${mappedUserFullProfile.last_name || ''}`.trim() ||
+        mappedUserFullProfile.name ||
+        mappedUserFullProfile.fullName ||
+        'User';
+    }
+    if (selectedUserId && selectedUserInfo && !mappedUserFullProfile) {
+      return selectedUserInfo.fullName || selectedUserInfo.name || 'User';
+    }
+    return userProfile ? `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim() || 'User' : 'User';
+  };
+
+  // Helper function to get display initial for avatar
+  const getDisplayInitial = () => {
+    const name = getDisplayName();
+    return name.charAt(0).toUpperCase() || 'U';
+  };
+
+  // Check if viewing own profile
+  const isOwnProfile = !selectedUserId || selectedUserId === userData?.id;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h2 className={`text-xl md:text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Profile</h2>
         <div className="flex items-center gap-2 md:gap-3">
-          <button
-            onClick={() => setShowEditModal(true)}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors text-sm md:text-base"
-          >
-            <Edit3 className="w-4 h-4" />
-            <span className="hidden md:inline">Edit Profile</span>
-          </button>
+          {isOwnProfile && (
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors text-sm md:text-base"
+            >
+              <Edit3 className="w-4 h-4" />
+              <span className="hidden md:inline">Edit Profile</span>
+            </button>
+          )}
           <button
             onClick={() => setShowUserMappingModal(true)}
             className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors text-sm md:text-base"
@@ -250,345 +294,374 @@ const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalD
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-        {/* Profile Info */}
-        <div className="lg:col-span-1">
-          <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-            }`}>
-            <div className="text-center mb-6">
-              <div className="relative mx-auto w-16 h-16 md:w-24 md:h-24 mb-4">
-                {userProfile && userProfile.profile_image ? (
-                  <button onClick={() => setShowImageModal(true)} className="block">
-                    <img
-                      src={userProfile.profile_image}
-                      alt="Profile"
-                      className="w-16 h-16 md:w-24 md:h-24 rounded-full object-cover border-2 border-gray-200"
-                    />
-                  </button>
-                ) : (
-                  <div className="w-16 h-16 md:w-24 md:h-24 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-lg md:text-2xl font-bold">
-                    {userProfile ? `${userProfile.first_name?.[0] || ''}${userProfile.last_name?.[0] || ''}`.toUpperCase() || 'U' : 'U'}
-                  </div>
-                )}
-                <button
-                  onClick={handleProfileImageSelect}
-                  className={`absolute bottom-0 right-0 border-2 rounded-full p-1 md:p-2 ${darkMode
-                    ? 'bg-gray-700 border-gray-600 hover:bg-gray-600'
-                    : 'bg-white border-gray-200 hover:bg-gray-50'
-                    } transition-colors`}
-                >
-                  <Camera className="w-3 h-3 md:w-4 md:h-4 text-gray-600" />
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleProfileImageChange}
-                  className="hidden"
-                />
-              </div>
-              <h3 className={`text-lg md:text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                {userProfile ? `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim() || 'User' : 'User'}
-              </h3>
-              {userProfile?.id && (
-                <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  ID: #{userProfile.id}
-                </p>
-              )}
-              {userProfile?.role === 'DOCTOR' && (
-                <p className={`text-xs ${darkMode ? 'text-blue-400' : 'text-blue-600'} font-medium mt-1`}>
-                  {userProfile.specialization || 'Doctor'}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-3 md:space-y-4">
-              {userProfile?.email && (
-                <div className="flex items-center gap-3">
-                  <Mail className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
-                  <span className={`text-xs md:text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    {userProfile.email}
-                  </span>
-                </div>
-              )}
-              {userProfile?.phone_number && (
-                <div className="flex items-center gap-3">
-                  <Phone className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
-                  <span className={`text-xs md:text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    {userProfile.phone_number}
-                  </span>
-                </div>
-              )}
-              {userProfile?.hospital_name && (
-                <div className="flex items-center gap-3">
-                  <MapPin className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
-                  <span className={`text-xs md:text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    {userProfile.hospital_name}
-                  </span>
-                </div>
-              )}
-              {userProfile?.birthdate && (
-                <div className="flex items-center gap-3">
-                  <Calendar className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
-                  <span className={`text-xs md:text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Born: {new Date(userProfile.birthdate).toLocaleDateString()}
-                  </span>
-                </div>
-              )}
-              {userProfile?.gender && (
-                <div className="flex items-center gap-3">
-                  <Users className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
-                  <span className={`text-xs md:text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    {userProfile.gender}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
+      {isLoadingMappedUser ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600"></div>
         </div>
-
-        {/* Health Stats & Achievements */}
-        <div className="lg:col-span-2 space-y-4 md:space-y-6">
-          {/* Health Stats */}
-          <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-            }`}>
-            <h3 className={`text-base md:text-lg font-semibold ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-4`}>Health Statistics</h3>
-            <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
-              <div className="text-center">
-                <div className="text-lg md:text-2xl font-bold text-blue-600">
-                  {heartRateData && heartRateData.length > 0
-                    ? heartRateData[0].once_heart_value
-                    : '—'
-                  }
-                </div>
-                <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Avg Heart Rate</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg md:text-2xl font-bold text-green-600">
-                  {sleepData && sleepData.length > 0
-                    ? sleepData[0].sleep_score
-                    : '—'
-                  }/100
-                </div>
-                <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Sleep Score</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg md:text-2xl font-bold text-purple-600">
-                  {activityData && activityData.step
-                    ? activityData.step.toLocaleString()
-                    : '—'
-                  }
-                </div>
-                <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Daily Steps</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg md:text-2xl font-bold text-orange-600">
-                  {spo2Data && spo2Data.length > 0
-                    ? spo2Data[0].Blood_oxygen
-                    : '—'
-                  }%
-                </div>
-                <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Blood Oxygen</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg md:text-2xl font-bold text-red-600">
-                  {bloodPressureData && bloodPressureData.length > 0
-                    ? `${bloodPressureData[0].sbp}/${bloodPressureData[0].dbp}`
-                    : '—'
-                  }
-                </div>
-                <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>SBP/DBP</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg md:text-2xl font-bold text-purple-600">
-                  {stressData && stressData.length > 0
-                    ? stressData[0].stress
-                    : '—'
-                  }
-                </div>
-                <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Stress Level</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg md:text-2xl font-bold text-teal-600">
-                  {hrvData && hrvData.length > 0
-                    ? hrvData[0].hrv
-                    : '—'
-                  }
-                </div>
-                <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>HRV Score</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Medical Information */}
-          <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-            }`}>
-            <h3 className={`text-base md:text-lg font-semibold ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-4`}>Medical Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              <div>
-                <h4 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>Basic Info</h4>
-                <div className="space-y-2 text-xs md:text-sm">
-                  <div className="flex justify-between">
-                    <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Height:</span>
-                    <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>
-                      {userProfile?.height && userProfile.height !== '0.00'
-                        ? `${userProfile.height} cm`
-                        : 'N/A'
-                      }
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Weight:</span>
-                    <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>
-                      {userProfile?.weight && userProfile.weight !== '0.00'
-                        ? `${userProfile.weight} kg`
-                        : 'N/A'
-                      }
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Blood Type:</span>
-                    <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>
-                      {userProfile?.blood_group || 'N/A'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>BMI:</span>
-                    <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>
-                      {userProfile?.height && userProfile?.weight &&
-                        userProfile.height !== '0.00' && userProfile.weight !== '0.00'
-                        ? `${calculateBMI(userProfile.height, userProfile.weight)} (${getBMICategory(calculateBMI(userProfile.height, userProfile.weight))})`
-                        : 'N/A'
-                      }
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <h4 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  {userProfile?.role === 'DOCTOR' ? 'Professional Info' : 'Conditions'}
-                </h4>
-                {userProfile?.role === 'DOCTOR' ? (
-                  <div className="space-y-2 text-xs md:text-sm">
-                    {userProfile?.specialization && (
-                      <div className="flex justify-between">
-                        <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Specialization:</span>
-                        <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>{userProfile.specialization}</span>
-                      </div>
-                    )}
-                    {userProfile?.license_number && (
-                      <div className="flex justify-between">
-                        <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>License:</span>
-                        <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>{userProfile.license_number}</span>
-                      </div>
-                    )}
-                    {userProfile?.experience && (
-                      <div className="flex justify-between">
-                        <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Experience:</span>
-                        <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>{userProfile.experience} years</span>
-                      </div>
-                    )}
-                    {userProfile?.education && (
-                      <div className="flex justify-between">
-                        <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Education:</span>
-                        <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>{userProfile.education}</span>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {userProfile?.medical_conditions && userProfile.medical_conditions.length > 0 ? (
-                      userProfile.medical_conditions.map((condition, index) => (
-                        <span
-                          key={index}
-                          className="inline-block bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs md:text-sm mr-2 mb-2"
-                        >
-                          {condition}
-                        </span>
-                      ))
-                    ) : (
-                      <span className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>No medical conditions recorded</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Achievements */}
-          {userProfile?.achievements && userProfile.achievements.length > 0 && (
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+          {/* Profile Info */}
+          <div className="lg:col-span-1">
             <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
               }`}>
-              <h3 className={`text-base md:text-lg font-semibold ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-4`}>Health Achievements</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
-                {userProfile.achievements.map((achievement, index) => (
-                  <div key={index} className={`flex items-center gap-2 md:gap-3 p-3 md:p-4 rounded-xl ${darkMode
-                    ? 'bg-gradient-to-r from-yellow-900 to-yellow-800'
-                    : 'bg-gradient-to-r from-yellow-100 to-yellow-50'
-                    }`}>
-                    <Award className="w-6 h-6 md:w-8 md:h-8 text-yellow-600" />
-                    <div>
-                      <div className={`font-semibold text-sm md:text-base ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                        {achievement.title || 'Achievement'}
-                      </div>
-                      <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {achievement.description || ''}
-                      </div>
+              <div className="text-center mb-6">
+                <div className="relative mx-auto w-16 h-16 md:w-24 md:h-24 mb-4">
+                  {getDisplayImageUrl() ? (
+                    <button onClick={() => setShowImageModal(true)} className="block w-16 h-16 md:w-24 md:h-24">
+                      <img
+                        src={getDisplayImageUrl()}
+                        alt="Profile"
+                        className="w-16 h-16 md:w-24 md:h-24 rounded-full object-cover border-2 border-gray-200"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.style.display = 'none';
+                          e.target.parentNode.innerHTML = `<div class="w-16 h-16 md:w-24 md:h-24 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-lg md:text-2xl font-bold">${getDisplayInitial()}</div>`;
+                        }}
+                      />
+                    </button>
+                  ) : (
+                    <div className="w-16 h-16 md:w-24 md:h-24 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-lg md:text-2xl font-bold">
+                      {getDisplayInitial()}
+                    </div>
+                  )}
+
+                  {/* Only show camera/upload button for own profile */}
+                  {isOwnProfile && (
+                    <>
+                      <button
+                        onClick={handleProfileImageSelect}
+                        className={`absolute bottom-0 right-0 border-2 rounded-full p-1 md:p-2 ${darkMode
+                          ? 'bg-gray-700 border-gray-600 hover:bg-gray-600'
+                          : 'bg-white border-gray-200 hover:bg-gray-50'
+                          } transition-colors`}
+                      >
+                        <Camera className="w-3 h-3 md:w-4 md:h-4 text-gray-600" />
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleProfileImageChange}
+                        className="hidden"
+                      />
+                    </>
+                  )}
+                </div>
+
+                <h3 className={`text-lg md:text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  {getDisplayName()}
+                </h3>
+
+                {isOwnProfile && userProfile?.id && (
+                  <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    ID: #{userProfile.id}
+                  </p>
+                )}
+
+                {!isOwnProfile && (
+                  <p className={`text-xs md:text-sm ${darkMode ? 'text-blue-400' : 'text-blue-600'} font-medium`}>
+                    Mapped User
+                  </p>
+                )}
+
+                {isOwnProfile && userProfile?.role === 'DOCTOR' && (
+                  <p className={`text-xs ${darkMode ? 'text-blue-400' : 'text-blue-600'} font-medium mt-1`}>
+                    {userProfile.specialization || 'Doctor'}
+                  </p>
+                )}
+              </div>
+
+              {/* Contact details - only shown for own profile */}
+              {isOwnProfile && (
+                <div className="space-y-3 md:space-y-4">
+                  {userProfile?.email && (
+                    <div className="flex items-center gap-3">
+                      <Mail className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
+                      <span className={`text-xs md:text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {userProfile.email}
+                      </span>
+                    </div>
+                  )}
+                  {userProfile?.phone_number && (
+                    <div className="flex items-center gap-3">
+                      <Phone className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
+                      <span className={`text-xs md:text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {userProfile.phone_number}
+                      </span>
+                    </div>
+                  )}
+                  {userProfile?.hospital_name && (
+                    <div className="flex items-center gap-3">
+                      <MapPin className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
+                      <span className={`text-xs md:text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {userProfile.hospital_name}
+                      </span>
+                    </div>
+                  )}
+                  {userProfile?.birthdate && (
+                    <div className="flex items-center gap-3">
+                      <Calendar className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
+                      <span className={`text-xs md:text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Born: {new Date(userProfile.birthdate).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
+                  {userProfile?.gender && (
+                    <div className="flex items-center gap-3">
+                      <Users className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
+                      <span className={`text-xs md:text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {userProfile.gender}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Health Stats & Achievements */}
+          <div className="lg:col-span-2 space-y-4 md:space-y-6">
+            {/* Health Stats */}
+            <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
+              }`}>
+              <h3 className={`text-base md:text-lg font-semibold ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-4`}>Health Statistics</h3>
+              <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
+                <div className="text-center">
+                  <div className="text-lg md:text-2xl font-bold text-blue-600">
+                    {heartRateData && heartRateData.length > 0
+                      ? heartRateData[0].once_heart_value
+                      : '—'
+                    }
+                  </div>
+                  <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Avg Heart Rate</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg md:text-2xl font-bold text-green-600">
+                    {sleepData && sleepData.length > 0
+                      ? sleepData[0].sleep_score
+                      : '—'
+                    }/100
+                  </div>
+                  <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Sleep Score</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg md:text-2xl font-bold text-purple-600">
+                    {activityData && activityData.step
+                      ? activityData.step.toLocaleString()
+                      : '—'
+                    }
+                  </div>
+                  <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Daily Steps</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg md:text-2xl font-bold text-orange-600">
+                    {spo2Data && spo2Data.length > 0
+                      ? spo2Data[0].Blood_oxygen
+                      : '—'
+                    }%
+                  </div>
+                  <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Blood Oxygen</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg md:text-2xl font-bold text-red-600">
+                    {bloodPressureData && bloodPressureData.length > 0
+                      ? `${bloodPressureData[0].sbp}/${bloodPressureData[0].dbp}`
+                      : '—'
+                    }
+                  </div>
+                  <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>SBP/DBP</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg md:text-2xl font-bold text-purple-600">
+                    {stressData && stressData.length > 0
+                      ? stressData[0].stress
+                      : '—'
+                    }
+                  </div>
+                  <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Stress Level</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg md:text-2xl font-bold text-teal-600">
+                    {hrvData && hrvData.length > 0
+                      ? hrvData[0].hrv
+                      : '—'
+                    }
+                  </div>
+                  <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>HRV Score</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Medical Information */}
+            <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
+              }`}>
+              <h3 className={`text-base md:text-lg font-semibold ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-4`}>Medical Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                <div>
+                  <h4 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>Basic Info</h4>
+                  <div className="space-y-2 text-xs md:text-sm">
+                    <div className="flex justify-between">
+                      <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Height:</span>
+                      <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>
+                        {displayProfile?.height && displayProfile.height !== '0.00'
+                          ? `${displayProfile.height} cm`
+                          : 'N/A'
+                        }
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Weight:</span>
+                      <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>
+                        {displayProfile?.weight && displayProfile.weight !== '0.00'
+                          ? `${displayProfile.weight} kg`
+                          : 'N/A'
+                        }
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Blood Type:</span>
+                      <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>
+                        {displayProfile?.blood_group || 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>BMI:</span>
+                      <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>
+                        {displayProfile?.height && displayProfile?.weight &&
+                          displayProfile.height !== '0.00' && displayProfile.weight !== '0.00'
+                          ? `${calculateBMI(displayProfile.height, displayProfile.weight)} (${getBMICategory(calculateBMI(displayProfile.height, displayProfile.weight))})`
+                          : 'N/A'
+                        }
+                      </span>
                     </div>
                   </div>
-                ))}
+                </div>
+                <div>
+                  <h4 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    {displayProfile?.role === 'DOCTOR' ? 'Professional Info' : 'Conditions'}
+                  </h4>
+                  {displayProfile?.role === 'DOCTOR' ? (
+                    <div className="space-y-2 text-xs md:text-sm">
+                      {displayProfile?.specialization && (
+                        <div className="flex justify-between">
+                          <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Specialization:</span>
+                          <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>{displayProfile.specialization}</span>
+                        </div>
+                      )}
+                      {displayProfile?.license_number && (
+                        <div className="flex justify-between">
+                          <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>License:</span>
+                          <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>{displayProfile.license_number}</span>
+                        </div>
+                      )}
+                      {displayProfile?.experience && (
+                        <div className="flex justify-between">
+                          <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Experience:</span>
+                          <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>{displayProfile.experience} years</span>
+                        </div>
+                      )}
+                      {displayProfile?.education && (
+                        <div className="flex justify-between">
+                          <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Education:</span>
+                          <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>{displayProfile.education}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {displayProfile?.medical_conditions && displayProfile.medical_conditions.length > 0 ? (
+                        displayProfile.medical_conditions.map((condition, index) => (
+                          <span
+                            key={index}
+                            className="inline-block bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs md:text-sm mr-2 mb-2"
+                          >
+                            {condition}
+                          </span>
+                        ))
+                      ) : (
+                        <span className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>No medical conditions recorded</span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          )}
 
-          {/* Emergency Contacts */}
-          {userProfile?.emergency_contacts && userProfile.emergency_contacts.length > 0 && (
-            <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-              }`}>
-              <h3 className={`text-base md:text-lg font-semibold ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-4`}>Emergency Contacts</h3>
-              <div className="space-y-3 md:space-y-4">
-                {userProfile.emergency_contacts.map((contact, index) => (
-                  <div key={index} className={`flex items-center justify-between p-3 md:p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'
-                    }`}>
-                    <div className="flex items-center gap-3">
-                      <Users className="w-4 h-4 md:w-5 md:h-5 text-gray-500" />
+            {/* Achievements */}
+            {displayProfile?.achievements && displayProfile.achievements.length > 0 && (
+              <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
+                }`}>
+                <h3 className={`text-base md:text-lg font-semibold ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-4`}>Health Achievements</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+                  {displayProfile.achievements.map((achievement, index) => (
+                    <div key={index} className={`flex items-center gap-2 md:gap-3 p-3 md:p-4 rounded-xl ${darkMode
+                      ? 'bg-gradient-to-r from-yellow-900 to-yellow-800'
+                      : 'bg-gradient-to-r from-yellow-100 to-yellow-50'
+                      }`}>
+                      <Award className="w-6 h-6 md:w-8 md:h-8 text-yellow-600" />
                       <div>
                         <div className={`font-semibold text-sm md:text-base ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                          {contact.name || 'Contact'}
+                          {achievement.title || 'Achievement'}
                         </div>
-                        {contact.relationship && (
-                          <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                            {contact.relationship}
-                          </div>
-                        )}
+                        <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {achievement.description || ''}
+                        </div>
                       </div>
                     </div>
-                    {contact.phone && (
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs md:text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                          {contact.phone}
-                        </span>
-                        <Phone className="w-3 h-3 md:w-4 md:h-4 text-gray-400" />
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Trail Map Section */}
-          <TrailMap 
-            darkMode={darkMode} 
-            userId={selectedUserId} 
-            globalDateFilter={globalDateFilter}
-            globalDateRange={globalDateRange}
-          />
+            {/* Emergency Contacts - only shown for own profile */}
+            {isOwnProfile && userProfile?.emergency_contacts && userProfile.emergency_contacts.length > 0 && (
+              <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
+                }`}>
+                <h3 className={`text-base md:text-lg font-semibold ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-4`}>Emergency Contacts</h3>
+                <div className="space-y-3 md:space-y-4">
+                  {userProfile.emergency_contacts.map((contact, index) => (
+                    <div key={index} className={`flex items-center justify-between p-3 md:p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'
+                      }`}>
+                      <div className="flex items-center gap-3">
+                        <Users className="w-4 h-4 md:w-5 md:h-5 text-gray-500" />
+                        <div>
+                          <div className={`font-semibold text-sm md:text-base ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                            {contact.name || 'Contact'}
+                          </div>
+                          {contact.relationship && (
+                            <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {contact.relationship}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {contact.phone && (
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs md:text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                            {contact.phone}
+                          </span>
+                          <Phone className="w-3 h-3 md:w-4 md:h-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Trail Map Section */}
+            <TrailMap
+              darkMode={darkMode}
+              userId={selectedUserId}
+              globalDateFilter={globalDateFilter}
+              globalDateRange={globalDateRange}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Full Image Modal */}
-      {showImageModal && userProfile?.profile_image && (
+      {showImageModal && getDisplayImageUrl() && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setShowImageModal(false)}>
           <div className="relative max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
             <button
@@ -597,24 +670,21 @@ const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalD
             >
               <X className="w-5 h-5" />
             </button>
-            <img src={userProfile.profile_image} alt="Profile Full" className="w-full h-auto rounded-xl" />
+            <img src={getDisplayImageUrl()} alt="Profile Full" className="w-full h-auto rounded-xl" />
           </div>
         </div>
       )}
 
-      {/* Edit Profile Modal */}
-      {showEditModal && (
+      {/* Edit Profile Modal - only for own profile */}
+      {showEditModal && isOwnProfile && (
         <EditProfileModal
           darkMode={darkMode}
           userProfile={userProfile}
           onClose={() => setShowEditModal(false)}
           onSuccess={async () => {
-            // Refresh user profile data
             try {
               const updatedProfile = await getUserEmailProfile();
               setUserProfile(updatedProfile);
-
-              // Update localStorage
               const userData = getUserData();
               if (userData) {
                 const updatedUserData = { ...userData, ...updatedProfile };
@@ -633,7 +703,6 @@ const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalD
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className={`rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto ${darkMode ? 'bg-gray-800' : 'bg-white'
             }`}>
-            {/* Header */}
             <div className={`sticky top-0 border-b px-6 py-4 rounded-t-3xl flex items-center justify-between ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
               }`}>
               <div className="flex items-center gap-3">
@@ -653,8 +722,6 @@ const ProfileTab = ({ darkMode, selectedUserId = null, globalDateFilter, globalD
                 <X className="w-6 h-6" />
               </button>
             </div>
-
-            {/* Content */}
             <div className="p-6">
               <UserMapping darkMode={darkMode} onClose={() => setShowUserMappingModal(false)} />
             </div>
@@ -679,7 +746,6 @@ const EditProfileModal = ({ darkMode, userProfile, onClose, onSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // Pre-fill with existing user data
   useEffect(() => {
     if (userProfile) {
       setFormData({
@@ -694,14 +760,12 @@ const EditProfileModal = ({ darkMode, userProfile, onClose, onSuccess }) => {
     }
   }, [userProfile]);
 
-  // Use useCallback to memoize handleChange and prevent InputField from re-rendering unnecessarily
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
-    // Clear error for this field
     setErrors(prev => {
       if (prev[name]) {
         const newErrors = { ...prev };
@@ -718,46 +782,37 @@ const EditProfileModal = ({ darkMode, userProfile, onClose, onSuccess }) => {
     setErrors({});
 
     try {
-      // Prepare payload - only include fields that have values
       const payload = {};
       Object.keys(formData).forEach(key => {
         const value = formData[key];
-        // Skip empty values
         if (value === '' || value === null || value === undefined) {
           return;
         }
-
-        // Handle different field types
         if (key === 'height' || key === 'weight') {
-          // Convert height and weight to string with 2 decimal places
           const numValue = parseFloat(value);
           if (!isNaN(numValue)) {
             payload[key] = numValue.toFixed(2);
           }
         } else if (typeof value === 'string') {
-          // Trim string values
           const trimmedValue = value.trim();
           if (trimmedValue !== '') {
             payload[key] = trimmedValue;
           }
         } else {
-          // For other types (dates, etc.), use as-is
           payload[key] = value;
         }
       });
 
-      // If no data to update, just close
       if (Object.keys(payload).length === 0) {
         onSuccess?.();
         onClose();
         return;
       }
 
-      console.log('Sending payload to API:', payload); // Debug log
+      console.log('Sending payload to API:', payload);
       const result = await updateProfile(payload);
-      console.log('Profile update result:', result); // Debug log
+      console.log('Profile update result:', result);
 
-      // Update user data in localStorage
       const userData = getUserData();
       if (userData) {
         const updatedUserData = { ...userData, ...payload };
@@ -768,12 +823,7 @@ const EditProfileModal = ({ darkMode, userProfile, onClose, onSuccess }) => {
       alert('Profile updated successfully!');
     } catch (error) {
       console.error('Error updating profile:', error);
-      console.error('Error details:', error.details);
-      console.error('Error response:', error.response);
-
-      // Handle different error formats
       if (error.details) {
-        // Django validation errors format
         if (typeof error.details === 'object') {
           const formattedErrors = {};
           Object.keys(error.details).forEach(key => {
@@ -788,8 +838,6 @@ const EditProfileModal = ({ darkMode, userProfile, onClose, onSuccess }) => {
           setErrors({ general: error.details });
         }
       }
-
-      // Show error message to user
       const errorMessage = error.details?.detail || error.details?.message || error.message || 'Failed to update profile. Please check your inputs and try again.';
       alert(`Failed to update profile: ${errorMessage}`);
     } finally {
@@ -797,12 +845,10 @@ const EditProfileModal = ({ darkMode, userProfile, onClose, onSuccess }) => {
     }
   };
 
-
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className={`rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto ${darkMode ? 'bg-gray-800' : 'bg-white'
         }`}>
-        {/* Header */}
         <div className={`sticky top-0 border-b px-6 py-4 rounded-t-3xl flex items-center justify-between ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
           }`}>
           <div className="flex items-center gap-3">
@@ -823,10 +869,8 @@ const EditProfileModal = ({ darkMode, userProfile, onClose, onSuccess }) => {
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* First Name */}
             <InputField
               icon={User}
               label="First Name"
@@ -836,8 +880,6 @@ const EditProfileModal = ({ darkMode, userProfile, onClose, onSuccess }) => {
               error={errors.first_name}
               darkMode={darkMode}
             />
-
-            {/* Last Name */}
             <InputField
               icon={User}
               label="Last Name"
@@ -847,8 +889,6 @@ const EditProfileModal = ({ darkMode, userProfile, onClose, onSuccess }) => {
               error={errors.last_name}
               darkMode={darkMode}
             />
-
-            {/* Birthdate */}
             <InputField
               icon={Calendar}
               label="Birthdate"
@@ -861,8 +901,6 @@ const EditProfileModal = ({ darkMode, userProfile, onClose, onSuccess }) => {
               max={new Date().toISOString().split('T')[0]}
               darkMode={darkMode}
             />
-
-            {/* Gender */}
             <div className="group relative">
               <label className={`flex items-center gap-2 text-sm font-semibold mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                 <UserCircle className="w-4 h-4 text-violet-600" />
@@ -887,8 +925,6 @@ const EditProfileModal = ({ darkMode, userProfile, onClose, onSuccess }) => {
                 </p>
               )}
             </div>
-
-            {/* Height */}
             <InputField
               icon={Ruler}
               label="Height (cm)"
@@ -899,8 +935,6 @@ const EditProfileModal = ({ darkMode, userProfile, onClose, onSuccess }) => {
               error={errors.height}
               darkMode={darkMode}
             />
-
-            {/* Weight */}
             <InputField
               icon={Scale}
               label="Weight (kg)"
@@ -911,8 +945,6 @@ const EditProfileModal = ({ darkMode, userProfile, onClose, onSuccess }) => {
               error={errors.weight}
               darkMode={darkMode}
             />
-
-            {/* Blood Group */}
             <div className="group relative md:col-span-2">
               <label className={`flex items-center gap-2 text-sm font-semibold mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                 <Droplets className="w-4 h-4 text-violet-600" />
@@ -944,7 +976,6 @@ const EditProfileModal = ({ darkMode, userProfile, onClose, onSuccess }) => {
             </div>
           </div>
 
-          {/* Actions */}
           <div className="flex gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
             <button
               type="button"
