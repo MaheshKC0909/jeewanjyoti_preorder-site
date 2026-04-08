@@ -77,7 +77,7 @@ const EmojiPicker = ({ onEmojiClick, theme, height, width, emojiAsFile, setEmoji
 
 import { getAccessToken, getUserData } from '../../lib/tokenManager';
 
-const ChatTab = ({ darkMode = false, onChatRoomStateChange }) => {
+const ChatTab = ({ darkMode = false, onChatRoomStateChange, onUnreadCountChange }) => {
   const [selectedChat, setSelectedChat] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showChatRoom, setShowChatRoom] = useState(false);
@@ -151,6 +151,13 @@ const ChatTab = ({ darkMode = false, onChatRoomStateChange }) => {
       };
     });
   }, [conversations, userStatuses, statusUpdateTrigger]);
+
+  // Emit real total unread count to Dashboard whenever chatUsers changes
+  useEffect(() => {
+    if (!onUnreadCountChange) return;
+    const total = chatUsers.reduce((sum, c) => sum + (c.unread || 0), 0);
+    onUnreadCountChange(total);
+  }, [chatUsers, onUnreadCountChange]);
 
   const currentChat = chatUsers.find(chat => chat.id === selectedChat);
   const [messages, setMessages] = useState([]);

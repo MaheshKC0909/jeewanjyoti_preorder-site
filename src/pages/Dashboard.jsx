@@ -77,6 +77,7 @@ const Dashboard = () => {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [selectionFeedback, setSelectionFeedback] = useState(null);
   const [imageErrors, setImageErrors] = useState({}); // Track image loading errors
+  const [totalUnread, setTotalUnread] = useState(0); // Real unread count from ChatTab
 
   // Global filter states
   const [globalDateFilter, setGlobalDateFilter] = useState('today');
@@ -507,7 +508,7 @@ const Dashboard = () => {
           </ErrorBoundary>
         );
       case 'chat':
-        return <ChatTab darkMode={darkMode} onChatRoomStateChange={handleChatRoomStateChange} />;
+        return <ChatTab darkMode={darkMode} onChatRoomStateChange={handleChatRoomStateChange} onUnreadCountChange={setTotalUnread} />;
       case 'profile':
         return <ProfileTab darkMode={darkMode} selectedUserId={selectedUserId} selectedUserInfo={currentUser} globalDateFilter={globalDateFilter} globalDateRange={globalDateRange} />;
       case 'settings':
@@ -599,7 +600,9 @@ const Dashboard = () => {
                 >
                   <MessageCircle className="w-5 h-5" />
                   <span className="font-medium">Chat</span>
-                  <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1 ml-1">3</span>
+                  {totalUnread > 0 && (
+                    <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1 ml-1">{totalUnread > 99 ? '99+' : totalUnread}</span>
+                  )}
                 </button>
                 <button
                   onClick={() => handleTabChange('profile')}
@@ -1441,11 +1444,15 @@ const Dashboard = () => {
                     }`}>
                     <Bell className="w-5 h-5 text-gray-600" />
                   </div>
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">3</span>
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                    {totalUnread > 99 ? '99+' : totalUnread}
+                  </span>
                 </div>
                 <div className="flex-1 text-left">
                   <p className="font-bold">Notifications</p>
-                  <p className="text-xs opacity-75">3 new messages</p>
+                  <p className="text-xs opacity-75">
+                    {totalUnread > 0 ? `${totalUnread} unread message${totalUnread === 1 ? '' : 's'}` : 'No new messages'}
+                  </p>
                 </div>
               </button>
 
@@ -1554,7 +1561,11 @@ const Dashboard = () => {
           >
             <MessageCircle className="w-6 h-6" />
             <span className="text-xs mt-1">Chat</span>
-            <span className="absolute top-1 right-4 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">3</span>
+            {totalUnread > 0 && (
+              <span className="absolute top-1 right-4 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                {totalUnread > 9 ? '9+' : totalUnread}
+              </span>
+            )}
           </button>
           <button
             onClick={() => handleTabChange('profile')}
