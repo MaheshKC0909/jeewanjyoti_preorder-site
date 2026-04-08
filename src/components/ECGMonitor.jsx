@@ -115,7 +115,7 @@ const ECGMonitor = ({
             break;
 
           // ── Step 5: Live ECG data streaming (multiple times per second) ──
-          case 'live_ecg_stream':
+          case 'live_ecg_data':
             if (data.data?.voltage) {
               // voltage is an array of samples per message — flatten into points
               const points = data.data.voltage.map(v => ({ value: v }));
@@ -124,6 +124,8 @@ const ECGMonitor = ({
             if (data.data?.heartRate != null) {
               setHeartRate(data.data.heartRate);
             }
+            // Also set status to accepted if we receive live data (in case join_live_session was missed)
+            setEcgRequestStatus(prev => prev !== 'completed' ? 'accepted' : prev);
             break;
 
           // ── Step 6: ECG session complete — summary data received ──
