@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Edit3, Mail, Phone, MapPin, Calendar, Users, Award, Star, Heart, Camera, X, User, UserCircle, Ruler, Scale, Droplets } from 'lucide-react';
+import { Edit3, Mail, Phone, MapPin, Calendar, Users, Award, Star, Heart, Camera, X, User, UserCircle, Ruler, Scale, Droplets, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clearTokens, getUserData } from '../../lib/tokenManager';
 import { getSleepData, getSpO2Data, getHeartRateData, getBloodPressureData, getStressData, getHRVData, getUserEmailProfile, updateProfile, getDayTotalActivity, getUserById } from '../../lib/api';
 import UserMapping from './UserMapping';
 import TrailMap from '../../components/TrailMap';
+import ECGMonitor from '../../components/ECGMonitor';
+import RealTimeHealthDashboard from '../../components/RealTimeHealthDashboard';
 
 const API_BASE = 'https://jeewanjyoti-backend.smart.org.np';
 const getFullImageUrl = (url) => {
@@ -61,6 +63,8 @@ const ProfileTab = ({ darkMode, selectedUserId = null, selectedUserInfo = null, 
   const [showUserMappingModal, setShowUserMappingModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [isLoadingMappedUser, setIsLoadingMappedUser] = useState(false);
+  const [showECGModal, setShowECGModal] = useState(false);
+  const [showHealthDashboard, setShowHealthDashboard] = useState(false);
   const fileInputRef = useRef(null);
 
   // Check if user is admin/superuser
@@ -424,7 +428,25 @@ const ProfileTab = ({ darkMode, selectedUserId = null, selectedUserInfo = null, 
             {/* Health Stats */}
             <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
               }`}>
-              <h3 className={`text-base md:text-lg font-semibold ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-4`}>Health Statistics</h3>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                <h3 className={`text-base md:text-lg font-semibold ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>Health Statistics</h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowHealthDashboard(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                  >
+                    <Activity className="w-4 h-4" />
+                    Real time data
+                  </button>
+                  <button
+                    onClick={() => setShowECGModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+                  >
+                    <Heart className="w-4 h-4" />
+                    ECG
+                  </button>
+                </div>
+              </div>
               <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
                 <div className="text-center">
                   <div className="text-lg md:text-2xl font-bold text-blue-600">
@@ -728,6 +750,41 @@ const ProfileTab = ({ darkMode, selectedUserId = null, selectedUserInfo = null, 
           </div>
         </div>
       )}
+
+      {/* ECG Monitor Modal */}
+      <ECGMonitor
+        isOpen={showECGModal}
+        onClose={() => setShowECGModal(false)}
+        selectedPatient={{
+          id: selectedUserId || userData?.id,
+          name: getDisplayName()
+        }}
+        darkMode={darkMode}
+        onRequestSent={() => console.log('ECG request sent from profile')}
+        onRequestAccepted={() => console.log('ECG request accepted from profile')}
+        onRequestRejected={() => console.log('ECG request rejected from profile')}
+      />
+
+      {/* Real Time Health Dashboard Modal */}
+      {showHealthDashboard && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-6xl h-[90vh] bg-transparent rounded-2xl overflow-hidden relative shadow-2xl">
+            <button
+              onClick={() => setShowHealthDashboard(false)}
+              className="absolute top-4 right-4 z-50 bg-red-500 hover:bg-red-600 text-white p-2 rounded-full shadow-lg transition-transform hover:scale-110"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <div className="w-full h-full overflow-y-auto no-scrollbar pb-8">
+              <RealTimeHealthDashboard 
+                darkMode={darkMode} 
+                patientId={selectedUserId || userData?.id} 
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

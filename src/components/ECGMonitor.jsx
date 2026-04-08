@@ -59,10 +59,17 @@ const ECGMonitor = ({
           case 'connection_established':
             setConnectionStatus('connected');
             setError(null);
-            doctorIdRef.current = data.user_id;
+            
+            const localUserData = JSON.parse(localStorage.getItem('user_data') || '{}');
+            doctorIdRef.current = data.user_id || localUserData.id;
+            
             if (selectedPatient?.id && !autoRequestSentRef.current) {
               autoRequestSentRef.current = true;
-              ws.send(JSON.stringify({ type: 'ecg_request', patient_id: selectedPatient.id }));
+              ws.send(JSON.stringify({ 
+                type: 'ecg_request', 
+                patient_id: selectedPatient.id,
+                requester_id: doctorIdRef.current
+              }));
               setEcgRequestStatus('requesting');
               if (onRequestSent) onRequestSent();
             }
@@ -86,8 +93,8 @@ const ECGMonitor = ({
                 if (wsRef.current?.readyState === WebSocket.OPEN) {
                   const joinMsg = {
                     type: 'join_live_session',
-                    doctor_id: doctorIdRef.current,
-                    user_id: data.user_id
+                    requester_id: doctorIdRef.current,
+                    patient_id: data.user_id || selectedPatient?.id
                   };
                   console.log('Sending join_live_session:', joinMsg);
                   wsRef.current.send(JSON.stringify(joinMsg));
@@ -108,7 +115,7 @@ const ECGMonitor = ({
             break;
 
           // ── Step 5: Live ECG data streaming (multiple times per second) ──
-          case 'live_ecg_data':
+          case 'live_ecg_stream':
             if (data.data?.voltage) {
               // voltage is an array of samples per message — flatten into points
               const points = data.data.voltage.map(v => ({ value: v }));
@@ -148,7 +155,11 @@ const ECGMonitor = ({
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) { setError('WebSocket not connected'); return; }
     if (!selectedPatient?.id) { setError('No patient selected'); return; }
     setEcgRequestStatus('requesting');
-    wsRef.current.send(JSON.stringify({ type: 'ecg_request', patient_id: selectedPatient.id }));
+    wsRef.current.send(JSON.stringify({ 
+      type: 'ecg_request', 
+      patient_id: selectedPatient.id,
+      requester_id: doctorIdRef.current || JSON.parse(localStorage.getItem('user_data') || '{}').id
+    }));
   };
 
   const handleClose = () => {
