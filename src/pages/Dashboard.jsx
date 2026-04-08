@@ -542,7 +542,7 @@ const Dashboard = () => {
       : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
       }`}>
       {/* Navigation */}
-      <nav className={`shadow-lg border-b z-10 ${darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'
+      <nav className={`relative shadow-lg border-b z-50 ${darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'
         } ${isChatRoomOpen ? 'md:block hidden' : ''}`}>
         <div className="max-w-7xl mx-auto px-3 md:px-4">
           <div className="flex items-center justify-between gap-2 py-3">
@@ -937,7 +937,7 @@ const Dashboard = () => {
                 </div>
 
                 {/* Mobile Profile Dropdown */}
-                <div className="md:hidden relative">
+                <div className="md:hidden relative user-dropdown">
                   <button
                     onClick={() => setShowUserDropdown(!showUserDropdown)}
                     className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-200 transform hover:scale-105 ${darkMode
@@ -968,7 +968,7 @@ const Dashboard = () => {
                   </button>
 
                   {showUserDropdown && (
-                    <div className={`absolute right-0 mt-2 w-56 rounded-lg border shadow-lg animate-in slide-in-from-top duration-200 ${darkMode
+                    <div className={`absolute right-0 mt-2 w-56 rounded-lg border shadow-lg animate-in slide-in-from-top duration-200 z-50 ${darkMode
                         ? 'bg-gray-800 border-gray-700'
                         : 'bg-white border-gray-200'
                       }`}>
@@ -1176,7 +1176,7 @@ const Dashboard = () => {
               </div>
 
               {/* Mobile User Dropdown */}
-              <div className="space-y-2">
+              <div className="space-y-2 user-dropdown">
                 <button
                   onClick={() => setShowUserDropdown(!showUserDropdown)}
                   className={`w-full flex items-center justify-between p-3 rounded-xl transition-all duration-200 transform hover:scale-[1.02] ${darkMode
