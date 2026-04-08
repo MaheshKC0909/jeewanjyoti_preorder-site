@@ -2,11 +2,18 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Edit3, Mail, Phone, MapPin, Calendar, Users, Award, Star, Heart, Camera, X, User, UserCircle, Ruler, Scale, Droplets, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clearTokens, getUserData } from '../../lib/tokenManager';
-import { getSleepData, getSpO2Data, getHeartRateData, getBloodPressureData, getStressData, getHRVData, getUserEmailProfile, updateProfile, getDayTotalActivity, getUserById } from '../../lib/api';
+import { getUserEmailProfile, updateProfile, getUserById } from '../../lib/api';
 import UserMapping from './UserMapping';
 import TrailMap from '../../components/TrailMap';
 import ECGMonitor from '../../components/ECGMonitor';
 import RealTimeHealthDashboard from '../../components/RealTimeHealthDashboard';
+import HeartRateDataComponent from '../../components/HeartRateDataComponent';
+import SpO2DataComponent from '../../components/SpO2DataComponent';
+import SleepDataComponent from '../../components/SleepDataComponent';
+import ActivitySummary from '../../components/ActivitySummary';
+import BloodPressureDataComponent from '../../components/BloodPressureDataComponent';
+import StressDataComponent from '../../components/StressDataComponent';
+import HRVDataComponent from '../../components/HRVDataComponent';
 
 const API_BASE = 'https://jeewanjyoti-backend.smart.org.np';
 const getFullImageUrl = (url) => {
@@ -50,15 +57,16 @@ const InputField = React.memo(({ icon: Icon, label, name, type = 'text', require
 
 const ProfileTab = ({ darkMode, selectedUserId = null, selectedUserInfo = null, globalDateFilter, globalDateRange }) => {
   const navigate = useNavigate();
-  const [sleepData, setSleepData] = useState(null);
-  const [spo2Data, setSpO2Data] = useState(null);
+  // Health data — populated via component callbacks (same approach as Home)
   const [heartRateData, setHeartRateData] = useState(null);
+  const [spo2Data, setSpO2Data] = useState(null);
+  const [sleepData, setSleepData] = useState(null);
+  const [stepsData, setStepsData] = useState(null);
   const [bloodPressureData, setBloodPressureData] = useState(null);
   const [stressData, setStressData] = useState(null);
   const [hrvData, setHrvData] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [mappedUserFullProfile, setMappedUserFullProfile] = useState(null);
-  const [activityData, setActivityData] = useState(null);
   const [showImageModal, setShowImageModal] = useState(false);
   const [showUserMappingModal, setShowUserMappingModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -123,72 +131,30 @@ const ProfileTab = ({ darkMode, selectedUserId = null, selectedUserInfo = null, 
     fetchMappedUserFullProfile();
   }, [selectedUserId, userData?.id, selectedUserInfo]);
 
-  // Fetch health data for health statistics
+  // Fetch own profile info only
   useEffect(() => {
-    const fetchHealthData = async () => {
-      try {
-        const [
-          sleepDataResult,
-          spo2DataResult,
-          heartRateDataResult,
-          bloodPressureDataResult,
-          stressDataResult,
-          hrvDataResult,
-          userProfileResult,
-          activityDataResult
-        ] = await Promise.all([
-          getSleepData(selectedUserId),
-          getSpO2Data(selectedUserId),
-          getHeartRateData(selectedUserId),
-          getBloodPressureData(selectedUserId),
-          getStressData(selectedUserId),
-          getHRVData(selectedUserId),
-          getUserEmailProfile(), // Always fetch own profile
-          getDayTotalActivity(selectedUserId)
-        ]);
-
-        setSleepData(sleepDataResult);
-        setSpO2Data(spo2DataResult);
-        setHeartRateData(heartRateDataResult);
-        setBloodPressureData(bloodPressureDataResult);
-        setStressData(stressDataResult);
-        setHrvData(hrvDataResult);
-
-        // Only set own profile when not viewing a mapped user
-        if (!selectedUserId) {
-          setUserProfile(userProfileResult);
+    const fetchOwnProfile = async () => {
+      if (!selectedUserId) {
+        try {
+          const profileResult = await getUserEmailProfile();
+          setUserProfile(profileResult);
+        } catch (error) {
+          console.error('Error fetching own profile:', error);
         }
-
-        // Process activity data
-        if (activityDataResult?.results && activityDataResult.results.length > 0) {
-          const today = new Date().toISOString().split('T')[0];
-          const todayData = activityDataResult.results.filter(item => item.date === today);
-          const dataToProcess = todayData.length > 0 ? todayData : activityDataResult.results;
-          const latestData = dataToProcess[0];
-          setActivityData(latestData);
-        } else if (Array.isArray(activityDataResult) && activityDataResult.length > 0) {
-          const today = new Date().toISOString().split('T')[0];
-          const todayData = activityDataResult.filter(item => item.date === today);
-          const dataToProcess = todayData.length > 0 ? todayData : activityDataResult;
-          const latestData = dataToProcess[0];
-          setActivityData(latestData);
-        } else {
-          setActivityData(null);
-        }
-      } catch (error) {
-        console.error('Error fetching health data for profile:', error);
-        setSleepData(null);
-        setSpO2Data(null);
-        setHeartRateData(null);
-        setBloodPressureData(null);
-        setStressData(null);
-        setHrvData(null);
-        setUserProfile(null);
-        setActivityData(null);
       }
     };
+    fetchOwnProfile();
+  }, [selectedUserId]);
 
-    fetchHealthData();
+  // Reset health data on user switch so stale data never lingers
+  useEffect(() => {
+    setHeartRateData(null);
+    setSpO2Data(null);
+    setSleepData(null);
+    setStepsData(null);
+    setBloodPressureData(null);
+    setStressData(null);
+    setHrvData(null);
   }, [selectedUserId]);
 
   // Handle profile image upload
@@ -448,69 +414,177 @@ const ProfileTab = ({ darkMode, selectedUserId = null, selectedUserInfo = null, 
                 </div>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
+                {/* Heart Rate */}
                 <div className="text-center">
-                  <div className="text-lg md:text-2xl font-bold text-blue-600">
-                    {heartRateData && heartRateData.length > 0
-                      ? heartRateData[0].once_heart_value
+                  <div className="text-lg md:text-2xl font-bold text-red-500">
+                    {heartRateData && Array.isArray(heartRateData) && heartRateData.length > 0
+                      ? heartRateData[heartRateData.length - 1]?.once_heart_value
                       : '—'
                     }
                   </div>
-                  <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Avg Heart Rate</div>
+                  <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Heart Rate</div>
+                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>BPM</div>
+                  {heartRateData && heartRateData.length > 0 && heartRateData[heartRateData.length - 1]?.date && (
+                    <div className={`text-xs mt-1 px-1.5 py-0.5 rounded-full inline-block ${darkMode ? 'bg-red-900/30 text-red-400' : 'bg-red-50 text-red-500'}`}>
+                      {new Date(heartRateData[heartRateData.length - 1].date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                    </div>
+                  )}
                 </div>
+                {/* Sleep Score */}
                 <div className="text-center">
-                  <div className="text-lg md:text-2xl font-bold text-green-600">
+                  <div className="text-lg md:text-2xl font-bold text-indigo-500">
                     {sleepData && sleepData.length > 0
-                      ? sleepData[0].sleep_score
+                      ? (() => {
+                          const d = sleepData[0];
+                          if (d.sleep_score) return d.sleep_score;
+                          let score = 0;
+                          const dur = d.duration;
+                          if (dur >= 7 && dur <= 9) score += 30;
+                          else if (dur >= 6 && dur <= 10) score += 20;
+                          else score += 10;
+                          const deep = d.deep_sleep_percentage;
+                          if (deep >= 15 && deep <= 20) score += 25;
+                          else if (deep >= 10 && deep <= 25) score += 15;
+                          else score += 5;
+                          const light = d.light_sleep_percentage;
+                          if (light >= 45 && light <= 55) score += 25;
+                          else if (light >= 40 && light <= 60) score += 15;
+                          else score += 5;
+                          const awake = d.awake_percentage;
+                          if (awake < 5) score += 20;
+                          else if (awake < 10) score += 10;
+                          else score += 5;
+                          return Math.min(score, 100);
+                        })()
                       : '—'
-                    }/100
+                    }
                   </div>
                   <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Sleep Score</div>
+                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>/100</div>
+                  {sleepData && sleepData.length > 0 && sleepData[0]?.date && (
+                    <div className={`text-xs mt-1 px-1.5 py-0.5 rounded-full inline-block ${darkMode ? 'bg-indigo-900/30 text-indigo-400' : 'bg-indigo-50 text-indigo-500'}`}>
+                      {new Date(sleepData[0].date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                    </div>
+                  )}
                 </div>
+                {/* Daily Steps */}
                 <div className="text-center">
-                  <div className="text-lg md:text-2xl font-bold text-purple-600">
-                    {activityData && activityData.step
-                      ? activityData.step.toLocaleString()
-                      : '—'
-                    }
+                  <div className="text-lg md:text-2xl font-bold text-green-500">
+                    {stepsData?.step ? stepsData.step.toLocaleString() : '—'}
                   </div>
                   <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Daily Steps</div>
+                  {stepsData?.date && (
+                    <div className={`text-xs mt-1 px-1.5 py-0.5 rounded-full inline-block ${darkMode ? 'bg-green-900/30 text-green-400' : 'bg-green-50 text-green-600'}`}>
+                      {new Date(stepsData.date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                    </div>
+                  )}
                 </div>
+                {/* Blood Oxygen */}
                 <div className="text-center">
-                  <div className="text-lg md:text-2xl font-bold text-orange-600">
-                    {spo2Data && spo2Data.length > 0
-                      ? spo2Data[0].Blood_oxygen
+                  <div className="text-lg md:text-2xl font-bold text-blue-500">
+                    {spo2Data && Array.isArray(spo2Data) && spo2Data.length > 0
+                      ? spo2Data[spo2Data.length - 1]?.Blood_oxygen
                       : '—'
                     }%
                   </div>
                   <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Blood Oxygen</div>
+                  {spo2Data && spo2Data.length > 0 && (spo2Data[spo2Data.length - 1]?.date || spo2Data[spo2Data.length - 1]?.measure_time) && (
+                    <div className={`text-xs mt-1 px-1.5 py-0.5 rounded-full inline-block ${darkMode ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-50 text-blue-500'}`}>
+                      {new Date(spo2Data[spo2Data.length - 1].date || spo2Data[spo2Data.length - 1].measure_time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                    </div>
+                  )}
                 </div>
+                {/* Blood Pressure */}
                 <div className="text-center">
                   <div className="text-lg md:text-2xl font-bold text-red-600">
-                    {bloodPressureData && bloodPressureData.length > 0
-                      ? `${bloodPressureData[0].sbp}/${bloodPressureData[0].dbp}`
+                    {bloodPressureData && Array.isArray(bloodPressureData) && bloodPressureData.length > 0
+                      ? `${bloodPressureData[bloodPressureData.length - 1]?.sbp}/${bloodPressureData[bloodPressureData.length - 1]?.dbp}`
                       : '—'
                     }
                   </div>
                   <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>SBP/DBP</div>
+                  {bloodPressureData && bloodPressureData.length > 0 && (bloodPressureData[bloodPressureData.length - 1]?.date || bloodPressureData[bloodPressureData.length - 1]?.measure_time) && (
+                    <div className={`text-xs mt-1 px-1.5 py-0.5 rounded-full inline-block ${darkMode ? 'bg-red-900/30 text-red-400' : 'bg-red-50 text-red-500'}`}>
+                      {new Date(bloodPressureData[bloodPressureData.length - 1].date || bloodPressureData[bloodPressureData.length - 1].measure_time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                    </div>
+                  )}
                 </div>
+                {/* Stress */}
                 <div className="text-center">
-                  <div className="text-lg md:text-2xl font-bold text-purple-600">
-                    {stressData && stressData.length > 0
-                      ? stressData[0].stress
+                  <div className="text-lg md:text-2xl font-bold text-purple-500">
+                    {stressData && Array.isArray(stressData) && stressData.length > 0
+                      ? stressData[stressData.length - 1]?.stress
                       : '—'
                     }
                   </div>
                   <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Stress Level</div>
+                  {stressData && stressData.length > 0 && (stressData[stressData.length - 1]?.date || stressData[stressData.length - 1]?.measure_time) && (
+                    <div className={`text-xs mt-1 px-1.5 py-0.5 rounded-full inline-block ${darkMode ? 'bg-purple-900/30 text-purple-400' : 'bg-purple-50 text-purple-500'}`}>
+                      {new Date(stressData[stressData.length - 1].date || stressData[stressData.length - 1].measure_time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                    </div>
+                  )}
                 </div>
+                {/* HRV */}
                 <div className="text-center">
-                  <div className="text-lg md:text-2xl font-bold text-teal-600">
-                    {hrvData && hrvData.length > 0
-                      ? hrvData[0].hrv
+                  <div className="text-lg md:text-2xl font-bold text-teal-500">
+                    {hrvData && Array.isArray(hrvData) && hrvData.length > 0
+                      ? hrvData[hrvData.length - 1]?.hrv
                       : '—'
                     }
                   </div>
                   <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>HRV Score</div>
+                  {hrvData && hrvData.length > 0 && (hrvData[hrvData.length - 1]?.date || hrvData[hrvData.length - 1]?.measure_time) && (
+                    <div className={`text-xs mt-1 px-1.5 py-0.5 rounded-full inline-block ${darkMode ? 'bg-teal-900/30 text-teal-400' : 'bg-teal-50 text-teal-600'}`}>
+                      {new Date(hrvData[hrvData.length - 1].date || hrvData[hrvData.length - 1].measure_time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                    </div>
+                  )}
                 </div>
+              </div>
+
+              {/* Hidden data components — same as Home, data feeds into state via callbacks */}
+              <div className="hidden">
+                <HeartRateDataComponent
+                  darkMode={darkMode}
+                  onHeartRateDataUpdate={setHeartRateData}
+                  selectedUserId={selectedUserId}
+                  dateRange={globalDateRange}
+                />
+                <SpO2DataComponent
+                  darkMode={darkMode}
+                  onSpO2DataUpdate={setSpO2Data}
+                  selectedUserId={selectedUserId}
+                  dateRange={globalDateRange}
+                />
+                <SleepDataComponent
+                  darkMode={darkMode}
+                  onSleepDataUpdate={setSleepData}
+                  selectedUserId={selectedUserId}
+                  dateRange={globalDateRange}
+                />
+                <ActivitySummary
+                  darkMode={darkMode}
+                  onActivityDataUpdate={setStepsData}
+                  selectedUserId={selectedUserId}
+                  dateRange={globalDateRange}
+                />
+                <BloodPressureDataComponent
+                  darkMode={darkMode}
+                  onBloodPressureDataUpdate={setBloodPressureData}
+                  selectedUserId={selectedUserId}
+                  dateRange={globalDateRange}
+                />
+                <StressDataComponent
+                  darkMode={darkMode}
+                  onStressDataUpdate={setStressData}
+                  selectedUserId={selectedUserId}
+                  dateRange={globalDateRange}
+                />
+                <HRVDataComponent
+                  darkMode={darkMode}
+                  onHRVDataUpdate={setHrvData}
+                  selectedUserId={selectedUserId}
+                  dateRange={globalDateRange}
+                />
               </div>
             </div>
 
