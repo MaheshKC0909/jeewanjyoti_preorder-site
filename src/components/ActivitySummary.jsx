@@ -80,12 +80,11 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
                 console.log('Fetching activity data for custom range:', { fromDate, toDate });
             } else {
                 // Use range parameter for predefined periods
-                if (dateRange?.period === 'today') {
-                    const todayStr = formatDateForAPI(new Date());
-                    fromDate = todayStr;
-                    toDate = todayStr;
-                    cacheKey = `activity-${selectedUserId || 'default'}-today-${todayStr}`;
-                    console.log('Fetching activity data for today (midnight to now):', { fromDate, toDate });
+                if (dateRange?.period === 'today' || !dateRange?.period) {
+                    // Use a range of 30 days to find the latest available day if today is empty
+                    range = '30d';
+                    cacheKey = `activity-${selectedUserId || 'default'}-today-latest-${range}`;
+                    console.log('Fetching activity data for latest day (falling back to 30d range)');
                 } else if (dateRange?.period === 'week') {
                     range = '7d';
                     cacheKey = `activity-${selectedUserId || 'default'}-${range}`;
@@ -98,8 +97,8 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
                     const todayStr = formatDateForAPI(new Date());
                     fromDate = todayStr;
                     toDate = todayStr;
-                    cacheKey = `activity-${selectedUserId || 'default'}-today-${todayStr}`;
-                    console.log('Fetching activity data for today (default, midnight to now):', { fromDate, toDate });
+                    cacheKey = `activity-${selectedUserId || 'default'}-today-fallback-${todayStr}`;
+                    console.log('Fetching activity data for specific today:', { fromDate, toDate });
                 }
             }
 
@@ -147,12 +146,18 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
                 let dataToProcess = response.results;
 
                 if (fromDate && toDate) {
-                    // Filter results to only include dates within the custom range or today filter
+                    // Filter results to only include dates within the custom range
                     dataToProcess = response.results.filter(item => {
                         const itemDate = item.date;
                         return itemDate >= fromDate && itemDate <= toDate;
                     });
-                    console.log(`Filtered to ${dataToProcess.length} records within date range`);
+                    console.log(`Filtered to ${dataToProcess.length} records within custom range`);
+                } else if (!dateRange?.period || dateRange?.period === 'today') {
+                    // If 'today' filter is active, pick ONLY the latest day available
+                    const sortedAll = [...response.results].sort((a, b) => new Date(b.date) - new Date(a.date));
+                    const latestDate = sortedAll[0].date;
+                    dataToProcess = response.results.filter(item => item.date === latestDate);
+                    console.log(`Filtered to latest day (${latestDate}) for today view`);
                 }
 
                 if (dataToProcess.length > 0) {

@@ -631,7 +631,7 @@ const ECGMonitor = ({
               </p>
               <div style={s.noteBox}>
                 <span style={{ fontWeight: '600', color: darkMode ? '#d1fae5' : '#374151' }}>Note: </span>
-                The patient must open their app and approve to begin streaming.
+                The user must open their app and approve to begin streaming.
               </div>
               <div style={s.btnRow}>
                 <button style={s.btnPrimary} className="ecg-btn-primary" onClick={sendEcgRequest} disabled={connectionStatus !== 'connected'}>Resend</button>
