@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { X, Activity, Heart, Brain, Droplets, TrendingUp } from "lucide-react";
+import { X, Activity, Heart, Brain, Droplets, TrendingUp, Calendar, Clock } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
 
 function formatTimestamp(ts) {
   const date = new Date(ts * 1000);
@@ -29,9 +30,8 @@ function MetricCard({ icon, label, value, unit, sub, color, normal, darkMode }) 
   const inRange = normal ? normal(value) : true;
   return (
     <div
-      className={`relative rounded-2xl p-5 flex flex-col gap-3 overflow-hidden ${
-        darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-      } border shadow-lg`}
+      className={`relative rounded-2xl p-5 flex flex-col gap-3 overflow-hidden ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
+        } border shadow-lg`}
     >
       {/* Accent glow */}
       <div
@@ -42,28 +42,26 @@ function MetricCard({ icon, label, value, unit, sub, color, normal, darkMode }) 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-xl">{icon}</span>
-          <span className={`text-xs font-semibold tracking-widest uppercase ${
-            darkMode ? "text-gray-400" : "text-gray-500"
-          }`}>
+          <span className={`text-xs font-semibold tracking-widest uppercase ${darkMode ? "text-gray-400" : "text-gray-500"
+            }`}>
             {label}
           </span>
         </div>
         <span
-          className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-            inRange 
+          className={`text-xs px-2 py-0.5 rounded-full font-medium ${inRange
               ? darkMode ? "bg-green-900/20 text-green-400" : "bg-green-50 text-green-600"
               : darkMode ? "bg-red-900/20 text-red-400" : "bg-red-50 text-red-600"
-          }`}
+            }`}
         >
           {inRange ? "Normal" : "Alert"}
         </span>
       </div>
 
       <div className="flex items-end gap-1.5">
-        <span className={`text-4xl font-bold tabular-nums`} style={{ 
-          color, 
-          fontFamily: "'Courier New', monospace", 
-          letterSpacing: "-1px" 
+        <span className={`text-4xl font-bold tabular-nums`} style={{
+          color,
+          fontFamily: "'Courier New', monospace",
+          letterSpacing: "-1px"
         }}>
           {value ?? "—"}
         </span>
@@ -82,48 +80,45 @@ function BloodPressureCard({ systolic, diastolic, darkMode }) {
   const inRange = systolic < 130 && diastolic < 85;
   return (
     <div
-      className={`relative rounded-2xl p-5 flex flex-col gap-3 overflow-hidden col-span-2 sm:col-span-1 ${
-        darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-      } border shadow-lg`}
+      className={`relative rounded-2xl p-5 flex flex-col gap-3 overflow-hidden col-span-2 sm:col-span-1 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
+        } border shadow-lg`}
     >
-      <div className="absolute top-0 right-0 w-24 h-24 rounded-full opacity-10 blur-2xl pointer-events-none" 
-           style={{ background: "#c084fc", transform: "translate(30%, -30%)" }} />
-      
+      <div className="absolute top-0 right-0 w-24 h-24 rounded-full opacity-10 blur-2xl pointer-events-none"
+        style={{ background: "#c084fc", transform: "translate(30%, -30%)" }} />
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Activity className="w-5 h-5 text-purple-500" />
-          <span className={`text-xs font-semibold tracking-widest uppercase ${
-            darkMode ? "text-gray-400" : "text-gray-500"
-          }`}>Blood Pressure</span>
+          <span className={`text-xs font-semibold tracking-widest uppercase ${darkMode ? "text-gray-400" : "text-gray-500"
+            }`}>Blood Pressure</span>
         </div>
-        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-          inRange 
+        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${inRange
             ? darkMode ? "bg-green-900/20 text-green-400" : "bg-green-50 text-green-600"
             : darkMode ? "bg-red-900/20 text-red-400" : "bg-red-50 text-red-600"
-        }`}>
+          }`}>
           {inRange ? "Normal" : "Elevated"}
         </span>
       </div>
-      
+
       <div className="flex items-center gap-3">
         <div className="flex flex-col">
           <span className={`text-xs ${darkMode ? "text-gray-500" : "text-gray-400"}`}>SYS</span>
-          <span className="text-3xl font-bold tabular-nums" style={{ 
-            color: "#c084fc", 
-            fontFamily: "'Courier New', monospace" 
+          <span className="text-3xl font-bold tabular-nums" style={{
+            color: "#c084fc",
+            fontFamily: "'Courier New', monospace"
           }}>{systolic}</span>
         </div>
         <span className={`text-2xl font-thin ${darkMode ? "text-gray-600" : "text-gray-300"}`}>/</span>
         <div className="flex flex-col">
           <span className={`text-xs ${darkMode ? "text-gray-500" : "text-gray-400"}`}>DIA</span>
-          <span className="text-3xl font-bold tabular-nums" style={{ 
-            color: "#a78bfa", 
-            fontFamily: "'Courier New', monospace" 
+          <span className="text-3xl font-bold tabular-nums" style={{
+            color: "#a78bfa",
+            fontFamily: "'Courier New', monospace"
           }}>{diastolic}</span>
         </div>
         <span className={`text-sm ml-1 self-end mb-1 ${darkMode ? "text-gray-500" : "text-gray-400"}`}>mmHg</span>
       </div>
-      
+
       {map && <p className={`text-xs ${darkMode ? "text-gray-500" : "text-gray-400"}`}>MAP: {map} mmHg</p>}
     </div>
   );
@@ -136,7 +131,17 @@ export default function RealTimeHealthDashboard({ isOpen, onClose, patientId, pa
   const [error, setError] = useState(null);
   const [lastFetched, setLastFetched] = useState(null);
 
-  const API_URL = `https://jeewanjyoti-backend.smart.org.np/api/real-time-data/?user_id=${patientId}`;
+  // Clear data when user changes to prevent stale data display
+  useEffect(() => {
+    setData([]);
+    setLatest(null);
+    setError(null);
+    setLoading(true);
+  }, [patientId]);
+
+  const API_URL = patientId
+    ? `https://jeewanjyoti-backend.smart.org.np/api/real-time-data/?user_id=${patientId}`
+    : `https://jeewanjyoti-backend.smart.org.np/api/real-time-data/`;
 
   const fetchData = useCallback(async () => {
     try {
@@ -169,7 +174,8 @@ export default function RealTimeHealthDashboard({ isOpen, onClose, patientId, pa
   }, [patientId, accessToken]);
 
   useEffect(() => {
-    if (isOpen && patientId && accessToken) {
+    // patientId can be null for the main user, so we only check for isOpen and accessToken
+    if (isOpen && accessToken) {
       fetchData();
       const interval = setInterval(fetchData, 30000); // refresh every 30s
       return () => clearInterval(interval);
@@ -182,13 +188,11 @@ export default function RealTimeHealthDashboard({ isOpen, onClose, patientId, pa
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className={`relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${
-        darkMode ? 'bg-gray-900' : 'bg-white'
-      }`}>
-        {/* Header */}
-        <div className={`sticky top-0 z-10 flex items-center justify-between p-6 border-b ${
-          darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'
+      <div className={`relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${darkMode ? 'bg-gray-900' : 'bg-white'
         }`}>
+        {/* Header */}
+        <div className={`sticky top-0 z-10 flex items-center justify-between p-6 border-b ${darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'
+          }`}>
           <div>
             <div className="flex items-center gap-3 mb-1">
               <Heart className="w-6 h-6 text-red-500" />
@@ -209,19 +213,17 @@ export default function RealTimeHealthDashboard({ isOpen, onClose, patientId, pa
             </div>
             <button
               onClick={fetchData}
-              className={`text-xs px-3 py-1.5 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95 ${
-                darkMode 
-                  ? 'bg-indigo-900/20 border border-indigo-500/30 text-indigo-400' 
+              className={`text-xs px-3 py-1.5 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95 ${darkMode
+                  ? 'bg-indigo-900/20 border border-indigo-500/30 text-indigo-400'
                   : 'bg-indigo-50 border border-indigo-200 text-indigo-600'
-              }`}
+                }`}
             >
               ↻ Refresh
             </button>
             <button
               onClick={onClose}
-              className={`p-2 rounded-lg transition-colors ${
-                darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
-              }`}
+              className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
+                }`}
             >
               <X className="w-5 h-5" />
             </button>
@@ -232,9 +234,8 @@ export default function RealTimeHealthDashboard({ isOpen, onClose, patientId, pa
         <div className={`p-6 ${darkMode ? 'bg-gray-900' : 'bg-white'}`}>
           {/* Timestamp banner */}
           {latest && (
-            <div className={`rounded-xl px-4 py-3 flex items-center justify-center gap-4 mb-6 ${
-              darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'
-            } border`}>
+            <div className={`rounded-xl px-4 py-3 flex items-center justify-center gap-4 mb-6 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'
+              } border`}>
               <div className="flex items-center gap-4 text-sm">
                 <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
                   📅 {ts?.date}
@@ -300,22 +301,113 @@ export default function RealTimeHealthDashboard({ isOpen, onClose, patientId, pa
                   sub={latest.hrv === 0 ? "Not measured" : "Heart rate variability"}
                   darkMode={darkMode}
                 />
-                <BloodPressureCard 
-                  systolic={latest.systolic} 
-                  diastolic={latest.diastolic} 
+                <BloodPressureCard
+                  systolic={latest.systolic}
+                  diastolic={latest.diastolic}
                   darkMode={darkMode}
                 />
+              </div>
+
+              {/* Trend Visualizations — "Whole Graph" Logic */}
+              <div className={`mb-6 p-4 rounded-2xl border ${darkMode ? "bg-gray-800/50 border-gray-700" : "bg-gray-50 border-gray-200"
+                }`}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={`text-xs font-semibold tracking-widest uppercase ${darkMode ? "text-gray-400" : "text-gray-500"
+                    }`}>
+                    Vital Trends (Last {data?.length || 0} readings)
+                  </h3>
+                  <div className="flex gap-4">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-pink-500" />
+                      <span className="text-[10px] font-medium text-gray-500 uppercase">HR</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-sky-500" />
+                      <span className="text-[10px] font-medium text-gray-500 uppercase">SpO₂</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="h-[200px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={[...data].sort((a, b) => a.timestamp - b.timestamp)}>
+                      <defs>
+                        <linearGradient id="colorHr" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#f472b6" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#f472b6" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorSpo2" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#38bdf8" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? "#374151" : "#e5e7eb"} vertical={false} />
+                      <XAxis
+                        dataKey="timestamp"
+                        hide
+                      />
+                      <YAxis
+                        domain={['dataMin - 5', 'dataMax + 5']}
+                        hide
+                      />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const d = payload[0].payload;
+                            const t = formatTimestamp(d.timestamp);
+                            return (
+                              <div className={`p-3 rounded-xl border shadow-xl ${darkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-100'
+                                }`}>
+                                <p className={`text-[10px] mb-2 font-bold uppercase tracking-wider ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                  {t.date} | {t.time}
+                                </p>
+                                <div className="space-y-1">
+                                  <div className="flex justify-between gap-4">
+                                    <span className="text-pink-400 font-medium text-xs">Heart Rate:</span>
+                                    <span className={`text-xs font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{d.heartRate} bpm</span>
+                                  </div>
+                                  <div className="flex justify-between gap-4">
+                                    <span className="text-sky-400 font-medium text-xs">SpO₂:</span>
+                                    <span className={`text-xs font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{d.spo2}%</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="heartRate"
+                        stroke="#f472b6"
+                        strokeWidth={3}
+                        fillOpacity={1}
+                        fill="url(#colorHr)"
+                        animationDuration={1500}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="spo2"
+                        stroke="#38bdf8"
+                        strokeWidth={3}
+                        fillOpacity={1}
+                        fill="url(#colorSpo2)"
+                        animationDuration={1500}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
 
               {/* History section */}
               {data && data.length > 1 && (
                 <div>
-                  <h2 className={`text-xs font-semibold tracking-widest uppercase mb-3 ${
-                    darkMode ? 'text-gray-500' : 'text-gray-400'
-                  }`}>
+                  <h2 className={`text-xs font-semibold tracking-widest uppercase mb-3 ${darkMode ? 'text-gray-500' : 'text-gray-400'
+                    }`}>
                     Recent Readings
                   </h2>
-                  <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-1 gap-2">
                     {[...data]
                       .sort((a, b) => b.timestamp - a.timestamp)
                       .slice(1) // skip latest already shown above
@@ -324,18 +416,20 @@ export default function RealTimeHealthDashboard({ isOpen, onClose, patientId, pa
                         return (
                           <div
                             key={i}
-                            className={`rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-sm ${
-                              darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'
-                            } border`}
+                            className={`rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-sm ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'
+                              } border`}
                           >
-                            <div className={`flex items-center gap-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                              <span className="text-xs">{t.date} · {t.time}</span>
+                            <div className="flex items-center gap-3">
+                              <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                              <span className={`text-[11px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {t.date} · {t.time}
+                              </span>
                             </div>
-                            <div className="flex flex-wrap gap-4">
-                              <span><span style={{ color: "#f472b6" }}>♥ {item.heartRate}</span> <span className="text-xs" style={{ color: "rgba(148,163,184,0.4)" }}>bpm</span></span>
-                              <span><span style={{ color: "#38bdf8" }}>O₂ {item.spo2}</span><span className="text-xs" style={{ color: "rgba(148,163,184,0.4)" }}>%</span></span>
-                              <span><span style={{ color: "#c084fc" }}>{item.systolic}/{item.diastolic}</span> <span className="text-xs" style={{ color: "rgba(148,163,184,0.4)" }}>mmHg</span></span>
-                              {item.stress > 0 && <span><span style={{ color: "#fb923c" }}>Stress {item.stress}</span></span>}
+                            <div className="flex flex-wrap gap-4 font-mono font-medium">
+                              <span><span style={{ color: "#f472b6" }}>♥ {item.heartRate}</span></span>
+                              <span><span style={{ color: "#38bdf8" }}>O₂ {item.spo2}</span></span>
+                              <span><span style={{ color: "#c084fc" }}>{item.systolic}/{item.diastolic}</span></span>
+                              {item.stress > 0 && <span><span style={{ color: "#fb923c" }}>S {item.stress}</span></span>}
                             </div>
                           </div>
                         );
@@ -347,9 +441,8 @@ export default function RealTimeHealthDashboard({ isOpen, onClose, patientId, pa
           ) : null}
 
           {/* Footer */}
-          <div className={`text-center text-xs pt-4 mt-6 border-t ${
-            darkMode ? 'text-gray-500 border-gray-800' : 'text-gray-400 border-gray-200'
-          }`}>
+          <div className={`text-center text-xs pt-4 mt-6 border-t ${darkMode ? 'text-gray-500 border-gray-800' : 'text-gray-400 border-gray-200'
+            }`}>
             Auto-refreshes every 30 seconds
             {lastFetched && ` · Last updated ${lastFetched.toLocaleTimeString()}`}
           </div>

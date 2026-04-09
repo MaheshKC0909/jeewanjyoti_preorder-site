@@ -26,7 +26,7 @@ const MapController = ({ center }) => {
     return null;
 };
 
-const TrailMap = ({ darkMode, userId = null, globalDateFilter, globalDateRange }) => {
+const TrailMap = React.memo(({ darkMode, userId = null, globalDateFilter, globalDateRange }) => {
     const [trailPoints, setTrailPoints] = useState([]);
     const [filteredTrailPoints, setFilteredTrailPoints] = useState([]);
     const [mapCenter, setMapCenter] = useState([27.7172, 85.3240]); // Default: Kathmandu, Nepal
@@ -678,6 +678,6 @@ const TrailMap = ({ darkMode, userId = null, globalDateFilter, globalDateRange }
             )}
         </div>
     );
-};
+});
 
 export default TrailMap;

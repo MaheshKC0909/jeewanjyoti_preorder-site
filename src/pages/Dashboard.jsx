@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { Home, Calendar, MessageCircle, User, Moon, Sun, Bell, Settings, Menu, X, LogOut, Filter, SlidersHorizontal, ChevronDown, Loader2 } from 'lucide-react';
@@ -388,6 +388,14 @@ const Dashboard = () => {
     };
   };
 
+  const currentUser = useMemo(() => getCurrentViewedUser(), [
+    selectedUserId, 
+    backendUser?.id, 
+    backendUser?.first_name, 
+    user?.uid, 
+    mappedUsers.length
+  ]);
+
   // Handle image load error
   const handleImageError = (userId, imageType = 'profile') => {
     const errorKey = `${userId}_${imageType}`;
@@ -534,8 +542,6 @@ const Dashboard = () => {
   if (!user && !backendUser) {
     return null;
   }
-
-  const currentUser = getCurrentViewedUser();
 
   return (
     <div className={`${activeTab === 'chat' ? 'h-screen overflow-hidden flex flex-col' : 'min-h-screen pb-20 md:pb-0'} ${darkMode

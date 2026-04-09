@@ -55,7 +55,7 @@ const InputField = React.memo(({ icon: Icon, label, name, type = 'text', require
   );
 });
 
-const ProfileTab = ({ darkMode, selectedUserId = null, selectedUserInfo = null, globalDateFilter, globalDateRange }) => {
+const ProfileTab = React.memo(({ darkMode, selectedUserId = null, selectedUserInfo = null, globalDateFilter, globalDateRange }) => {
   const navigate = useNavigate();
   // Health data — populated via component callbacks (same approach as Home)
   const [heartRateData, setHeartRateData] = useState(null);
@@ -830,7 +830,7 @@ const ProfileTab = ({ darkMode, selectedUserId = null, selectedUserInfo = null, 
         isOpen={showECGModal}
         onClose={() => setShowECGModal(false)}
         selectedPatient={{
-          id: selectedUserId || userData?.id,
+          id: selectedUserId && selectedUserId !== userData?.id ? selectedUserId : userData?.id,
           name: getDisplayName()
         }}
         darkMode={darkMode}
@@ -839,29 +839,19 @@ const ProfileTab = ({ darkMode, selectedUserId = null, selectedUserInfo = null, 
         onRequestRejected={() => console.log('ECG request rejected from profile')}
       />
 
-      {/* Real Time Health Dashboard Modal */}
-      {showHealthDashboard && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-6xl h-[90vh] bg-transparent rounded-2xl overflow-hidden relative shadow-2xl">
-            <button
-              onClick={() => setShowHealthDashboard(false)}
-              className="absolute top-4 right-4 z-50 bg-red-500 hover:bg-red-600 text-white p-2 rounded-full shadow-lg transition-transform hover:scale-110"
-            >
-              <X className="w-6 h-6" />
-            </button>
-            <div className="w-full h-full overflow-y-auto no-scrollbar pb-8">
-              <RealTimeHealthDashboard 
-                darkMode={darkMode} 
-                patientId={selectedUserId || userData?.id} 
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Real Time Health Dashboard Modal - Mirroring Appointments GUI */}
+      <RealTimeHealthDashboard
+        isOpen={showHealthDashboard}
+        onClose={() => setShowHealthDashboard(false)}
+        patientId={selectedUserId && selectedUserId !== userData?.id ? selectedUserId : null}
+        patientName={getDisplayName()}
+        darkMode={darkMode}
+        accessToken={localStorage.getItem('access_token')}
+      />
 
     </div>
   );
-};
+});
 
 // Edit Profile Modal Component
 const EditProfileModal = ({ darkMode, userProfile, onClose, onSuccess }) => {
