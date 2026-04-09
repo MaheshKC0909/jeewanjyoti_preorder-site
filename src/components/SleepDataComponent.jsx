@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Moon, Clock, TrendingUp, Eye, EyeOff, Activity, Zap, Brain, Calendar, AlertCircle, RefreshCw } from 'lucide-react';
+import { Moon, Clock, TrendingUp, Eye, EyeOff, Activity, Zap, Brain, Calendar, AlertCircle, RefreshCw, X } from 'lucide-react';
 import { getSleepData } from '../lib/api';
+import DataModal from './ui/Modal';
 
 const SleepDataComponent = ({ darkMode, onSleepDataUpdate, selectedUserId, dateRange }) => {
   const [sleepData, setSleepData] = useState([]);
@@ -558,95 +559,149 @@ const SleepDataComponent = ({ darkMode, onSleepDataUpdate, selectedUserId, dateR
         </div>
       </div>
 
-      {/* Detailed View */}
-      {showDetails && (
-        <div className="mt-6 space-y-4">
-          {/* Sleep Quality Sequence */}
-          {qualitySequence.length > 0 && (
-            <div>
-              <h4 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-3`}>
-                Sleep Quality Timeline
-              </h4>
-              <div className="grid grid-cols-12 gap-1 mb-4">
-                {qualitySequence.slice(0, 48).map((item, index) => (
-                  <div
-                    key={index}
-                    className="h-4 rounded-sm"
-                    style={{ backgroundColor: item.color }}
-                    title={`${Math.floor(item.time / 60)}h ${item.time % 60}m - ${item.label}`}
-                  />
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-4 text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-gray-500"></div>
-                  <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Unknown</span>
+      {/* Detailed View Modal */}
+      <DataModal
+        isOpen={showDetails}
+        onClose={() => setShowDetails(false)}
+        title="Sleep Analysis Details"
+        darkMode={darkMode}
+      >
+        <div className="space-y-8">
+          {/* Main Chart in Modal */}
+          <div className="flex items-center justify-between p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-900/20">
+            <ResponsiveContainer width="60%" height={240}>
+              <PieChart>
+                <Pie
+                  data={processedData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={5}
+                  dataKey="value"
+                  animationBegin={200}
+                  animationDuration={1000}
+                >
+                  {processedData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="w-[35%] space-y-4">
+              {processedData.map((item, index) => (
+                <div key={index} className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-3 h-3 rounded-full shadow-sm"
+                      style={{ backgroundColor: item.color }}
+                    ></div>
+                    <span className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                      {item.stage}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-2 ml-5">
+                    <span className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {item.value}%
+                    </span>
+                    <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      ({item.hours}h)
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                  <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Light Sleep</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-blue-800"></div>
-                  <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Deep Sleep</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-                  <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>REM Sleep</span>
-                </div>
-              </div>
+              ))}
             </div>
-          )}
+          </div>
 
-          {/* Sleep Statistics */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <Activity className="w-4 h-4 text-blue-500" />
-                <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Deep Sleep
-                </span>
+          <div className="space-y-6">
+            {/* Sleep Quality Sequence */}
+            {qualitySequence.length > 0 && (
+              <div>
+                <h4 className={`font-semibold text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-4`}>
+                  Sleep Quality Timeline
+                </h4>
+                <div className="grid grid-cols-12 md:grid-cols-24 gap-1.5 mb-6">
+                  {qualitySequence.slice(0, 96).map((item, index) => (
+                    <div
+                      key={index}
+                      className="h-6 rounded-md shadow-sm transition-transform hover:scale-110 cursor-help"
+                      style={{ backgroundColor: item.color }}
+                      title={`${Math.floor(item.time / 60)}h ${item.time % 60}m - ${item.label}`}
+                    />
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-4 text-xs">
+                  <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-gray-500/10">
+                    <div className="w-2.5 h-2.5 rounded-full bg-gray-500"></div>
+                    <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Unknown</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-blue-500/10">
+                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
+                    <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Light Sleep</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-blue-800/10">
+                    <div className="w-2.5 h-2.5 rounded-full bg-blue-800"></div>
+                    <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Deep Sleep</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-purple-500/10">
+                    <div className="w-2.5 h-2.5 rounded-full bg-purple-500"></div>
+                    <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>REM Sleep</span>
+                  </div>
+                </div>
               </div>
-              <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                {currentData.deep_sleep_percentage}%
+            )}
+
+            {/* Sleep Statistics */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Activity className="w-4 h-4 text-blue-500" />
+                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Deep Sleep
+                  </span>
+                </div>
+                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {currentData.deep_sleep_percentage}% <span className="text-xs font-normal opacity-60">({(currentData.duration * currentData.deep_sleep_percentage / 100).toFixed(1)}h)</span>
+                </div>
               </div>
-            </div>
-            <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <Zap className="w-4 h-4 text-green-500" />
-                <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Light Sleep
-                </span>
+              <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Zap className="w-4 h-4 text-green-500" />
+                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Light Sleep
+                  </span>
+                </div>
+                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {currentData.light_sleep_percentage}% <span className="text-xs font-normal opacity-60">({(currentData.duration * currentData.light_sleep_percentage / 100).toFixed(1)}h)</span>
+                </div>
               </div>
-              <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                {currentData.light_sleep_percentage}%
+              <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Brain className="w-4 h-4 text-purple-500" />
+                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Medium Sleep
+                  </span>
+                </div>
+                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {currentData.medium_sleep_percentage}% <span className="text-xs font-normal opacity-60">({(currentData.duration * currentData.medium_sleep_percentage / 100).toFixed(1)}h)</span>
+                </div>
               </div>
-            </div>
-            <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <Brain className="w-4 h-4 text-purple-500" />
-                <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Medium Sleep
-                </span>
-              </div>
-              <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                {currentData.medium_sleep_percentage}%
-              </div>
-            </div>
-            <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="w-4 h-4 text-gray-500" />
-                <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Awake
-                </span>
-              </div>
-              <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                {currentData.awake_percentage}%
+              <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-4 h-4 text-gray-500" />
+                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Awake
+                  </span>
+                </div>
+                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {currentData.awake_percentage}% <span className="text-xs font-normal opacity-60">({(currentData.duration * currentData.awake_percentage / 100).toFixed(1)}h)</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      )}
+      </DataModal>
     </div>
   );
 };

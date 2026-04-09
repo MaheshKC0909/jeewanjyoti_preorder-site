@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Activity, Footprints, Flame, Clock, AlertCircle, RefreshCw, Calendar, Eye, EyeOff } from 'lucide-react';
+import { Activity, Footprints, Flame, Clock, AlertCircle, RefreshCw, Calendar, Eye, EyeOff, X } from 'lucide-react';
 import { getDayTotalActivity } from '../lib/api';
+import DataModal from './ui/Modal';
 
 // Utility function to calculate the dash offset for a given percentage and circumference
 const calculateOffset = (percentage, circumference) => {
@@ -507,37 +508,96 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
                 </div>
             </div>
 
-            {/* Detailed View - Shows additional info when expanded */}
-            {showDetails && activityData && (
-                <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Days Tracked</div>
-                            <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                {activityData.recordCount || 1}
-                            </div>
-                        </div>
-                        <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Avg Daily Steps</div>
-                            <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                {Math.round(activityData.step / (activityData.recordCount || 1)).toLocaleString()}
-                            </div>
-                        </div>
-                        <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Calories</div>
-                            <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                {Math.round(activityData.calories).toLocaleString()}
-                            </div>
-                        </div>
-                        <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Minutes</div>
-                            <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                {activityData.exercise_minutes}
+            <DataModal
+                isOpen={showDetails}
+                onClose={() => setShowDetails(false)}
+                title="Activity Analysis Details"
+                darkMode={darkMode}
+            >
+                <div className="space-y-8">
+                    {/* Activity Rings in Modal */}
+                    <div className="flex justify-center py-4">
+                        <div className="relative">
+                            <svg
+                                width={size}
+                                height={size}
+                                viewBox={`0 0 ${size} ${size}`}
+                                className="rotate-[-90deg] drop-shadow-xl"
+                            >
+                                {chartData.map((item, index) => {
+                                    const radius = radii[index];
+                                    const circumference = circumferences[index];
+                                    const offset = calculateOffset(item.percentage, circumference);
+                                    const colorClass = colors[index];
+
+                                    return (
+                                        <circle
+                                            key={item.id}
+                                            className={`${colorClass} transition-all duration-1000 ease-out`}
+                                            stroke="currentColor"
+                                            fill="transparent"
+                                            strokeWidth={strokeWidth}
+                                            strokeDasharray={circumference}
+                                            strokeDashoffset={offset}
+                                            r={radius}
+                                            cx={center}
+                                            cy={center}
+                                            strokeLinecap="round"
+                                            style={{ opacity: 0.9 }}
+                                        />
+                                    );
+                                })}
+                            </svg>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center rotate-[90deg]">
+                                <Activity className="w-8 h-8 text-green-500 mb-1" />
+                                <span className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    {Math.round(chartData.reduce((acc, item) => acc + item.percentage, 0) / chartData.length)}%
+                                </span>
+                                <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Overall</span>
                             </div>
                         </div>
                     </div>
+
+                    <div className="space-y-6">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Days Tracked</div>
+                                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    {activityData?.recordCount || 1}
+                                </div>
+                            </div>
+                            <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Avg Daily Steps</div>
+                                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    {activityData ? Math.round(activityData.step / (activityData.recordCount || 1)).toLocaleString() : 0}
+                                </div>
+                            </div>
+                            <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Calories</div>
+                                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    {activityData ? Math.round(activityData.calories).toLocaleString() : 0}
+                                </div>
+                            </div>
+                            <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Minutes</div>
+                                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    {activityData?.exercise_minutes || 0}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className={`p-6 rounded-2xl border ${darkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-blue-50/50 border-blue-100'}`}>
+                            <h4 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-200' : 'text-blue-900'} mb-2`}>
+                                Period Overview
+                            </h4>
+                            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-blue-700'}`}>
+                                During this {activityData?.recordCount || 1}-day period, you've averaged {activityData ? Math.round(activityData.step / (activityData.recordCount || 1)).toLocaleString() : 0} steps per day.
+                                Your most active day was {getDateRangeDisplay()}.
+                            </p>
+                        </div>
+                    </div>
                 </div>
-            )}
+            </DataModal>
         </div>
     );
 };

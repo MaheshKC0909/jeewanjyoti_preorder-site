@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import { Zap, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Calendar, Eye, EyeOff } from 'lucide-react';
+import { Zap, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Calendar, Eye, EyeOff, X } from 'lucide-react';
 import { getHRVData } from '../lib/api';
+import DataModal from './ui/Modal';
 
 const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange }) => {
   const [hrvData, setHrvData] = useState([]);
@@ -269,50 +270,56 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
         </div>
       </div>
 
-      {/* Expandable Chart */}
-      {showDetails && (
-        <div className="mt-4 space-y-4">
-          <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} mb-2`}>
-            {hrvData.length} reading{hrvData.length !== 1 ? 's' : ''} available
+      {/* Detailed View Modal */}
+      <DataModal
+        isOpen={showDetails}
+        onClose={() => setShowDetails(false)}
+        title="HRV Score Details"
+        darkMode={darkMode}
+      >
+        <div className="space-y-6">
+          <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            {hrvData.length} records available in this period
           </div>
-          <ResponsiveContainer width="100%" height={180}>
+          
+          <ResponsiveContainer width="100%" height={300}>
             <LineChart data={chartData}>
               {darkMode ? <CartesianGrid strokeDasharray="3 3" stroke="#374151" /> : <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
-              <XAxis dataKey="time" stroke={darkMode ? "#9CA3AF" : "#666"} tick={{ fontSize: 10 }} />
-              <YAxis stroke={darkMode ? "#9CA3AF" : "#666"} tick={{ fontSize: 10 }} />
+              <XAxis dataKey="time" stroke={darkMode ? "#9CA3AF" : "#666"} tick={{ fontSize: 11 }} />
+              <YAxis stroke={darkMode ? "#9CA3AF" : "#666"} tick={{ fontSize: 11 }} />
               <Tooltip content={<CustomTooltip />} />
-              <Line type="monotone" dataKey="value" stroke="#eab308" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="value" stroke="#eab308" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
             </LineChart>
           </ResponsiveContainer>
 
           {/* Statistics */}
-          <div className="grid grid-cols-3 gap-3 mt-4">
-            <div className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-1 mb-1">
-                <TrendingUp className="w-3 h-3 text-yellow-500" />
-                <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Average</span>
+          <div className="grid grid-cols-3 gap-4 mt-6">
+            <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp className="w-4 h-4 text-yellow-500" />
+                <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Average</span>
               </div>
-              <div className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{averageHRV} ms</div>
+              <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{averageHRV} ms</div>
             </div>
-            <div className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-1 mb-1">
-                <Clock className="w-3 h-3 text-green-500" />
-                <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Latest</span>
+            <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <Clock className="w-4 h-4 text-green-500" />
+                <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Latest</span>
               </div>
-              <div className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                 {latestReading?.hrv || 'N/A'} ms
               </div>
             </div>
-            <div className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-1 mb-1">
-                <Activity className="w-3 h-3 text-blue-500" />
-                <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Readings</span>
+            <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <Activity className="w-4 h-4 text-blue-500" />
+                <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Readings</span>
               </div>
-              <div className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{hrvData.length}</div>
+              <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{hrvData.length}</div>
             </div>
           </div>
         </div>
-      )}
+      </DataModal>
     </div>
   );
 };

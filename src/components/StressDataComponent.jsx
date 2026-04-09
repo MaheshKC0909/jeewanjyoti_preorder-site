@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import { Brain, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Calendar } from 'lucide-react';
+import { Brain, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Calendar, X } from 'lucide-react';
 import { getStressData } from '../lib/api';
+import DataModal from './ui/Modal';
 
 const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dateRange }) => {
   const [stressData, setStressData] = useState([]);
@@ -287,33 +288,114 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
         </ResponsiveContainer>
       </div>
 
-      {showDetails && (
-        <div className="mt-6 space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="w-4 h-4 text-purple-500" />
-                <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Average</span>
+      {/* Detailed View Modal */}
+      <DataModal
+        isOpen={showDetails}
+        onClose={() => setShowDetails(false)}
+        title="Stress Analysis Details"
+        darkMode={darkMode}
+      >
+          {/* Main Chart in Modal */}
+          <div className="h-[300px] w-full p-4 rounded-2xl bg-purple-50/50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-900/20">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="colorStressModal" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? '#374151' : '#f3f4f6'} />
+                <XAxis 
+                  dataKey="time" 
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: darkMode ? '#9CA3AF' : '#6B7280' }}
+                />
+                <YAxis 
+                  domain={[0, 100]}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: darkMode ? '#9CA3AF' : '#6B7280' }}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Area 
+                  type="monotone" 
+                  dataKey="value" 
+                  stroke="#8b5cf6" 
+                  strokeWidth={3}
+                  fillOpacity={1} 
+                  fill="url(#colorStressModal)" 
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="w-4 h-4 text-purple-500" />
+                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Average</span>
+                </div>
+                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{averageStress}</div>
               </div>
-              <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{averageStress}</div>
+              <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-4 h-4 text-green-500" />
+                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Latest</span>
+                </div>
+                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{latestReading?.stress || 'N/A'}</div>
+              </div>
+              <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Activity className="w-4 h-4 text-blue-500" />
+                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Readings</span>
+                </div>
+                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{stressData.length}</div>
+              </div>
             </div>
-            <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="w-4 h-4 text-green-500" />
-                <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Latest</span>
-              </div>
-              <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{latestReading?.stress || 'N/A'}</div>
-            </div>
-            <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <Activity className="w-4 h-4 text-blue-500" />
-                <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Readings</span>
-              </div>
-              <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{stressData.length}</div>
+
+          {/* Recent Readings */}
+          <div>
+            <h4 className={`font-semibold text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-4`}>
+              Reading Timeline
+            </h4>
+            <div className={`space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar`}>
+              {stressData.slice().reverse().map((reading, index) => (
+                <div key={index} className={`flex items-center justify-between p-4 rounded-xl border ${
+                  darkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-100'
+                }`}>
+                  <div className="flex items-center gap-4">
+                    <div className={`w-3 h-3 rounded-full shadow-sm ${
+                      reading.stress < 30 ? 'bg-green-500' :
+                      reading.stress < 60 ? 'bg-yellow-500' : 'bg-red-500'
+                    }`}></div>
+                    <div>
+                      <div className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                        {new Date(reading.date).toLocaleTimeString('en-US', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true
+                        })}
+                      </div>
+                      <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {new Date(reading.date).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric'
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {reading.stress}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      )}
+      </DataModal>
     </div>
   );
 };

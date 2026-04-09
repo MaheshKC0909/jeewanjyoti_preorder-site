@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceArea } from 'recharts';
-import { Heart, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Zap, Calendar } from 'lucide-react';
+import { Heart, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Zap, Calendar, CheckCircle2, AlertTriangle, X } from 'lucide-react';
 import { getHeartRateData } from '../lib/api';
+import DataModal from './ui/Modal';
 
 const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserId, dateRange }) => {
   const [heartRateData, setHeartRateData] = useState([]);
@@ -512,14 +513,14 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
 
       {/* Heart Rate Chart with 12-hour window and slider */}
       <div className="mb-6">
-        {/* Color Legend */}
+        {/* Icon Legend */}
         <div className="mb-3 flex items-center gap-4 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+          <div className="flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
             <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Normal Range (60-100 BPM)</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+          <div className="flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
             <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Outside Normal Range</span>
           </div>
         </div>
@@ -596,90 +597,142 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
         </div>
       </div>
 
-      {/* Detailed View */}
-      {showDetails && (
-        <div className="mt-6 space-y-4">
-          {/* Heart Rate Statistics */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="w-4 h-4 text-red-500" />
-                <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Average
-                </span>
-              </div>
-              <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                {averageHeartRate} BPM
-              </div>
-            </div>
-            <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <Activity className="w-4 h-4 text-green-500" />
-                <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Min/Max
-                </span>
-              </div>
-              <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                {min} / {max} BPM
-              </div>
-            </div>
-            <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="w-4 h-4 text-purple-500" />
-                <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Latest
-                </span>
-              </div>
-              <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                {latestReading?.once_heart_value || 'N/A'} BPM
-              </div>
-            </div>
-            <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <Heart className="w-4 h-4 text-pink-500" />
-                <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Zone
-                </span>
-              </div>
-              <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                {heartRateZone}
-              </div>
-            </div>
+      <DataModal
+        isOpen={showDetails}
+        onClose={() => setShowDetails(false)}
+        title="Heart Rate Analysis"
+        darkMode={darkMode}
+      >
+        <div className="space-y-8">
+          {/* Main Chart in Modal */}
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="modalHeartRateGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? '#374151' : '#f3f4f6'} />
+                <XAxis 
+                  dataKey="time" 
+                  hide={false}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: darkMode ? '#9CA3AF' : '#6B7280' }}
+                />
+                <YAxis 
+                  hide={false}
+                  domain={['dataMin - 5', 'dataMax + 5']}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: darkMode ? '#9CA3AF' : '#6B7280' }}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Area
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#ef4444"
+                  strokeWidth={3}
+                  fillOpacity={1}
+                  fill="url(#modalHeartRateGradient)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
 
-          {/* Recent Readings */}
-          <div>
-            <h4 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-3`}>
-              Recent Readings
-            </h4>
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {heartRateData.slice(-5).reverse().map((reading, index) => (
-                <div key={index} className={`flex items-center justify-between p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${
-                      reading.once_heart_value >= 60 && reading.once_heart_value <= 100 ? 'bg-green-500' :
-                      reading.once_heart_value >= 50 && reading.once_heart_value <= 120 ? 'bg-yellow-500' :
-                      reading.once_heart_value < 50 ? 'bg-blue-500' : 'bg-red-500'
-                    }`}></div>
-                    <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {new Date(reading.date).toLocaleString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: true
-                      })}
-                    </span>
-                  </div>
-                  <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {reading.once_heart_value} BPM
+          <div className="space-y-6">
+            {/* Heart Rate Statistics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="w-4 h-4 text-red-500" />
+                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Average
                   </span>
                 </div>
-              ))}
+                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {averageHeartRate} BPM
+                </div>
+              </div>
+              <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Activity className="w-4 h-4 text-green-500" />
+                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Min/Max
+                  </span>
+                </div>
+                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {min} / {max} BPM
+                </div>
+              </div>
+              <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-4 h-4 text-purple-500" />
+                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Latest
+                  </span>
+                </div>
+                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {latestReading?.once_heart_value || 'N/A'} BPM
+                </div>
+              </div>
+              <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Heart className="w-4 h-4 text-pink-500" />
+                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Zone
+                  </span>
+                </div>
+                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {heartRateZone}
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Readings */}
+            <div>
+              <h4 className={`font-semibold text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-4`}>
+                Recent Readings
+              </h4>
+              <div className={`space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar`}>
+                {heartRateData.slice().reverse().map((reading, index) => (
+                  <div key={index} className={`flex items-center justify-between p-4 rounded-xl border ${
+                    darkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-100'
+                  }`}>
+                    <div className="flex items-center gap-4">
+                      <div className={`w-3 h-3 rounded-full shadow-sm ${
+                        reading.once_heart_value >= 60 && reading.once_heart_value <= 100 ? 'bg-green-500' :
+                        reading.once_heart_value >= 50 && reading.once_heart_value <= 120 ? 'bg-yellow-500' :
+                        reading.once_heart_value < 50 ? 'bg-blue-500' : 'bg-red-500'
+                      }`}></div>
+                      <div>
+                        <div className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                          {new Date(reading.date).toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true
+                          })}
+                        </div>
+                        <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {new Date(reading.date).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                    <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {reading.once_heart_value} <span className="text-xs font-normal opacity-60">BPM</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
-      )}
+      </DataModal>
     </div>
   );
 };

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import { Droplets, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Calendar } from 'lucide-react';
+import { Droplets, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Calendar, CheckCircle2, AlertTriangle, XCircle, X } from 'lucide-react';
 import { getSpO2Data } from '../lib/api';
+import DataModal from './ui/Modal';
 
 const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRange }) => {
   const [spo2Data, setSpO2Data] = useState([]);
@@ -72,11 +73,11 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
         const cachedData = cacheRef.current.get(cacheKey);
         const cacheTime = cachedData.timestamp;
         const now = Date.now();
-        
+
         // Use cache if it's less than 5 minutes old
         if (now - cacheTime < 5 * 60 * 1000) {
           console.log('Using cached SpO2 data:', cachedData.data.length, 'records');
-          
+
           if (isMountedRef.current) {
             setSpO2Data(cachedData.data);
             if (onSpO2DataUpdate) {
@@ -92,13 +93,13 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
         }
       }
 
-      console.log('Making API call with params:', { 
-        userId: selectedUserId, 
-        fromDate, 
-        toDate, 
-        range 
+      console.log('Making API call with params:', {
+        userId: selectedUserId,
+        fromDate,
+        toDate,
+        range
       });
-      
+
       // Make API call with proper parameters
       const data = await getSpO2Data(selectedUserId, fromDate, toDate, range);
 
@@ -111,9 +112,9 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
       if (data && data.length > 0) {
         // Sort by date (oldest to newest for charting)
         const sortedData = data.sort((a, b) => new Date(a.date) - new Date(b.date));
-        
+
         console.log(`Received ${sortedData.length} SpO2 records`);
-        
+
         // Cache the results with timestamp
         cacheRef.current.set(cacheKey, {
           data: sortedData,
@@ -143,7 +144,7 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
         console.log('Request was cancelled');
         return;
       }
-      
+
       console.error('Error fetching SpO2 data:', error);
       if (isMountedRef.current) {
         setError('Failed to load SpO2 data. Please try again.');
@@ -157,7 +158,7 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
 
   useEffect(() => {
     isMountedRef.current = true;
-    
+
     // Immediate fetch without debounce
     fetchSpO2Data();
 
@@ -213,30 +214,30 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
   // Get visible data based on slider position (12-hour window)
   const getVisibleData = useCallback(() => {
     if (!spo2Data || spo2Data.length === 0) return [];
-    
+
     const processedData = processSpO2Data(spo2Data);
     if (processedData.length === 0) return [];
-    
+
     // Get the time range of all data
     const firstTimestamp = processedData[0].timestamp;
     const lastTimestamp = processedData[processedData.length - 1].timestamp;
     const totalDuration = lastTimestamp - firstTimestamp;
-    
+
     // Calculate 12 hours in milliseconds
     const twelveHoursMs = 12 * 60 * 60 * 1000;
-    
+
     // If total duration is less than 12 hours, show all data
     if (totalDuration <= twelveHoursMs) {
       return processedData;
     }
-    
+
     // Calculate window position based on slider (0 = oldest, 100 = newest)
     const maxStartTime = lastTimestamp - twelveHoursMs;
     const startTime = firstTimestamp + ((maxStartTime - firstTimestamp) * (sliderPosition / 100));
     const endTime = startTime + twelveHoursMs;
-    
+
     // Filter data within the 12-hour window
-    return processedData.filter(item => 
+    return processedData.filter(item =>
       item.timestamp >= startTime && item.timestamp <= endTime
     );
   }, [spo2Data, sliderPosition, processSpO2Data]);
@@ -244,11 +245,11 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
   // Generate 30-minute interval ticks for X-axis
   const generateTimeTicks = useCallback((visibleData) => {
     if (visibleData.length === 0) return [];
-    
+
     const ticks = [];
     const firstItem = visibleData[0];
     const lastItem = visibleData[visibleData.length - 1];
-    
+
     // Create ticks at 30-minute intervals
     let currentTime = new Date(firstItem.timestamp);
     // Round to nearest 30 minutes
@@ -256,15 +257,15 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
     currentTime.setMinutes(Math.floor(minutes / 30) * 30);
     currentTime.setSeconds(0);
     currentTime.setMilliseconds(0);
-    
+
     const lastTime = lastItem.timestamp;
     const thirtyMinutesMs = 30 * 60 * 1000;
-    
+
     while (currentTime.getTime() <= lastTime + thirtyMinutesMs) {
       ticks.push(currentTime.getTime());
       currentTime = new Date(currentTime.getTime() + thirtyMinutesMs);
     }
-    
+
     return ticks;
   }, []);
 
@@ -301,18 +302,18 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
   // Format date range for display
   const getDateRangeDisplay = useCallback(() => {
     if (!spo2Data || spo2Data.length === 0) return 'No data';
-    
+
     const firstDate = new Date(spo2Data[0].date);
     const lastDate = new Date(spo2Data[spo2Data.length - 1].date);
-    
+
     if (firstDate.toDateString() === lastDate.toDateString()) {
-      return firstDate.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric', 
-        year: 'numeric' 
+      return firstDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
       });
     }
-    
+
     return `${firstDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${lastDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
   }, [spo2Data]);
 
@@ -351,7 +352,7 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
   const chartData = React.useMemo(() => processSpO2Data(spo2Data), [spo2Data, processSpO2Data]);
   const visibleData = React.useMemo(() => getVisibleData(), [getVisibleData]);
   const timeTicks = React.useMemo(() => generateTimeTicks(visibleData), [visibleData, generateTimeTicks]);
-  
+
   const latestReading = React.useMemo(() => getLatestReading(), [spo2Data, getLatestReading]);
   const averageSpO2 = React.useMemo(() => calculateAverageSpO2(spo2Data), [spo2Data, calculateAverageSpO2]);
   const { min, max } = React.useMemo(() => calculateMinMaxSpO2(spo2Data), [spo2Data, calculateMinMaxSpO2]);
@@ -469,18 +470,18 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
 
       {/* SpO2 Chart with 12-hour window and slider */}
       <div className="mb-6">
-        {/* Color Legend */}
+        {/* Icon Legend */}
         <div className="mb-3 flex items-center gap-4 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+          <div className="flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
             <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Normal (≥95%)</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+          <div className="flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
             <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Low (90-94%)</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+          <div className="flex items-center gap-1.5">
+            <XCircle className="w-3.5 h-3.5 text-red-500" />
             <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Critical (&lt;90%)</span>
           </div>
         </div>
@@ -544,7 +545,7 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
             </LineChart>
           </ResponsiveContainer>
         </div>
-        
+
         {/* Slider Control */}
         <div className="mt-4 px-2">
           <input
@@ -564,90 +565,133 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
           </div>
         </div>
       </div>
-
-      {/* Detailed View */}
-      {showDetails && (
-        <div className="mt-6 space-y-4">
-          {/* SpO2 Statistics */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="w-4 h-4 text-blue-500" />
-                <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Average
-                </span>
-              </div>
-              <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                {averageSpO2}%
-              </div>
-            </div>
-            <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <Activity className="w-4 h-4 text-green-500" />
-                <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Min/Max
-                </span>
-              </div>
-              <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                {min}% / {max}%
-              </div>
-            </div>
-            <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="w-4 h-4 text-purple-500" />
-                <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Latest
-                </span>
-              </div>
-              <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                {latestReading?.Blood_oxygen || 'N/A'}%
-              </div>
-            </div>
-            <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <Droplets className="w-4 h-4 text-cyan-500" />
-                <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Status
-                </span>
-              </div>
-              <div className={`text-lg font-bold ${status.color}`}>
-                {status.status}
-              </div>
-            </div>
+      <DataModal
+        isOpen={showDetails}
+        onClose={() => setShowDetails(false)}
+        title="SpO2 Analysis"
+        darkMode={darkMode}
+      >
+        <div className="space-y-8">
+          {/* Main Chart in Modal */}
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? '#374151' : '#f3f4f6'} />
+                <XAxis 
+                  dataKey="time" 
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: darkMode ? '#9CA3AF' : '#6B7280' }}
+                />
+                <YAxis 
+                  domain={[80, 100]}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: darkMode ? '#9CA3AF' : '#6B7280' }}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#06b6d4"
+                  strokeWidth={3}
+                  dot={{ r: 4, fill: '#06b6d4', strokeWidth: 2, stroke: darkMode ? '#1f2937' : '#fff' }}
+                  activeDot={{ r: 6, strokeWidth: 0 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
 
-          {/* Recent Readings */}
-          <div>
-            <h4 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-3`}>
-              Recent Readings
-            </h4>
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {spo2Data.slice(-5).reverse().map((reading, index) => (
-                <div key={index} className={`flex items-center justify-between p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${
-                      reading.Blood_oxygen >= 95 ? 'bg-green-500' :
-                      reading.Blood_oxygen >= 90 ? 'bg-yellow-500' : 'bg-red-500'
-                    }`}></div>
-                    <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {new Date(reading.date).toLocaleString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: true
-                      })}
-                    </span>
-                  </div>
-                  <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {reading.Blood_oxygen}%
+          <div className="space-y-6">
+            {/* SpO2 Statistics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="w-4 h-4 text-blue-500" />
+                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Average
                   </span>
                 </div>
-              ))}
+                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {averageSpO2}%
+                </div>
+              </div>
+              <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Activity className="w-4 h-4 text-green-500" />
+                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Min/Max
+                  </span>
+                </div>
+                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {min}% / {max}%
+                </div>
+              </div>
+              <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-4 h-4 text-purple-500" />
+                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Latest
+                  </span>
+                </div>
+                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {latestReading?.Blood_oxygen || 'N/A'}%
+                </div>
+              </div>
+              <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Droplets className="w-4 h-4 text-cyan-500" />
+                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Status
+                  </span>
+                </div>
+                <div className={`text-xl font-bold ${status.color}`}>
+                  {status.status}
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Readings */}
+            <div>
+              <h4 className={`font-semibold text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-4`}>
+                Recent Readings
+              </h4>
+              <div className={`space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar`}>
+                {spo2Data.slice().reverse().map((reading, index) => (
+                  <div key={index} className={`flex items-center justify-between p-4 rounded-xl border ${
+                    darkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-100'
+                  }`}>
+                    <div className="flex items-center gap-4">
+                      <div className={`w-3 h-3 rounded-full shadow-sm ${
+                        reading.Blood_oxygen >= 95 ? 'bg-green-500' :
+                        reading.Blood_oxygen >= 90 ? 'bg-yellow-500' : 'bg-red-500'
+                      }`}></div>
+                      <div>
+                        <div className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                          {new Date(reading.date).toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true
+                          })}
+                        </div>
+                        <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {new Date(reading.date).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                    <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {reading.Blood_oxygen}<span className="text-xs font-normal opacity-60">%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
-      )}
+      </DataModal>
     </div>
   );
 };
