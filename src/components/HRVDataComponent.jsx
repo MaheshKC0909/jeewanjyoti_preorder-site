@@ -9,6 +9,17 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [sliderPosition, setSliderPosition] = useState(100); // 100 = most recent, 0 = oldest
+  const [localDateRange, setLocalDateRange] = useState(dateRange);
+
+  useEffect(() => {
+    setLocalDateRange(dateRange);
+  }, [dateRange]);
+
+  // Sync local date range with global when modal opens/closes
+  useEffect(() => {
+    setLocalDateRange(dateRange);
+  }, [showDetails, dateRange]);
 
   // Cache and refs
   const cacheRef = useRef(new Map());
@@ -40,15 +51,15 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
       let range = null;
       let cacheKey;
 
-      if (dateRange?.customRange && dateRange.from && dateRange.to) {
-        fromDate = formatDateForAPI(dateRange.from);
-        toDate = formatDateForAPI(dateRange.to);
+      if (localDateRange?.customRange && localDateRange.from && localDateRange.to) {
+        fromDate = formatDateForAPI(localDateRange.from);
+        toDate = formatDateForAPI(localDateRange.to);
         cacheKey = `${selectedUserId || 'null'}-hrv-${fromDate}-${toDate}`;
         console.log('Fetching HRV data for custom range:', { fromDate, toDate });
       } else {
-        if (dateRange?.period === 'today') range = '24h';
-        else if (dateRange?.period === 'week') range = '7d';
-        else if (dateRange?.period === 'month') range = '30d';
+        if (localDateRange?.period === 'today') range = '24h';
+        else if (localDateRange?.period === 'week') range = '7d';
+        else if (localDateRange?.period === 'month') range = '30d';
         else range = '24h';
         cacheKey = `${selectedUserId || 'null'}-hrv-${range}`;
         console.log('Fetching HRV data with range:', range);
@@ -107,7 +118,7 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
         setLoading(false);
       }
     }
-  }, [selectedUserId, onHRVDataUpdate, dateRange]);
+  }, [selectedUserId, onHRVDataUpdate, localDateRange]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -169,6 +180,39 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
     return `${firstDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${lastDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
   }, [hrvData]);
 
+  // Get visible data based on slider position (12-hour window)
+  const getVisibleData = useCallback(() => {
+    if (!hrvData || hrvData.length === 0) return [];
+
+    const processedData = processHRVData(hrvData);
+    if (processedData.length === 0) return [];
+
+    // Get the time range of all data
+    const timestamps = processedData.map(item => new Date(item.date).getTime());
+    const firstTimestamp = Math.min(...timestamps);
+    const lastTimestamp = Math.max(...timestamps);
+    const totalDuration = lastTimestamp - firstTimestamp;
+
+    // Calculate 12 hours in milliseconds
+    const twelveHoursMs = 12 * 60 * 60 * 1000;
+
+    // If total duration is less than 12 hours, show all data
+    if (totalDuration <= twelveHoursMs) {
+      return processedData;
+    }
+
+    // Calculate window position based on slider (0 = oldest, 100 = newest)
+    const maxStartTime = lastTimestamp - twelveHoursMs;
+    const startTime = firstTimestamp + ((maxStartTime - firstTimestamp) * (sliderPosition / 100));
+    const endTime = startTime + twelveHoursMs;
+
+    // Filter data within the 12-hour window
+    return processedData.filter(item => {
+      const itemTime = new Date(item.date).getTime();
+      return itemTime >= startTime && itemTime <= endTime;
+    });
+  }, [hrvData, sliderPosition, processHRVData]);
+
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
@@ -182,6 +226,7 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
   };
 
   const chartData = React.useMemo(() => processHRVData(hrvData), [hrvData, processHRVData]);
+  const visibleData = React.useMemo(() => getVisibleData(), [getVisibleData]);
   const latestReading = React.useMemo(() => getLatestReading(), [hrvData, getLatestReading]);
   const averageHRV = React.useMemo(() => calculateAverageHRV(hrvData), [hrvData, calculateAverageHRV]);
   const status = React.useMemo(() => getHRVStatus(latestReading?.hrv || averageHRV), [latestReading, averageHRV, getHRVStatus]);
@@ -189,43 +234,92 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
 
   if (loading) {
     return (
-      <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-        <div className="flex items-center justify-center h-48">
-          <div className="text-center">
-            <RefreshCw className="w-8 h-8 animate-spin text-yellow-500 mx-auto mb-4" />
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Loading HRV data...</p>
+      <>
+        <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+          <div className="flex items-center justify-center h-48">
+            <div className="text-center">
+              <RefreshCw className="w-8 h-8 animate-spin text-yellow-500 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Loading HRV data...</p>
+            </div>
           </div>
         </div>
-      </div>
+        <DataModal
+          isOpen={showDetails}
+          onClose={() => setShowDetails(false)}
+          title="HRV Score Details"
+          darkMode={darkMode}
+        >
+          <div className="flex items-center justify-center h-48">
+            <div className="text-center">
+              <RefreshCw className="w-10 h-10 animate-spin text-yellow-500 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Updating HRV details...</p>
+            </div>
+          </div>
+        </DataModal>
+      </>
     );
   }
 
   if (error) {
     return (
-      <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-        <div className="flex items-center justify-center h-48">
-          <div className="text-center">
-            <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} mb-4`}>{error}</p>
-            <button onClick={fetchHRVData} className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
-              Retry
-            </button>
+      <>
+        <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+          <div className="flex items-center justify-center h-48">
+            <div className="text-center">
+              <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} mb-4`}>{error}</p>
+              <button onClick={fetchHRVData} className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
+                Retry
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+        <DataModal
+          isOpen={showDetails}
+          onClose={() => setShowDetails(false)}
+          title="HRV Score Details"
+          darkMode={darkMode}
+        >
+          <div className="flex items-center justify-center h-48">
+            <div className="text-center">
+              <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Unable to load HRV details.
+              </p>
+            </div>
+          </div>
+        </DataModal>
+      </>
     );
   }
 
   if (!hrvData || hrvData.length === 0) {
     return (
-      <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-        <div className="flex items-center justify-center h-48">
-          <div className="text-center">
-            <Zap className="w-8 h-8 text-gray-400 mx-auto mb-4" />
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>No HRV data available</p>
+      <>
+        <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+          <div className="flex items-center justify-center h-48">
+            <div className="text-center">
+              <Zap className="w-8 h-8 text-gray-400 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>No HRV data available</p>
+            </div>
           </div>
         </div>
-      </div>
+        <DataModal
+          isOpen={showDetails}
+          onClose={() => setShowDetails(false)}
+          title="HRV Score Details"
+          darkMode={darkMode}
+        >
+          <div className="flex items-center justify-center h-48">
+            <div className="text-center">
+              <Zap className="w-10 h-10 text-gray-400 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                No HRV details are available for this period.
+              </p>
+            </div>
+          </div>
+        </DataModal>
+      </>
     );
   }
 
@@ -278,12 +372,64 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
         darkMode={darkMode}
       >
         <div className="space-y-6">
+          {/* Modal Filter UI */}
+          <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
+            <div className="flex items-center gap-1.5 p-1 bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700/50 text-xs">
+              {[
+                { id: 'today', label: 'Today' },
+                { id: 'week', label: '7 Days' },
+                { id: 'month', label: '30 Days' },
+                { id: 'custom', label: 'Custom' }
+              ].map(filter => {
+                const isActive = (filter.id === 'custom' && localDateRange?.customRange) ||
+                  (!localDateRange?.customRange && localDateRange?.period === filter.id) ||
+                  (!localDateRange?.period && !localDateRange?.customRange && filter.id === 'today');
+                return (
+                  <button
+                    key={filter.id}
+                    onClick={() => {
+                      if (filter.id === 'custom') {
+                        setLocalDateRange({ ...localDateRange, customRange: true });
+                      } else {
+                        setLocalDateRange({ period: filter.id, customRange: false });
+                      }
+                    }}
+                    className={`px-3 py-1.5 font-medium rounded-md transition-all ${isActive
+                      ? 'bg-yellow-50 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+                      }`}
+                  >
+                    {filter.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {localDateRange?.customRange && (
+              <div className="flex items-center gap-2 text-xs w-full md:w-auto">
+                <input
+                  type="date"
+                  value={localDateRange?.from || ''}
+                  onChange={(e) => setLocalDateRange({ ...localDateRange, from: e.target.value })}
+                  className={`flex-1 md:flex-none px-2 py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-yellow-500/20 ${darkMode ? 'bg-gray-900 border-gray-700 text-gray-200 focus:border-yellow-500/50' : 'bg-white border-gray-200 text-gray-700 focus:border-yellow-500'}`}
+                />
+                <span className="text-gray-400 font-medium">to</span>
+                <input
+                  type="date"
+                  value={localDateRange?.to || ''}
+                  onChange={(e) => setLocalDateRange({ ...localDateRange, to: e.target.value })}
+                  className={`flex-1 md:flex-none px-2 py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-yellow-500/20 ${darkMode ? 'bg-gray-900 border-gray-700 text-gray-200 focus:border-yellow-500/50' : 'bg-white border-gray-200 text-gray-700 focus:border-yellow-500'}`}
+                />
+              </div>
+            )}
+          </div>
+
           <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
             {hrvData.length} records available in this period
           </div>
           
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
+            <LineChart data={visibleData} isAnimationActive={false}>
               {darkMode ? <CartesianGrid strokeDasharray="3 3" stroke="#374151" /> : <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
               <XAxis dataKey="time" stroke={darkMode ? "#9CA3AF" : "#666"} tick={{ fontSize: 11 }} />
               <YAxis stroke={darkMode ? "#9CA3AF" : "#666"} tick={{ fontSize: 11 }} />
@@ -291,6 +437,25 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
               <Line type="monotone" dataKey="value" stroke="#eab308" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
             </LineChart>
           </ResponsiveContainer>
+
+          {/* Slider Control */}
+          <div className="px-2">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={sliderPosition}
+              onChange={(e) => setSliderPosition(Number(e.target.value))}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+              style={{
+                background: `linear-gradient(to right, ${darkMode ? '#eab308' : '#eab308'} 0%, ${darkMode ? '#eab308' : '#eab308'} ${sliderPosition}%, ${darkMode ? '#374151' : '#e5e7eb'} ${sliderPosition}%, ${darkMode ? '#374151' : '#e5e7eb'} 100%)`
+              }}
+            />
+            <div className="flex justify-between mt-1 text-xs text-gray-500 dark:text-gray-400">
+              <span>Older</span>
+              <span>Newer</span>
+            </div>
+          </div>
 
           {/* Statistics */}
           <div className="grid grid-cols-3 gap-4 mt-6">

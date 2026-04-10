@@ -352,16 +352,33 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
     // Loading state
     if (loading) {
         return (
-            <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-                <div className="flex items-center justify-center h-64">
-                    <div className="text-center">
-                        <RefreshCw className="w-8 h-8 animate-spin text-green-500 mx-auto mb-4" />
-                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                            Loading activity data...
-                        </p>
+            <>
+                <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+                    <div className="flex items-center justify-center h-64">
+                        <div className="text-center">
+                            <RefreshCw className="w-8 h-8 animate-spin text-green-500 mx-auto mb-4" />
+                            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                Loading activity data...
+                            </p>
+                        </div>
                     </div>
                 </div>
-            </div>
+                <DataModal
+                    isOpen={showDetails}
+                    onClose={() => setShowDetails(false)}
+                    title="Activity Analysis Details"
+                    darkMode={darkMode}
+                >
+                    <div className="flex items-center justify-center h-64">
+                        <div className="text-center">
+                            <RefreshCw className="w-10 h-10 animate-spin text-green-500 mx-auto mb-4" />
+                            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                Updating activity details...
+                            </p>
+                        </div>
+                    </div>
+                </DataModal>
+            </>
         );
     }
 

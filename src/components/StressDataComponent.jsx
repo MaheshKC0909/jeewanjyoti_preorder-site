@@ -9,6 +9,17 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [sliderPosition, setSliderPosition] = useState(100); // 100 = most recent, 0 = oldest
+  const [localDateRange, setLocalDateRange] = useState(dateRange);
+
+  useEffect(() => {
+    setLocalDateRange(dateRange);
+  }, [dateRange]);
+
+  // Sync local date range with global when modal opens/closes
+  useEffect(() => {
+    setLocalDateRange(dateRange);
+  }, [showDetails, dateRange]);
 
   // Cache and refs
   const cacheRef = useRef(new Map());
@@ -42,15 +53,15 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
       let range = null;
       let cacheKey;
 
-      if (dateRange?.customRange && dateRange.from && dateRange.to) {
-        fromDate = formatDateForAPI(dateRange.from);
-        toDate = formatDateForAPI(dateRange.to);
+      if (localDateRange?.customRange && localDateRange.from && localDateRange.to) {
+        fromDate = formatDateForAPI(localDateRange.from);
+        toDate = formatDateForAPI(localDateRange.to);
         cacheKey = `${selectedUserId || 'null'}-stress-${fromDate}-${toDate}`;
         console.log('Fetching stress data for custom range:', { fromDate, toDate });
       } else {
-        if (dateRange?.period === 'today') range = '24h';
-        else if (dateRange?.period === 'week') range = '7d';
-        else if (dateRange?.period === 'month') range = '30d';
+        if (localDateRange?.period === 'today') range = '24h';
+        else if (localDateRange?.period === 'week') range = '7d';
+        else if (localDateRange?.period === 'month') range = '30d';
         else range = '24h';
         cacheKey = `${selectedUserId || 'null'}-stress-${range}`;
         console.log('Fetching stress data with range:', range);
@@ -109,7 +120,7 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
         setLoading(false);
       }
     }
-  }, [selectedUserId, onStressDataUpdate, dateRange]);
+  }, [selectedUserId, onStressDataUpdate, localDateRange]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -176,6 +187,39 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
     return `${firstDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${lastDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
   }, [stressData]);
 
+  // Get visible data based on slider position (12-hour window)
+  const getVisibleData = useCallback(() => {
+    if (!stressData || stressData.length === 0) return [];
+
+    const processedData = processStressData(stressData);
+    if (processedData.length === 0) return [];
+
+    // Get the time range of all data
+    const timestamps = processedData.map(item => new Date(item.date).getTime());
+    const firstTimestamp = Math.min(...timestamps);
+    const lastTimestamp = Math.max(...timestamps);
+    const totalDuration = lastTimestamp - firstTimestamp;
+
+    // Calculate 12 hours in milliseconds
+    const twelveHoursMs = 12 * 60 * 60 * 1000;
+
+    // If total duration is less than 12 hours, show all data
+    if (totalDuration <= twelveHoursMs) {
+      return processedData;
+    }
+
+    // Calculate window position based on slider (0 = oldest, 100 = newest)
+    const maxStartTime = lastTimestamp - twelveHoursMs;
+    const startTime = firstTimestamp + ((maxStartTime - firstTimestamp) * (sliderPosition / 100));
+    const endTime = startTime + twelveHoursMs;
+
+    // Filter data within the 12-hour window
+    return processedData.filter(item => {
+      const itemTime = new Date(item.date).getTime();
+      return itemTime >= startTime && itemTime <= endTime;
+    });
+  }, [stressData, sliderPosition, processStressData]);
+
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
@@ -193,6 +237,7 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
   };
 
   const chartData = React.useMemo(() => processStressData(stressData), [stressData, processStressData]);
+  const visibleData = React.useMemo(() => getVisibleData(), [getVisibleData]);
   const latestReading = React.useMemo(() => getLatestReading(), [stressData, getLatestReading]);
   const averageStress = React.useMemo(() => calculateAverageStress(stressData), [stressData, calculateAverageStress]);
   const status = React.useMemo(() => getStressStatus(latestReading?.stress || averageStress), [latestReading, averageStress, getStressStatus]);
@@ -200,30 +245,62 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
 
   if (loading) {
     return (
-      <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <RefreshCw className="w-8 h-8 animate-spin text-purple-500 mx-auto mb-4" />
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Loading stress data...</p>
+      <>
+        <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <RefreshCw className="w-8 h-8 animate-spin text-purple-500 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Loading stress data...</p>
+            </div>
           </div>
         </div>
-      </div>
+        <DataModal
+          isOpen={showDetails}
+          onClose={() => setShowDetails(false)}
+          title="Stress Analysis Details"
+          darkMode={darkMode}
+        >
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <RefreshCw className="w-10 h-10 animate-spin text-purple-500 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Updating stress details...</p>
+            </div>
+          </div>
+        </DataModal>
+      </>
     );
   }
 
   if (error) {
     return (
-      <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} mb-4`}>{error}</p>
-            <button onClick={fetchStressData} className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600">
-              Retry
-            </button>
+      <>
+        <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} mb-4`}>{error}</p>
+              <button onClick={fetchStressData} className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600">
+                Retry
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+        <DataModal
+          isOpen={showDetails}
+          onClose={() => setShowDetails(false)}
+          title="Stress Analysis Details"
+          darkMode={darkMode}
+        >
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Unable to load stress details.
+              </p>
+            </div>
+          </div>
+        </DataModal>
+      </>
     );
   }
 
@@ -278,12 +355,12 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
           <span>{stressData.length} reading{stressData.length !== 1 ? 's' : ''}</span>
         </div>
         <ResponsiveContainer width="100%" height={200}>
-          <AreaChart data={chartData}>
+          <AreaChart data={chartData} isAnimationActive={false}>
             {darkMode ? <CartesianGrid strokeDasharray="3 3" stroke="#374151" /> : <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
             <XAxis dataKey="time" stroke={darkMode ? "#9CA3AF" : "#666"} tick={{ fontSize: 12 }} />
             <YAxis domain={[0, 100]} stroke={darkMode ? "#9CA3AF" : "#666"} tick={{ fontSize: 12 }} />
             <Tooltip content={<CustomTooltip />} />
-            <Area type="monotone" dataKey="value" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.2} strokeWidth={3} />
+            <Area type="monotone" dataKey="value" stroke={darkMode ? "#a855f7" : "#8b5cf6"} fill={darkMode ? "#a855f7" : "#8b5cf6"} fillOpacity={0.2} strokeWidth={3} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -295,14 +372,67 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
         title="Stress Analysis Details"
         darkMode={darkMode}
       >
+        <div className="space-y-6">
+          {/* Modal Filter UI */}
+          <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
+            <div className="flex items-center gap-1.5 p-1 bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700/50 text-xs">
+              {[
+                { id: 'today', label: 'Today' },
+                { id: 'week', label: '7 Days' },
+                { id: 'month', label: '30 Days' },
+                { id: 'custom', label: 'Custom' }
+              ].map(filter => {
+                const isActive = (filter.id === 'custom' && localDateRange?.customRange) ||
+                  (!localDateRange?.customRange && localDateRange?.period === filter.id) ||
+                  (!localDateRange?.period && !localDateRange?.customRange && filter.id === 'today');
+                return (
+                  <button
+                    key={filter.id}
+                    onClick={() => {
+                      if (filter.id === 'custom') {
+                        setLocalDateRange({ ...localDateRange, customRange: true });
+                      } else {
+                        setLocalDateRange({ period: filter.id, customRange: false });
+                      }
+                    }}
+                    className={`px-3 py-1.5 font-medium rounded-md transition-all ${isActive
+                      ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+                      }`}
+                  >
+                    {filter.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {localDateRange?.customRange && (
+              <div className="flex items-center gap-2 text-xs w-full md:w-auto">
+                <input
+                  type="date"
+                  value={localDateRange?.from || ''}
+                  onChange={(e) => setLocalDateRange({ ...localDateRange, from: e.target.value })}
+                  className={`flex-1 md:flex-none px-2 py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-purple-500/20 ${darkMode ? 'bg-gray-900 border-gray-700 text-gray-200 focus:border-purple-500/50' : 'bg-white border-gray-200 text-gray-700 focus:border-purple-500'}`}
+                />
+                <span className="text-gray-400 font-medium">to</span>
+                <input
+                  type="date"
+                  value={localDateRange?.to || ''}
+                  onChange={(e) => setLocalDateRange({ ...localDateRange, to: e.target.value })}
+                  className={`flex-1 md:flex-none px-2 py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-purple-500/20 ${darkMode ? 'bg-gray-900 border-gray-700 text-gray-200 focus:border-purple-500/50' : 'bg-white border-gray-200 text-gray-700 focus:border-purple-500'}`}
+                />
+              </div>
+            )}
+          </div>
+
           {/* Main Chart in Modal */}
           <div className="h-[300px] w-full p-4 rounded-2xl bg-purple-50/50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-900/20">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
+              <AreaChart data={visibleData} isAnimationActive={false}>
                 <defs>
                   <linearGradient id="colorStressModal" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                    <stop offset="5%" stopColor={darkMode ? "#a855f7" : "#8b5cf6"} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={darkMode ? "#a855f7" : "#8b5cf6"} stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? '#374151' : '#f3f4f6'} />
@@ -322,13 +452,32 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
                 <Area 
                   type="monotone" 
                   dataKey="value" 
-                  stroke="#8b5cf6" 
+                  stroke={darkMode ? "#a855f7" : "#8b5cf6"} 
                   strokeWidth={3}
                   fillOpacity={1} 
                   fill="url(#colorStressModal)" 
                 />
               </AreaChart>
             </ResponsiveContainer>
+          </div>
+
+          {/* Slider Control */}
+          <div className="px-2">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={sliderPosition}
+              onChange={(e) => setSliderPosition(Number(e.target.value))}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+              style={{
+                background: `linear-gradient(to right, ${darkMode ? '#a855f7' : '#8b5cf6'} 0%, ${darkMode ? '#a855f7' : '#8b5cf6'} ${sliderPosition}%, ${darkMode ? '#374151' : '#e5e7eb'} ${sliderPosition}%, ${darkMode ? '#374151' : '#e5e7eb'} 100%)`
+              }}
+            />
+            <div className="flex justify-between mt-1 text-xs text-gray-500 dark:text-gray-400">
+              <span>Older</span>
+              <span>Newer</span>
+            </div>
           </div>
 
           <div className="space-y-6">
@@ -356,42 +505,43 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
               </div>
             </div>
 
-          {/* Recent Readings */}
-          <div>
-            <h4 className={`font-semibold text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-4`}>
-              Reading Timeline
-            </h4>
-            <div className={`space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar`}>
-              {stressData.slice().reverse().map((reading, index) => (
-                <div key={index} className={`flex items-center justify-between p-4 rounded-xl border ${
-                  darkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-100'
-                }`}>
-                  <div className="flex items-center gap-4">
-                    <div className={`w-3 h-3 rounded-full shadow-sm ${
-                      reading.stress < 30 ? 'bg-green-500' :
-                      reading.stress < 60 ? 'bg-yellow-500' : 'bg-red-500'
-                    }`}></div>
-                    <div>
-                      <div className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                        {new Date(reading.date).toLocaleTimeString('en-US', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: true
-                        })}
-                      </div>
-                      <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {new Date(reading.date).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric'
-                        })}
+            {/* Recent Readings */}
+            <div>
+              <h4 className={`font-semibold text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-4`}>
+                Reading Timeline
+              </h4>
+              <div className={`space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar`}>
+                {stressData.slice().reverse().map((reading, index) => (
+                  <div key={index} className={`flex items-center justify-between p-4 rounded-xl border ${
+                    darkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-100'
+                  }`}>
+                    <div className="flex items-center gap-4">
+                      <div className={`w-3 h-3 rounded-full shadow-sm ${
+                        reading.stress < 30 ? 'bg-green-500' :
+                        reading.stress < 60 ? 'bg-yellow-500' : 'bg-red-500'
+                      }`}></div>
+                      <div>
+                        <div className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                          {new Date(reading.date).toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true
+                          })}
+                        </div>
+                        <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {new Date(reading.date).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </div>
                       </div>
                     </div>
+                    <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {reading.stress}
+                    </div>
                   </div>
-                  <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {reading.stress}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </div>

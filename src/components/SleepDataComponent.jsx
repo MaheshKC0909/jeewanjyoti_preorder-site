@@ -356,57 +356,108 @@ const SleepDataComponent = ({ darkMode, onSleepDataUpdate, selectedUserId, dateR
 
   if (loading) {
     return (
-      <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <RefreshCw className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-4" />
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Loading sleep data...
-            </p>
+      <>
+        <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <RefreshCw className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Loading sleep data...
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+        <DataModal
+          isOpen={showDetails}
+          onClose={() => setShowDetails(false)}
+          title="Sleep Analysis Details"
+          darkMode={darkMode}
+        >
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <RefreshCw className="w-10 h-10 animate-spin text-indigo-500 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Updating sleep details...
+              </p>
+            </div>
+          </div>
+        </DataModal>
+      </>
     );
   }
 
   if (error) {
     return (
-      <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} mb-4`}>
-              {error}
-            </p>
-            <button
-              onClick={fetchSleepData}
-              className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
-            >
-              Retry
-            </button>
+      <>
+        <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} mb-4`}>
+                {error}
+              </p>
+              <button
+                onClick={fetchSleepData}
+                className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+        <DataModal
+          isOpen={showDetails}
+          onClose={() => setShowDetails(false)}
+          title="Sleep Analysis Details"
+          darkMode={darkMode}
+        >
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Unable to load sleep details.
+              </p>
+            </div>
+          </div>
+        </DataModal>
+      </>
     );
   }
 
   if (!sleepData || sleepData.length === 0 || !currentData) {
     return (
-      <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <Moon className="w-8 h-8 text-gray-400 mx-auto mb-4" />
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              No sleep data available for the selected period
-            </p>
-            {dateRange?.customRange && dateRange.from && dateRange.to && (
-              <p className={`text-xs mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                Selected range: {formatDateForAPI(dateRange.from)} to {formatDateForAPI(dateRange.to)}
+      <>
+        <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <Moon className="w-8 h-8 text-gray-400 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                No sleep data available for the selected period
               </p>
-            )}
+              {dateRange?.customRange && dateRange.from && dateRange.to && (
+                <p className={`text-xs mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                  Selected range: {formatDateForAPI(dateRange.from)} to {formatDateForAPI(dateRange.to)}
+                </p>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+        <DataModal
+          isOpen={showDetails}
+          onClose={() => setShowDetails(false)}
+          title="Sleep Analysis Details"
+          darkMode={darkMode}
+        >
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <Moon className="w-10 h-10 text-gray-400 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                No sleep details are available for this range.
+              </p>
+            </div>
+          </div>
+        </DataModal>
+      </>
     );
   }
 

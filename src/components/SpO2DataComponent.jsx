@@ -10,6 +10,16 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
   const [error, setError] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [sliderPosition, setSliderPosition] = useState(100); // 100 = most recent, 0 = oldest
+  const [localDateRange, setLocalDateRange] = useState(dateRange);
+
+  useEffect(() => {
+    setLocalDateRange(dateRange);
+  }, [dateRange]);
+
+  // Sync local date range with global when modal opens/closes
+  useEffect(() => {
+    setLocalDateRange(dateRange);
+  }, [showDetails, dateRange]);
 
   // Cache and refs
   const cacheRef = useRef(new Map());
@@ -47,19 +57,19 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
       let cacheKey;
 
       // Determine API parameters based on date range
-      if (dateRange?.customRange && dateRange.from && dateRange.to) {
+      if (localDateRange?.customRange && localDateRange?.from && localDateRange?.to) {
         // Custom date range - use from/to parameters
-        fromDate = formatDateForAPI(dateRange.from);
-        toDate = formatDateForAPI(dateRange.to);
+        fromDate = formatDateForAPI(localDateRange.from);
+        toDate = formatDateForAPI(localDateRange.to);
         cacheKey = `${selectedUserId || 'null'}-${fromDate}-${toDate}`;
         console.log('Fetching SpO2 data for custom range:', { fromDate, toDate });
       } else {
         // Use range parameter for predefined periods
-        if (dateRange?.period === 'today') {
+        if (localDateRange?.period === 'today') {
           range = '24h';
-        } else if (dateRange?.period === 'week') {
+        } else if (localDateRange?.period === 'week') {
           range = '7d';
-        } else if (dateRange?.period === 'month') {
+        } else if (localDateRange?.period === 'month') {
           range = '30d';
         } else {
           range = '24h'; // default
@@ -154,7 +164,7 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
         setLoading(false);
       }
     }
-  }, [selectedUserId, onSpO2DataUpdate, dateRange?.from, dateRange?.to, dateRange?.customRange, dateRange?.period]);
+  }, [selectedUserId, onSpO2DataUpdate, localDateRange?.from, localDateRange?.to, localDateRange?.customRange, localDateRange?.period]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -361,57 +371,108 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
 
   if (loading) {
     return (
-      <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <RefreshCw className="w-8 h-8 animate-spin text-blue-500 mx-auto mb-4" />
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Loading SpO2 data...
-            </p>
+      <>
+        <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <RefreshCw className="w-8 h-8 animate-spin text-blue-500 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Loading SpO2 data...
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+        <DataModal
+          isOpen={showDetails}
+          onClose={() => setShowDetails(false)}
+          title="SpO2 Analysis"
+          darkMode={darkMode}
+        >
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <RefreshCw className="w-10 h-10 animate-spin text-blue-500 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Updating SpO2 details...
+              </p>
+            </div>
+          </div>
+        </DataModal>
+      </>
     );
   }
 
   if (error) {
     return (
-      <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} mb-4`}>
-              {error}
-            </p>
-            <button
-              onClick={fetchSpO2Data}
-              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-            >
-              Retry
-            </button>
+      <>
+        <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} mb-4`}>
+                {error}
+              </p>
+              <button
+                onClick={fetchSpO2Data}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+        <DataModal
+          isOpen={showDetails}
+          onClose={() => setShowDetails(false)}
+          title="SpO2 Analysis"
+          darkMode={darkMode}
+        >
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Unable to load SpO2 details.
+              </p>
+            </div>
+          </div>
+        </DataModal>
+      </>
     );
   }
 
   if (!spo2Data || spo2Data.length === 0) {
     return (
-      <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <Droplets className="w-8 h-8 text-gray-400 mx-auto mb-4" />
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              No SpO2 data available for the selected period
-            </p>
-            {dateRange?.customRange && dateRange.from && dateRange.to && (
-              <p className={`text-xs mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                Selected range: {formatDateForAPI(dateRange.from)} to {formatDateForAPI(dateRange.to)}
+      <>
+        <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <Droplets className="w-8 h-8 text-gray-400 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                No SpO2 data available for the selected period
               </p>
-            )}
+              {dateRange?.customRange && dateRange.from && dateRange.to && (
+                <p className={`text-xs mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                  Selected range: {formatDateForAPI(dateRange.from)} to {formatDateForAPI(dateRange.to)}
+                </p>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+        <DataModal
+          isOpen={showDetails}
+          onClose={() => setShowDetails(false)}
+          title="SpO2 Analysis"
+          darkMode={darkMode}
+        >
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <Droplets className="w-10 h-10 text-gray-400 mx-auto mb-4" />
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                No SpO2 details are available for this range.
+              </p>
+            </div>
+          </div>
+        </DataModal>
+      </>
     );
   }
 
@@ -571,35 +632,136 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
         title="SpO2 Analysis"
         darkMode={darkMode}
       >
-        <div className="space-y-8">
+        <div className="space-y-6">
+          {/* Modal Filter UI */}
+          <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
+            <div className="flex items-center gap-1.5 p-1 bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700/50 text-xs">
+              {[
+                { id: 'today', label: 'Today' },
+                { id: 'week', label: '7 Days' },
+                { id: 'month', label: '30 Days' },
+                { id: 'custom', label: 'Custom' }
+              ].map(filter => {
+                const isActive = (filter.id === 'custom' && localDateRange?.customRange) ||
+                  (!localDateRange?.customRange && localDateRange?.period === filter.id) ||
+                  (!localDateRange?.period && !localDateRange?.customRange && filter.id === 'today');
+                return (
+                  <button
+                    key={filter.id}
+                    onClick={() => {
+                      if (filter.id === 'custom') {
+                        setLocalDateRange({ ...localDateRange, customRange: true });
+                      } else {
+                        setLocalDateRange({ period: filter.id, customRange: false });
+                      }
+                    }}
+                    className={`px-3 py-1.5 font-medium rounded-md transition-all ${isActive
+                        ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+                      }`}
+                  >
+                    {filter.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {localDateRange?.customRange && (
+              <div className="flex items-center gap-2 text-xs w-full md:w-auto">
+                <input
+                  type="date"
+                  value={localDateRange?.from || ''}
+                  onChange={(e) => setLocalDateRange({ ...localDateRange, from: e.target.value })}
+                  className={`flex-1 md:flex-none px-2 py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500/20 ${darkMode ? 'bg-gray-900 border-gray-700 text-gray-200 focus:border-blue-500/50' : 'bg-white border-gray-200 text-gray-700 focus:border-blue-500'}`}
+                />
+                <span className="text-gray-400 font-medium">to</span>
+                <input
+                  type="date"
+                  value={localDateRange?.to || ''}
+                  onChange={(e) => setLocalDateRange({ ...localDateRange, to: e.target.value })}
+                  className={`flex-1 md:flex-none px-2 py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500/20 ${darkMode ? 'bg-gray-900 border-gray-700 text-gray-200 focus:border-blue-500/50' : 'bg-white border-gray-200 text-gray-700 focus:border-blue-500'}`}
+                />
+              </div>
+            )}
+          </div>
+
           {/* Main Chart in Modal */}
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? '#374151' : '#f3f4f6'} />
-                <XAxis 
-                  dataKey="time" 
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: darkMode ? '#9CA3AF' : '#6B7280' }}
+              <LineChart data={visibleData}>
+                {darkMode ? (
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false} vertical={false} />
+                ) : (
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                )}
+                <XAxis
+                  dataKey="timestamp"
+                  domain={['dataMin', 'dataMax']}
+                  ticks={timeTicks}
+                  tickFormatter={formatXAxis}
+                  stroke={darkMode ? "#9CA3AF" : "#666"}
+                  axisLine
+                  tickLine
+                  tick={{ fontSize: 12 }}
+                  type="number"
+                  scale="time"
+                  interval="preserveStartEnd"
                 />
-                <YAxis 
-                  domain={[80, 100]}
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: darkMode ? '#9CA3AF' : '#6B7280' }}
+                <YAxis
+                  domain={[Math.max(85, min - 2), Math.min(100, max + 1)]}
+                  stroke={darkMode ? "#9CA3AF" : "#666"}
+                  axisLine
+                  tickLine
+                  tick={{ fontSize: 12 }}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Line
                   type="monotone"
                   dataKey="value"
-                  stroke="#06b6d4"
+                  stroke="#3b82f6"
                   strokeWidth={3}
-                  dot={{ r: 4, fill: '#06b6d4', strokeWidth: 2, stroke: darkMode ? '#1f2937' : '#fff' }}
-                  activeDot={{ r: 6, strokeWidth: 0 }}
+                  dot={(props) => {
+                    const { payload, cx, cy } = props;
+                    let dotColor = '#3b82f6';
+                    if (payload.value < 90) {
+                      dotColor = '#ef4444';
+                    } else if (payload.value < 95) {
+                      dotColor = '#eab308';
+                    }
+                    return (
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={4}
+                        fill={dotColor}
+                        stroke="none"
+                      />
+                    );
+                  }}
+                  activeDot={{ r: 6, fill: '#3b82f6' }}
+                  isAnimationActive={false}
                 />
               </LineChart>
             </ResponsiveContainer>
+          </div>
+
+          {/* Slider Control in Modal */}
+          <div className="mt-2 px-2">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={sliderPosition}
+              onChange={handleSliderChange}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+              style={{
+                background: `linear-gradient(to right, ${darkMode ? '#3b82f6' : '#60a5fa'} 0%, ${darkMode ? '#3b82f6' : '#60a5fa'} ${sliderPosition}%, ${darkMode ? '#374151' : '#e5e7eb'} ${sliderPosition}%, ${darkMode ? '#374151' : '#e5e7eb'} 100%)`
+              }}
+            />
+            <div className="flex justify-between mt-1 text-xs text-gray-500 dark:text-gray-400">
+              <span>Older</span>
+              <span>Newer</span>
+            </div>
           </div>
 
           <div className="space-y-6">
@@ -658,14 +820,12 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
               </h4>
               <div className={`space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar`}>
                 {spo2Data.slice().reverse().map((reading, index) => (
-                  <div key={index} className={`flex items-center justify-between p-4 rounded-xl border ${
-                    darkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-100'
-                  }`}>
+                  <div key={index} className={`flex items-center justify-between p-4 rounded-xl border ${darkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-100'
+                    }`}>
                     <div className="flex items-center gap-4">
-                      <div className={`w-3 h-3 rounded-full shadow-sm ${
-                        reading.Blood_oxygen >= 95 ? 'bg-green-500' :
+                      <div className={`w-3 h-3 rounded-full shadow-sm ${reading.Blood_oxygen >= 95 ? 'bg-green-500' :
                         reading.Blood_oxygen >= 90 ? 'bg-yellow-500' : 'bg-red-500'
-                      }`}></div>
+                        }`}></div>
                       <div>
                         <div className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                           {new Date(reading.date).toLocaleTimeString('en-US', {
