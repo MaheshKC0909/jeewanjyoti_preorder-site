@@ -3,7 +3,7 @@ import axios from 'axios'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { User, Building2, Mail, Lock, Phone, MapPin, Globe, FileText, Heart, Stethoscope, UserCheck, Briefcase, GraduationCap, Calendar, Upload, Eye, EyeOff, X, Shield } from 'lucide-react'
-import logo from '../assets/logo.png'
+import jjlogo from '../assets/jjlogo.png'
 import { storeTokens } from '../lib/tokenManager'
 import { signInWithPopup } from 'firebase/auth'
 import { auth, googleProvider } from '../lib/firebase'
@@ -504,14 +504,15 @@ function Register() {
         <div className="relative z-10 max-w-4xl mx-auto py-8 px-4">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="flex items-center justify-center mb-6">
-              <div className="relative">
-                <img src={logo} alt="Jeewan Jyoti" className="h-16 w-auto" />
-              </div>
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <img src={jjlogo} alt="JJ Logo" className="w-16 h-16" />
+              <h1 className="text-4xl md:text-5xl font-bold text-blue-500 whitespace-nowrap truncate">
+                DIGITAL CARE
+              </h1>
             </div>
-            <h1 className="text-5xl font-black text-violet-600 mb-2">
+            <h2 className="text-3xl font-black text-violet-600 mb-2">
               Create Account
-            </h1>
+            </h2>
             <p className="text-gray-600 text-lg">Join our healthcare community</p>
           </div>
 

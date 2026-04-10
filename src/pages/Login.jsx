@@ -1,6 +1,6 @@
 import React, { useState, useCallback, memo } from 'react'
 import { Mail, Lock, LogIn, Eye, EyeOff, Building, User, X, ArrowLeft, CheckCircle } from 'lucide-react'
-import logo from '../assets/logo.png'
+import jjlogo from '../assets/jjlogo.png'
 import { useNavigate } from 'react-router-dom'
 import { signInWithPopup } from 'firebase/auth'
 import { auth, googleProvider, getFcmToken } from '../lib/firebase'
@@ -632,15 +632,16 @@ function Login() {
       <div className="relative z-10 flex items-center justify-center min-h-screen p-4">
         <div className="w-full max-w-md">
           {/* Header section */}
-          <div className="text-center mb-6">
-            <div className="flex items-center justify-center mb-4">
-              <div className="relative">
-                <img src={logo} alt="Jeewan Jyoti" className="h-16 w-auto" />
-              </div>
+          <div className="text-center mb-8">
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <img src={jjlogo} alt="JJ Logo" className="w-12 h-12" />
+              <h1 className="text-3xl md:text-4xl font-bold text-blue-500 whitespace-nowrap truncate">
+                DIGITAL CARE
+              </h1>
             </div>
-            <h1 className="text-3xl md:text-4xl font-black text-violet-600 mb-2">
+            <h2 className="text-2xl font-black text-violet-600 mb-2">
               LOG IN
-            </h1>
+            </h2>
             <p className="text-gray-600 text-base font-medium">
               Sign in to access your healthcare dashboard
             </p>
