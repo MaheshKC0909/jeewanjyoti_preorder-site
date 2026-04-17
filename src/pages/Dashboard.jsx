@@ -120,96 +120,71 @@ const Dashboard = () => {
     };
   }, [navigate]);
 
-  // Silently refresh profile data
+  // Silently refresh profile data when tab changes (not on initial mount,
+  // since checkProfileCompletion handles the initial fresh-data fetch below)
+  const isFirstMount = React.useRef(true);
   useEffect(() => {
-    const refreshProfile = async () => {
-      const currentObj = getUserData();
-      if (currentObj) {
-        setBackendUser(prev => ({ ...prev, ...currentObj }));
-      }
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return; // Skip on first mount — checkProfileCompletion already fetches fresh data
+    }
 
-      if (backendUser || user) {
-        try {
-          const freshData = await getUserEmailProfile();
-          if (freshData) {
-            setBackendUser(prev => ({ ...prev, ...freshData }));
-            const localData = getUserData() || {};
-            localStorage.setItem('user_data', JSON.stringify({ ...localData, ...freshData }));
-          }
-        } catch (error) {
-          console.error('Error silently refreshing profile:', error);
+    const refreshProfile = async () => {
+      try {
+        const freshData = await getUserEmailProfile();
+        if (freshData) {
+          setBackendUser(prev => ({ ...prev, ...freshData }));
+          const localData = getUserData() || {};
+          localStorage.setItem('user_data', JSON.stringify({ ...localData, ...freshData }));
         }
+      } catch (error) {
+        console.error('Error silently refreshing profile:', error);
       }
     };
-    refreshProfile();
-  }, [user, activeTab]);
 
-  // Check if profile needs completion
+    if (backendUser || user) {
+      refreshProfile();
+    }
+  }, [activeTab]);
+
+  // Check if profile needs completion — always uses fresh API data as source of truth
   useEffect(() => {
     const checkProfileCompletion = async () => {
       if (!backendUser && !user) return;
 
       try {
-        const shouldShowForm = localStorage.getItem('show_profile_form_on_dashboard');
-        const userData = getUserData();
+        // Always fetch fresh profile data from the API.
+        // The login response (data.user stored in localStorage) may not include
+        // profile fields like height/weight/birthdate, causing false "incomplete" alerts.
+        const profileData = await getUserEmailProfile();
 
-        if (userData) {
-          const requiredFields = ['first_name', 'last_name', 'birthdate', 'gender', 'height', 'weight', 'blood_group'];
+        if (!profileData) return;
 
-          const missingFields = requiredFields.filter(field => {
-            const value = userData[field]
-            const isMissing = !value || value === '' || value === '0.00' || value === null || value === undefined
-            return isMissing
-          });
+        // Update localStorage with the fresh complete data
+        const localData = getUserData() || {};
+        const mergedData = { ...localData, ...profileData };
+        localStorage.setItem('user_data', JSON.stringify(mergedData));
+        setBackendUser(prev => ({ ...prev, ...profileData }));
 
-          if (missingFields.length > 0) {
-            if (shouldShowForm === 'true') {
-              setShowProfileForm(true);
-              setProfileComplete(false);
-              localStorage.removeItem('show_profile_form_on_dashboard');
-            } else {
-              const hasSkippedProfileForm = localStorage.getItem('profile_form_skipped');
-              if (!hasSkippedProfileForm) {
-                setShowProfileForm(true);
-                setProfileComplete(false);
-              } else {
-                setProfileComplete(false);
-              }
-            }
-          } else {
-            setProfileComplete(true);
-            localStorage.removeItem('show_profile_form_on_dashboard');
+        const requiredFields = ['first_name', 'last_name', 'birthdate', 'gender', 'height', 'weight', 'blood_group'];
+        const missingFields = requiredFields.filter(field => {
+          const value = profileData[field];
+          return !value || value === '' || value === '0.00' || value === null || value === undefined;
+        });
+
+        if (missingFields.length > 0) {
+          // Profile is genuinely incomplete — show form unless user skipped it
+          const hasSkippedProfileForm = localStorage.getItem('profile_form_skipped');
+          if (!hasSkippedProfileForm) {
+            setShowProfileForm(true);
           }
+          setProfileComplete(false);
         } else {
-          try {
-            const profileData = await getUserEmailProfile();
-            const requiredFields = ['first_name', 'last_name', 'birthdate', 'gender', 'height', 'weight', 'blood_group'];
-            const missingFields = requiredFields.filter(field => {
-              const value = profileData[field]
-              return !value || value === '' || value === '0.00' || value === null || value === undefined
-            });
-
-            if (missingFields.length > 0) {
-              if (shouldShowForm === 'true') {
-                setShowProfileForm(true);
-                setProfileComplete(false);
-                localStorage.removeItem('show_profile_form_on_dashboard');
-              } else {
-                const hasSkippedProfileForm = localStorage.getItem('profile_form_skipped');
-                if (!hasSkippedProfileForm) {
-                  setShowProfileForm(true);
-                  setProfileComplete(false);
-                } else {
-                  setProfileComplete(false);
-                }
-              }
-            } else {
-              setProfileComplete(true);
-              localStorage.removeItem('show_profile_form_on_dashboard');
-            }
-          } catch (error) {
-            console.error('Error fetching user profile:', error);
-          }
+          // Profile is complete — never show the form
+          setShowProfileForm(false);
+          setProfileComplete(true);
+          localStorage.removeItem('show_profile_form_on_dashboard');
+          localStorage.removeItem('profile_form_skipped');
         }
       } catch (error) {
         console.error('Error checking profile completion:', error);
@@ -219,7 +194,7 @@ const Dashboard = () => {
     if (!loading && (backendUser || user)) {
       checkProfileCompletion();
     }
-  }, [backendUser, user, loading]);
+  }, [loading]); // Only run once after initial load — not on every backendUser change
 
   // Close filter dropdown when clicking outside
   useEffect(() => {

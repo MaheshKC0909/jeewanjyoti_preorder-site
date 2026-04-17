@@ -518,12 +518,16 @@ function Login() {
       // Check if profile is incomplete
       if (data.user) {
         const requiredFields = ['first_name', 'last_name', 'birthdate', 'gender', 'height', 'weight', 'blood_group'];
-        const missingFields = requiredFields.filter(field => !data.user[field] || data.user[field] === '');
+        const missingFields = requiredFields.filter(field => !data.user[field] || data.user[field] === '' || data.user[field] === '0.00');
         
-        // If more than half the fields are missing, set flag to show profile form
-        if (missingFields.length > 3) {
+        if (missingFields.length > 0) {
+          // Profile is incomplete — prompt user to complete it
           localStorage.setItem('show_profile_form_on_dashboard', 'true');
-          localStorage.removeItem('profile_form_skipped'); // Clear skip flag if exists
+          localStorage.removeItem('profile_form_skipped');
+        } else {
+          // Profile is complete — make sure we never prompt unnecessarily
+          localStorage.removeItem('show_profile_form_on_dashboard');
+          localStorage.removeItem('profile_form_skipped');
         }
       }
       
@@ -591,12 +595,16 @@ function Login() {
       // Check if profile is incomplete
       if (data.user) {
         const requiredFields = ['first_name', 'last_name', 'birthdate', 'gender', 'height', 'weight', 'blood_group'];
-        const missingFields = requiredFields.filter(field => !data.user[field] || data.user[field] === '');
+        const missingFields = requiredFields.filter(field => !data.user[field] || data.user[field] === '' || data.user[field] === '0.00');
         
-        // If more than half the fields are missing, set flag to show profile form
-        if (missingFields.length > 3) {
+        if (missingFields.length > 0) {
+          // Profile is incomplete — prompt user to complete it
           localStorage.setItem('show_profile_form_on_dashboard', 'true');
-          localStorage.removeItem('profile_form_skipped'); // Clear skip flag if exists
+          localStorage.removeItem('profile_form_skipped');
+        } else {
+          // Profile is complete — make sure we never prompt unnecessarily
+          localStorage.removeItem('show_profile_form_on_dashboard');
+          localStorage.removeItem('profile_form_skipped');
         }
       }
       
