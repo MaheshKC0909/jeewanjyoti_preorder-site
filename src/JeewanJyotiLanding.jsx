@@ -292,48 +292,35 @@ function HeroDashboard() {
   );
 }
 
-/* ─── Lifestyle Habit Tracker ───────────────────────────────────────────────── */
-function HabitTracker() {
-  const habits = [
-    { icon: Droplets, label: "Hydration", progress: 75, color: "#3b82f6", unit: "1.5L / 2L" },
-    { icon: Dumbbell, label: "Exercise", progress: 60, color: "#10b981", unit: "30 / 45 min" },
-    { icon: Moon, label: "Sleep", progress: 89, color: "#8b5cf6", unit: "7.1 / 8 hrs" },
-    { icon: Apple, label: "Nutrition", progress: 55, color: "#f59e0b", unit: "1,650 kcal" },
-    { icon: Brain, label: "Mindfulness", progress: 40, color: "#ec4899", unit: "8 / 20 min" },
-    { icon: Sun, label: "Sunlight", progress: 100, color: "#eab308", unit: "Goal met!" },
+/* ─── Health Suggestions ────────────────────────────────────────────────────── */
+function HealthSuggestions() {
+  const suggestions = [
+    { icon: Droplets, title: "Stay Hydrated", desc: "Drink at least 2 liters of water today for optimal health.", color: "#3b82f6" },
+    { icon: Dumbbell, title: "Light Exercise", desc: "A 30-minute walk can improve your cardiovascular health.", color: "#10b981" },
+    { icon: Moon, title: "Quality Sleep", desc: "Try going to bed 30 minutes earlier to hit your sleep goal.", color: "#8b5cf6" },
+    { icon: Apple, title: "Nutritious Diet", desc: "Incorporate more leafy greens for boosted energy levels.", color: "#f59e0b" },
+    { icon: Brain, title: "Mindfulness", desc: "Take 5 minutes to meditate and reduce daily stress.", color: "#ec4899" },
+    { icon: Sun, title: "Morning Sun", desc: "Get 15 minutes of sunlight for your daily vitamin D.", color: "#eab308" },
   ];
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      {habits.map((h, i) => (
+      {suggestions.map((s, i) => (
         <motion.div
-          key={h.label}
+          key={s.title}
           className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 hover:border-emerald-500/30 transition-all duration-300"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ delay: i * 0.07 }}
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <h.icon className="w-4 h-4" style={{ color: h.color }} />
-              <span className="text-sm font-semibold text-white">{h.label}</span>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${s.color}15`, border: `1px solid ${s.color}30` }}>
+              <s.icon className="w-4 h-4" style={{ color: s.color }} />
             </div>
-            <span className="text-xs text-slate-500">{h.unit}</span>
+            <span className="text-sm font-bold text-white">{s.title}</span>
           </div>
-          <div className="h-2 bg-slate-700/60 rounded-full overflow-hidden">
-            <motion.div
-              className="h-full rounded-full"
-              style={{ background: h.color }}
-              initial={{ width: 0 }}
-              whileInView={{ width: `${h.progress}%` }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.4 + i * 0.07, duration: 0.8, ease: "easeOut" }}
-            />
-          </div>
-          <div className="flex justify-end mt-1">
-            <span className="text-xs font-bold" style={{ color: h.color }}>{h.progress}%</span>
-          </div>
+          <p className="text-xs text-slate-400 leading-relaxed">{s.desc}</p>
         </motion.div>
       ))}
     </div>
@@ -925,13 +912,13 @@ export default function JeewanJyotiLanding() {
           </motion.div>
 
           <div className="grid lg:grid-cols-2 gap-12 items-start">
-            {/* Habit tracker */}
+            {/* Health Suggestions */}
             <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-white font-bold text-xl">Today's Habits</h3>
-                <span className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full font-semibold">Thu, April 17</span>
+                <h3 className="text-white font-bold text-xl">Health Suggestions</h3>
+                <span className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full font-semibold">Daily Updated</span>
               </div>
-              <HabitTracker />
+              <HealthSuggestions />
             </motion.div>
 
             {/* Lifestyle tips */}
