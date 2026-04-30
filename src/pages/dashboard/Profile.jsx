@@ -14,6 +14,7 @@ import ActivitySummary from '../../components/ActivitySummary';
 import BloodPressureDataComponent from '../../components/BloodPressureDataComponent';
 import StressDataComponent from '../../components/StressDataComponent';
 import HRVDataComponent from '../../components/HRVDataComponent';
+import MedicationPage from '../MedicationPage';
 
 const API_BASE = 'https://jeewanjyoti-backend.smart.org.np';
 const getFullImageUrl = (url) => {
@@ -751,6 +752,12 @@ const ProfileTab = React.memo(({ darkMode, selectedUserId = null, selectedUserIn
               userId={selectedUserId}
               globalDateFilter={globalDateFilter}
               globalDateRange={globalDateRange}
+            />
+
+            {/* Medication Section */}
+            <MedicationPage
+              darkMode={darkMode}
+              userId={selectedUserId}
             />
           </div>
         </div>

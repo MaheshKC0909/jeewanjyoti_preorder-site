@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Edit, Trash2, Plus } from 'lucide-react';
+import AppHeader from '../components/AppHeader';
 
 const API_BASE_URL = 'https://jeewanjyoti-backend.smart.org.np/api';
 const BLOGS_ENDPOINT = `${API_BASE_URL}/blogs`;
@@ -382,7 +383,8 @@ function Blogs() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-20 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 pt-28 pb-20 px-4 sm:px-6 lg:px-8">
+      <AppHeader />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
