@@ -66,7 +66,7 @@ const MedicationList = ({ darkMode, medications, loading, onRefresh }) => {
         </div>
         <div className="text-center">
           <p className={`text-base font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            No medications found
+            No medication found
           </p>
           <p className={`text-sm mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
             Add your first medication using the form above.

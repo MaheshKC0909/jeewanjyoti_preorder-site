@@ -18,10 +18,17 @@ const MedicationPage = ({ darkMode, userId }) => {
   const [showForm, setShowForm] = useState(false);
 
   // Resolve user ID from props or localStorage
-  const resolvedUserId = userId || (() => {
+  const resolvedUserId = (() => {
     try {
       const userData = JSON.parse(localStorage.getItem('user_data') || '{}');
-      return userData.id || null;
+      const loggedInId = userData.id || null;
+
+      // If userId is passed and it's NOT the logged-in user, use it (mapped user).
+      // Otherwise, use null (self).
+      if (userId && userId !== loggedInId) {
+        return userId;
+      }
+      return null;
     } catch {
       return null;
     }

@@ -323,11 +323,6 @@ const ProfileTab = React.memo(({ darkMode, selectedUserId = null, selectedUserIn
                   {getDisplayName()}
                 </h3>
 
-                {isOwnProfile && userProfile?.id && (
-                  <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    ID: #{userProfile.id}
-                  </p>
-                )}
 
                 {!isOwnProfile && (
                   <p className={`text-xs md:text-sm ${darkMode ? 'text-blue-400' : 'text-blue-600'} font-medium`}>

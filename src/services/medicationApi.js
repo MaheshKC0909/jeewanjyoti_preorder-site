@@ -24,8 +24,11 @@ medicationAxios.interceptors.request.use((config) => {
  * @returns {Promise<Array>}
  */
 export async function getMedications(userId) {
+  const params = {};
+  if (userId) params.user_id = userId;
+
   const response = await medicationAxios.get('/api/medication/', {
-    params: { user_id: userId },
+    params,
   });
   return response.data;
 }
