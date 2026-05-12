@@ -672,6 +672,20 @@ export async function logoutUser() {
   }
 }
 
+/**
+ * Get battery status for a device
+ * @param {string|null} userId - Optional mapped user ID (omit for self)
+ * @returns {Promise<object>} Battery status { percentage, timestamp, device_id, user }
+ */
+export async function getBatteryStatus(userId = null) {
+  const url = userId ? `/api/battery-status/?user_id=${userId}` : '/api/battery-status/';
+  const response = await apiRequest(url);
+  if (!response.ok) {
+    throw new Error('Failed to fetch battery status');
+  }
+  return await response.json();
+}
+
 export const initializePayment = async (token, invoiceNo, amount) => {
   return await apiRequest('/initialize_payment/', {
     method: 'POST',

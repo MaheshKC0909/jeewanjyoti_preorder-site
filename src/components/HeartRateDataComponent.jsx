@@ -1,384 +1,258 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceArea } from 'recharts';
-import { Heart, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Zap, Calendar, CheckCircle2, AlertTriangle, X } from 'lucide-react';
+import { Heart, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Zap, Calendar, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { getHeartRateData } from '../lib/api';
 import DataModal from './ui/Modal';
+
+// Number of data points rendered in the chart window at any time
+const WINDOW_SIZE = 300;
 
 const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserId, dateRange }) => {
   const [heartRateData, setHeartRateData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
-  const [sliderPosition, setSliderPosition] = useState(100); // 100 = most recent, 0 = oldest
+
+  // sliderPosition drives the actual chart window (triggers re-render)
+  const [sliderPosition, setSliderPosition] = useState(100);
+  // draftPosition drives only the slider thumb visually (no chart re-render while dragging)
+  const [draftPosition, setDraftPosition] = useState(100);
+
   const [localDateRange, setLocalDateRange] = useState(dateRange);
 
-  useEffect(() => {
-    setLocalDateRange(dateRange);
-  }, [dateRange]);
+  useEffect(() => { setLocalDateRange(dateRange); }, [dateRange]);
+  useEffect(() => { setLocalDateRange(dateRange); }, [showDetails, dateRange]);
 
-  // Sync local date range with global when modal opens/closes
-  useEffect(() => {
-    setLocalDateRange(dateRange);
-  }, [showDetails, dateRange]);
-
-  // Cache and refs
+  // Refs
   const cacheRef = useRef(new Map());
   const abortControllerRef = useRef(null);
   const isMountedRef = useRef(true);
+  const sliderTimerRef = useRef(null);
 
-  // Format date for API (YYYY-MM-DD)
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+
   const formatDateForAPI = (date) => {
     if (!date) return null;
-    // If it's already in YYYY-MM-DD format, return as is
-    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return date;
-    }
-    const d = new Date(date);
-    return d.toISOString().split('T')[0];
+    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+    return new Date(date).toISOString().split('T')[0];
   };
 
-  // Fetch Heart Rate data from API
-  const fetchHeartRateData = useCallback(async () => {
-    // Cancel previous request if it exists
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
+  // ─── Fetch ────────────────────────────────────────────────────────────────
 
-    // Create new abort controller for this request
+  const fetchHeartRateData = useCallback(async () => {
+    if (abortControllerRef.current) abortControllerRef.current.abort();
     abortControllerRef.current = new AbortController();
 
     try {
       setLoading(true);
       setError(null);
 
-      let fromDate = null;
-      let toDate = null;
-      let range = null;
-      let cacheKey;
+      let fromDate = null, toDate = null, range = null, cacheKey;
 
-      // Determine API parameters based on date range
       if (localDateRange?.customRange && localDateRange?.from && localDateRange?.to) {
-        // Custom date range - use from/to parameters
         fromDate = formatDateForAPI(localDateRange.from);
         toDate = formatDateForAPI(localDateRange.to);
         cacheKey = `${selectedUserId || 'null'}-${fromDate}-${toDate}`;
-        console.log('Fetching heart rate data for custom range:', { fromDate, toDate });
       } else {
-        // Use range parameter for predefined periods
-        if (localDateRange?.period === 'today') {
-          range = '24h';
-        } else if (localDateRange?.period === 'week') {
-          range = '7d';
-        } else if (localDateRange?.period === 'month') {
-          range = '30d';
-        } else {
-          range = '24h'; // default
-        }
+        range = localDateRange?.period === 'week' ? '7d'
+          : localDateRange?.period === 'month' ? '30d'
+            : '24h';
         cacheKey = `${selectedUserId || 'null'}-${range}`;
-        console.log('Fetching heart rate data with range:', range);
       }
 
-      // Check cache first (but don't wait for it if it's stale - 5 minutes max)
+      // Use cache if fresh (< 5 min)
       if (cacheRef.current.has(cacheKey)) {
-        const cachedData = cacheRef.current.get(cacheKey);
-        const cacheTime = cachedData.timestamp;
-        const now = Date.now();
-
-        // Use cache if it's less than 5 minutes old
-        if (now - cacheTime < 5 * 60 * 1000) {
-          console.log('Using cached heart rate data:', cachedData.data.length, 'records');
-
+        const cached = cacheRef.current.get(cacheKey);
+        if (Date.now() - cached.timestamp < 5 * 60 * 1000) {
           if (isMountedRef.current) {
-            setHeartRateData(cachedData.data);
-            onHeartRateDataUpdate(cachedData.data);
+            setHeartRateData(cached.data);
+            onHeartRateDataUpdate(cached.data);
             setLoading(false);
           }
           return;
-        } else {
-          console.log('Cache stale, fetching fresh data');
         }
       }
 
-      console.log('Making API call with params:', {
-        userId: selectedUserId,
-        fromDate,
-        toDate,
-        range
-      });
-
-      // Make API call with proper parameters
       const data = await getHeartRateData(selectedUserId, fromDate, toDate, range);
 
-      // Check if component is still mounted and request wasn't aborted
-      if (!isMountedRef.current || abortControllerRef.current.signal.aborted) {
-        console.log('Component unmounted or request aborted');
-        return;
-      }
+      if (!isMountedRef.current || abortControllerRef.current.signal.aborted) return;
 
       if (data && data.length > 0) {
-        // Sort by date (oldest to newest for charting)
-        const sortedData = data.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-        console.log(`Received ${sortedData.length} heart rate records`);
-
-        // Cache the results with timestamp
-        cacheRef.current.set(cacheKey, {
-          data: sortedData,
-          timestamp: Date.now()
-        });
+        const sorted = data.sort((a, b) => new Date(a.date) - new Date(b.date));
+        cacheRef.current.set(cacheKey, { data: sorted, timestamp: Date.now() });
 
         if (isMountedRef.current) {
-          setHeartRateData(sortedData);
-          onHeartRateDataUpdate(sortedData);
-          // Reset slider to most recent data when new data arrives
+          setHeartRateData(sorted);
+          onHeartRateDataUpdate(sorted);
+          // Reset to newest window
           setSliderPosition(100);
+          setDraftPosition(100);
         }
       } else {
-        console.log('No heart rate data available for selected period');
         if (isMountedRef.current) {
           setHeartRateData([]);
           onHeartRateDataUpdate([]);
         }
       }
-    } catch (error) {
-      // Don't set error if request was aborted or component unmounted
-      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED' || !isMountedRef.current) {
-        console.log('Request was cancelled');
-        return;
-      }
-
-      console.error('Error fetching heart rate data:', error);
-      if (isMountedRef.current) {
-        setError('Failed to load heart rate data. Please try again.');
-      }
+    } catch (err) {
+      if (err.name === 'AbortError' || err.code === 'ERR_CANCELED' || !isMountedRef.current) return;
+      if (isMountedRef.current) setError('Failed to load heart rate data. Please try again.');
     } finally {
-      if (isMountedRef.current && !abortControllerRef.current?.signal.aborted) {
-        setLoading(false);
-      }
+      if (isMountedRef.current && !abortControllerRef.current?.signal.aborted) setLoading(false);
     }
   }, [selectedUserId, onHeartRateDataUpdate, localDateRange?.from, localDateRange?.to, localDateRange?.customRange, localDateRange?.period]);
 
   useEffect(() => {
     isMountedRef.current = true;
-
-    // Immediate fetch without debounce
     fetchHeartRateData();
-
-    // Cleanup function
     return () => {
       isMountedRef.current = false;
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+      abortControllerRef.current?.abort();
+      clearTimeout(sliderTimerRef.current);
     };
   }, [fetchHeartRateData]);
 
-  // Process Heart Rate data for visualization with 30-minute intervals
-  const processHeartRateData = useCallback((data) => {
-    if (!data || data.length === 0) return [];
+  // ─── Process all data once ─────────────────────────────────────────────────
 
-    return data.map((item) => {
+  const allProcessed = useMemo(() => {
+    if (!heartRateData || heartRateData.length === 0) return [];
+    return heartRateData.map((item) => {
       const date = new Date(item.date);
       return {
-        time: date.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true
-        }),
+        time: date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
         value: item.once_heart_value,
-        fullTime: new Date(item.date).toLocaleString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: true
+        fullTime: date.toLocaleString('en-US', {
+          month: 'short', day: 'numeric',
+          hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
         }),
         date: item.date,
-        rawDate: new Date(item.date),
-        timestamp: new Date(item.date).getTime(),
-        // Add color information based on heart rate value
+        timestamp: date.getTime(),
         isNormal: item.once_heart_value >= 60 && item.once_heart_value <= 100
       };
     }).sort((a, b) => a.timestamp - b.timestamp);
+  }, [heartRateData]);
+
+  // ─── Windowed slice — only WINDOW_SIZE points rendered ────────────────────
+
+  const visibleData = useMemo(() => {
+    if (allProcessed.length === 0) return [];
+    if (allProcessed.length <= WINDOW_SIZE) return allProcessed;
+
+    const maxStart = allProcessed.length - WINDOW_SIZE;
+    const startIndex = Math.round((sliderPosition / 100) * maxStart);
+    return allProcessed.slice(startIndex, startIndex + WINDOW_SIZE);
+  }, [allProcessed, sliderPosition]);
+
+  // ─── Slider handlers ──────────────────────────────────────────────────────
+
+  const handleSliderChange = useCallback((e) => {
+    const val = parseInt(e.target.value, 10);
+    setDraftPosition(val); // instant thumb movement
+    clearTimeout(sliderTimerRef.current);
+    sliderTimerRef.current = setTimeout(() => {
+      setSliderPosition(val); // delayed chart update
+    }, 80);
   }, []);
 
-  // Get visible data based on slider position (12-hour window)
-  const getVisibleData = useCallback(() => {
-    if (!heartRateData || heartRateData.length === 0) return [];
+  // ─── Ticks — adapt interval to visible span ───────────────────────────────
 
-    const processedData = processHeartRateData(heartRateData);
-    if (processedData.length === 0) return [];
-
-    // Get the time range of all data
-    const firstTimestamp = processedData[0].timestamp;
-    const lastTimestamp = processedData[processedData.length - 1].timestamp;
-    const totalDuration = lastTimestamp - firstTimestamp;
-
-    // Calculate 12 hours in milliseconds
-    const twelveHoursMs = 12 * 60 * 60 * 1000;
-
-    // If total duration is less than 12 hours, show all data
-    if (totalDuration <= twelveHoursMs) {
-      return processedData;
-    }
-
-    // Calculate window position based on slider (0 = oldest, 100 = newest)
-    const maxStartTime = lastTimestamp - twelveHoursMs;
-    const startTime = firstTimestamp + ((maxStartTime - firstTimestamp) * (sliderPosition / 100));
-    const endTime = startTime + twelveHoursMs;
-
-    // Filter data within the 12-hour window
-    return processedData.filter(item =>
-      item.timestamp >= startTime && item.timestamp <= endTime
-    );
-  }, [heartRateData, sliderPosition, processHeartRateData]);
-
-  // Generate 30-minute interval ticks for X-axis
-  const generateTimeTicks = useCallback((visibleData) => {
+  const timeTicks = useMemo(() => {
     if (visibleData.length === 0) return [];
+    const first = visibleData[0].timestamp;
+    const last = visibleData[visibleData.length - 1].timestamp;
+    const span = last - first;
+
+    const intervalMs =
+      span > 7 * 24 * 3600_000 ? 24 * 3600_000   // 1 day
+        : span > 24 * 3600_000 ? 6 * 3600_000     // 6 hours
+          : span > 6 * 3600_000 ? 3600_000          // 1 hour
+            : 30 * 60_000;                               // 30 min
 
     const ticks = [];
-    const firstItem = visibleData[0];
-    const lastItem = visibleData[visibleData.length - 1];
-
-    // Create ticks at 30-minute intervals
-    let currentTime = new Date(firstItem.timestamp);
-    // Round to nearest 30 minutes
-    const minutes = currentTime.getMinutes();
-    currentTime.setMinutes(Math.floor(minutes / 30) * 30);
-    currentTime.setSeconds(0);
-    currentTime.setMilliseconds(0);
-
-    const lastTime = lastItem.timestamp;
-    const thirtyMinutesMs = 30 * 60 * 1000;
-
-    while (currentTime.getTime() <= lastTime + thirtyMinutesMs) {
-      ticks.push(currentTime.getTime());
-      currentTime = new Date(currentTime.getTime() + thirtyMinutesMs);
-    }
-
+    let t = Math.ceil(first / intervalMs) * intervalMs;
+    while (t <= last) { ticks.push(t); t += intervalMs; }
     return ticks;
-  }, []);
+  }, [visibleData]);
 
-  // Calculate average Heart Rate
-  const calculateAverageHeartRate = useCallback((data) => {
-    if (!data || data.length === 0) return 0;
-    const sum = data.reduce((acc, item) => acc + item.once_heart_value, 0);
-    return Math.round(sum / data.length);
-  }, []);
+  // ─── Stats (computed from full dataset) ───────────────────────────────────
 
-  // Calculate min and max Heart Rate
-  const calculateMinMaxHeartRate = useCallback((data) => {
-    if (!data || data.length === 0) return { min: 0, max: 0 };
-    const values = data.map(item => item.once_heart_value);
-    return {
-      min: Math.min(...values),
-      max: Math.max(...values)
-    };
-  }, []);
+  const averageHeartRate = useMemo(() => {
+    if (!heartRateData.length) return 0;
+    return Math.round(heartRateData.reduce((s, i) => s + i.once_heart_value, 0) / heartRateData.length);
+  }, [heartRateData]);
 
-  // Get Heart Rate status
-  const getHeartRateStatus = useCallback((value) => {
-    if (value >= 60 && value <= 100) return { status: 'Normal', color: 'text-green-600', bgColor: 'bg-green-50 dark:bg-green-900/20' };
-    if (value >= 50 && value <= 120) return { status: 'Elevated', color: 'text-yellow-600', bgColor: 'bg-yellow-50 dark:bg-yellow-900/20' };
-    if (value < 50) return { status: 'Low', color: 'text-blue-600', bgColor: 'bg-blue-50 dark:bg-blue-900/20' };
+  const { min, max } = useMemo(() => {
+    if (!heartRateData.length) return { min: 0, max: 0 };
+    const vals = heartRateData.map(i => i.once_heart_value);
+    return { min: Math.min(...vals), max: Math.max(...vals) };
+  }, [heartRateData]);
+
+  const latestReading = useMemo(() =>
+    heartRateData.length ? heartRateData[heartRateData.length - 1] : null,
+    [heartRateData]);
+
+  const currentValue = latestReading?.once_heart_value || averageHeartRate;
+
+  const status = useMemo(() => {
+    if (currentValue >= 60 && currentValue <= 100) return { status: 'Normal', color: 'text-green-600', bgColor: 'bg-green-50 dark:bg-green-900/20' };
+    if (currentValue >= 50 && currentValue <= 120) return { status: 'Elevated', color: 'text-yellow-600', bgColor: 'bg-yellow-50 dark:bg-yellow-900/20' };
+    if (currentValue < 50) return { status: 'Low', color: 'text-blue-600', bgColor: 'bg-blue-50 dark:bg-blue-900/20' };
     return { status: 'High', color: 'text-red-600', bgColor: 'bg-red-50 dark:bg-red-900/20' };
-  }, []);
+  }, [currentValue]);
 
-  // Get latest reading
-  const getLatestReading = useCallback(() => {
-    if (!heartRateData || heartRateData.length === 0) return null;
-    return heartRateData[heartRateData.length - 1];
-  }, [heartRateData]);
-
-  // Get Heart Rate Zone
-  const getHeartRateZone = useCallback((value) => {
-    if (value < 50) return 'Resting';
-    if (value < 60) return 'Recovery';
-    if (value < 70) return 'Fat Burn';
-    if (value < 80) return 'Aerobic';
-    if (value < 90) return 'Anaerobic';
+  const heartRateZone = useMemo(() => {
+    if (currentValue < 50) return 'Resting';
+    if (currentValue < 60) return 'Recovery';
+    if (currentValue < 70) return 'Fat Burn';
+    if (currentValue < 80) return 'Aerobic';
+    if (currentValue < 90) return 'Anaerobic';
     return 'Maximum';
-  }, []);
+  }, [currentValue]);
 
-  // Format date range for display
-  const getDateRangeDisplay = useCallback(() => {
-    if (!heartRateData || heartRateData.length === 0) return 'No data';
-
-    const firstDate = new Date(heartRateData[0].date);
-    const lastDate = new Date(heartRateData[heartRateData.length - 1].date);
-
-    if (firstDate.toDateString() === lastDate.toDateString()) {
-      return firstDate.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      });
+  const dateRangeDisplay = useMemo(() => {
+    if (!heartRateData.length) return 'No data';
+    const first = new Date(heartRateData[0].date);
+    const last = new Date(heartRateData[heartRateData.length - 1].date);
+    if (first.toDateString() === last.toDateString()) {
+      return first.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     }
-
-    return `${firstDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${lastDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    return `${first.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${last.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
   }, [heartRateData]);
 
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className={`p-3 border rounded-lg shadow-lg ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-          <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            {payload[0].payload.fullTime}
-          </p>
-          <p className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-            {payload[0].value} BPM
-          </p>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  // Handle slider change
-  const handleSliderChange = (e) => {
-    setSliderPosition(parseInt(e.target.value, 10));
-  };
-
-  // Memoize processed data
-  const chartData = React.useMemo(() => processHeartRateData(heartRateData), [heartRateData, processHeartRateData]);
-  const visibleData = React.useMemo(() => getVisibleData(), [getVisibleData]);
-  const timeTicks = React.useMemo(() => generateTimeTicks(visibleData), [visibleData, generateTimeTicks]);
-
-  const latestReading = React.useMemo(() => getLatestReading(), [heartRateData, getLatestReading]);
-  const averageHeartRate = React.useMemo(() => calculateAverageHeartRate(heartRateData), [heartRateData, calculateAverageHeartRate]);
-  const { min, max } = React.useMemo(() => calculateMinMaxHeartRate(heartRateData), [heartRateData, calculateMinMaxHeartRate]);
-  const status = React.useMemo(() => getHeartRateStatus(latestReading?.once_heart_value || averageHeartRate), [latestReading, averageHeartRate, getHeartRateStatus]);
-  const heartRateZone = React.useMemo(() => getHeartRateZone(latestReading?.once_heart_value || averageHeartRate), [latestReading, averageHeartRate, getHeartRateZone]);
-  const dateRangeDisplay = React.useMemo(() => getDateRangeDisplay(), [heartRateData, getDateRangeDisplay]);
-
-  // Determine Y-axis domain based on data
   const yMin = Math.max(40, Math.min(60, min - 10));
   const yMax = Math.min(200, Math.max(120, max + 10));
 
-  // Custom Area component with gradient based on value
+  // ─── Sub-components ───────────────────────────────────────────────────────
+
+  const CustomTooltip = ({ active, payload }) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className={`p-3 border rounded-lg shadow-lg ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+        <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{payload[0].payload.fullTime}</p>
+        <p className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{payload[0].value} BPM</p>
+      </div>
+    );
+  };
+
+  // Gradient stops sampled to max 20 points — prevents thousands of SVG nodes
   const GradientArea = (props) => {
+    const MAX_STOPS = 20;
+    const step = Math.max(1, Math.floor(visibleData.length / MAX_STOPS));
+    const sampled = visibleData.filter((_, i) => i % step === 0);
+
     return (
       <>
         <defs>
           <linearGradient id="heartRateGradient" x1="0" y1="0" x2="1" y2="0">
-            {visibleData.map((point, index, array) => {
-              if (index === array.length - 1) return null;
-
-              // Calculate position based on index
-              const position = index / (array.length - 1);
-              const nextPosition = (index + 1) / (array.length - 1);
-
-              // Determine colors based on values
-              const currentColor = point.isNormal ? '#10b981' : '#ef4444';
-              const nextColor = array[index + 1].isNormal ? '#10b981' : '#ef4444';
-
+            {sampled.map((pt, i, arr) => {
+              if (i === arr.length - 1) return null;
               return (
-                <React.Fragment key={index}>
-                  <stop offset={`${position * 100}%`} stopColor={currentColor} stopOpacity={1} />
-                  <stop offset={`${nextPosition * 100}%`} stopColor={nextColor} stopOpacity={1} />
-                </React.Fragment>
+                <stop
+                  key={i}
+                  offset={`${(i / (arr.length - 1)) * 100}%`}
+                  stopColor={pt.isNormal ? '#10b981' : '#ef4444'}
+                  stopOpacity={1}
+                />
               );
             })}
           </linearGradient>
@@ -387,24 +261,96 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
             <stop offset="100%" stopColor="#ef4444" stopOpacity={0.05} />
           </linearGradient>
         </defs>
-        <Area
-          {...props}
-          stroke="url(#heartRateGradient)"
-          fill="url(#heartRateFill)"
-        />
+        <Area {...props} stroke="url(#heartRateGradient)" fill="url(#heartRateFill)" />
       </>
     );
   };
 
-  // Format X-axis tick to show 30-minute intervals
-  const formatXAxis = (timestamp) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
+  const formatXAxis = (ts) =>
+    new Date(ts).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+  // Slider UI — uses draftPosition for visual, sliderPosition for data
+  const SliderControl = () => (
+    <div className="mt-4 px-2">
+      {/* Page indicator */}
+      {allProcessed.length > WINDOW_SIZE && (
+        <div className="flex items-center justify-between mb-2 text-xs">
+          <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>
+            {visibleData[0]?.time}
+          </span>
+          <span className={`px-2 py-0.5 rounded-full font-medium ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+            {WINDOW_SIZE} of {allProcessed.length} readings
+          </span>
+          <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>
+            {visibleData[visibleData.length - 1]?.time}
+          </span>
+        </div>
+      )}
+
+      <input
+        type="range"
+        min="0"
+        max="100"
+        value={draftPosition}
+        onChange={handleSliderChange}
+        className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+        style={{
+          background: `linear-gradient(to right,
+            ${darkMode ? '#ef4444' : '#f87171'} 0%,
+            ${darkMode ? '#ef4444' : '#f87171'} ${draftPosition}%,
+            ${darkMode ? '#374151' : '#e5e7eb'} ${draftPosition}%,
+            ${darkMode ? '#374151' : '#e5e7eb'} 100%)`
+        }}
+      />
+      <div className="flex justify-between mt-1 text-xs text-gray-500 dark:text-gray-400">
+        <span>Older</span>
+        <span>Newer</span>
+      </div>
+    </div>
+  );
+
+  const ChartBody = ({ height = 200 }) => (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={visibleData}>
+        <CartesianGrid
+          strokeDasharray="3 3"
+          stroke={darkMode ? '#374151' : '#f0f0f0'}
+          horizontal={!darkMode}
+          vertical={false}
+        />
+        <XAxis
+          dataKey="timestamp"
+          domain={['dataMin', 'dataMax']}
+          ticks={timeTicks}
+          tickFormatter={formatXAxis}
+          stroke={darkMode ? '#9CA3AF' : '#666'}
+          axisLine tickLine
+          tick={{ fontSize: 12 }}
+          type="number"
+          scale="time"
+          interval="preserveStartEnd"
+        />
+        <YAxis
+          domain={[yMin, yMax]}
+          stroke={darkMode ? '#9CA3AF' : '#666'}
+          axisLine tickLine
+          tick={{ fontSize: 12 }}
+        />
+        <Tooltip content={<CustomTooltip />} />
+        <ReferenceArea y1={60} y2={100} fill="#10b981" fillOpacity={0.1} ifOverflow="extendDomain" />
+        <GradientArea
+          type="monotone"
+          dataKey="value"
+          strokeWidth={3}
+          dot={false}
+          activeDot={{ r: 6, strokeWidth: 0, fill: '#ef4444' }}
+          isAnimationActive={false}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+
+  // ─── Loading / Error / Empty states ──────────────────────────────────────
 
   if (loading) {
     return (
@@ -413,25 +359,13 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
               <RefreshCw className="w-8 h-8 animate-spin text-red-500 mx-auto mb-4" />
-              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Loading Heart Rate data...
-              </p>
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Loading Heart Rate data...</p>
             </div>
           </div>
         </div>
-        <DataModal
-          isOpen={showDetails}
-          onClose={() => setShowDetails(false)}
-          title="Heart Rate Analysis"
-          darkMode={darkMode}
-        >
+        <DataModal isOpen={showDetails} onClose={() => setShowDetails(false)} title="Heart Rate Analysis" darkMode={darkMode}>
           <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <RefreshCw className="w-10 h-10 animate-spin text-red-500 mx-auto mb-4" />
-              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Updating heart rate details...
-              </p>
-            </div>
+            <RefreshCw className="w-10 h-10 animate-spin text-red-500 mx-auto" />
           </div>
         </DataModal>
       </>
@@ -445,38 +379,23 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
               <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
-              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} mb-4`}>
-                {error}
-              </p>
-              <button
-                onClick={fetchHeartRateData}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-              >
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} mb-4`}>{error}</p>
+              <button onClick={fetchHeartRateData} className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
                 Retry
               </button>
             </div>
           </div>
         </div>
-        <DataModal
-          isOpen={showDetails}
-          onClose={() => setShowDetails(false)}
-          title="Heart Rate Analysis"
-          darkMode={darkMode}
-        >
+        <DataModal isOpen={showDetails} onClose={() => setShowDetails(false)} title="Heart Rate Analysis" darkMode={darkMode}>
           <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-4" />
-              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Unable to load heart rate details.
-              </p>
-            </div>
+            <AlertCircle className="w-10 h-10 text-red-500 mx-auto" />
           </div>
         </DataModal>
       </>
     );
   }
 
-  if (!heartRateData || heartRateData.length === 0) {
+  if (!heartRateData.length) {
     return (
       <>
         <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
@@ -488,30 +407,22 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
               </p>
               {dateRange?.customRange && dateRange.from && dateRange.to && (
                 <p className={`text-xs mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                  Selected range: {formatDateForAPI(dateRange.from)} to {formatDateForAPI(dateRange.to)}
+                  {formatDateForAPI(dateRange.from)} to {formatDateForAPI(dateRange.to)}
                 </p>
               )}
             </div>
           </div>
         </div>
-        <DataModal
-          isOpen={showDetails}
-          onClose={() => setShowDetails(false)}
-          title="Heart Rate Analysis"
-          darkMode={darkMode}
-        >
+        <DataModal isOpen={showDetails} onClose={() => setShowDetails(false)} title="Heart Rate Analysis" darkMode={darkMode}>
           <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <Heart className="w-10 h-10 text-gray-400 mx-auto mb-4" />
-              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                No heart rate details are available for this range.
-              </p>
-            </div>
+            <Heart className="w-10 h-10 text-gray-400 mx-auto" />
           </div>
         </DataModal>
       </>
     );
   }
+
+  // ─── Main render ──────────────────────────────────────────────────────────
 
   return (
     <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
@@ -525,15 +436,11 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
             <h3 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
               Heart Rate
             </h3>
-            <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              {dateRangeDisplay}
-            </p>
+            <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{dateRangeDisplay}</p>
             {dateRange?.customRange && dateRange.from && dateRange.to && (
               <div className="flex items-center gap-1 mt-1">
                 <Calendar className="w-3 h-3 text-blue-500" />
-                <span className={`text-xs ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-                  Custom Range
-                </span>
+                <span className={`text-xs ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Custom Range</span>
               </div>
             )}
           </div>
@@ -541,11 +448,9 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
         <div className="flex items-center gap-2">
           <div className="text-right">
             <div className={`text-xl md:text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              {latestReading?.once_heart_value || averageHeartRate} BPM
+              {currentValue} BPM
             </div>
-            <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-              Current Rate
-            </div>
+            <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Current Rate</div>
           </div>
           <button
             onClick={() => setShowDetails(!showDetails)}
@@ -556,29 +461,24 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
         </div>
       </div>
 
-      {/* Heart Rate Status and Zone */}
+      {/* Status badges */}
       <div className="mb-6 flex flex-wrap gap-3">
         <div className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg ${status.bgColor}`}>
-          <div className={`w-2 h-2 rounded-full ${status.color.replace('text-', 'bg-')}`}></div>
-          <span className={`text-sm font-medium ${status.color}`}>
-            {status.status} Range
-          </span>
+          <div className={`w-2 h-2 rounded-full ${status.color.replace('text-', 'bg-')}`} />
+          <span className={`text-sm font-medium ${status.color}`}>{status.status} Range</span>
         </div>
         <div className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg ${darkMode ? 'bg-purple-900/20' : 'bg-purple-50'}`}>
           <Zap className="w-4 h-4 text-purple-500" />
-          <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
-            {heartRateZone} Zone
-          </span>
+          <span className="text-sm font-medium text-purple-600 dark:text-purple-400">{heartRateZone} Zone</span>
         </div>
       </div>
 
-      {/* Heart Rate Chart with 12-hour window and slider */}
-      <div className="mb-6">
-        {/* Icon Legend */}
+      {/* Chart */}
+      <div className="mb-2">
         <div className="mb-3 flex items-center gap-4 text-xs">
           <div className="flex items-center gap-1.5">
             <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-            <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Normal Range (60-100 BPM)</span>
+            <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Normal Range (60–100 BPM)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
@@ -586,78 +486,11 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
           </div>
         </div>
 
-        {/* Chart Container */}
-        <div>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={visibleData}>
-              {darkMode ? (
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false} vertical={false} />
-              ) : (
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              )}
-              <XAxis
-                dataKey="timestamp"
-                domain={['dataMin', 'dataMax']}
-                ticks={timeTicks}
-                tickFormatter={formatXAxis}
-                stroke={darkMode ? "#9CA3AF" : "#666"}
-                axisLine
-                tickLine
-                tick={{ fontSize: 12 }}
-                type="number"
-                scale="time"
-                interval="preserveStartEnd"
-              />
-              <YAxis
-                domain={[yMin, yMax]}
-                stroke={darkMode ? "#9CA3AF" : "#666"}
-                axisLine
-                tickLine
-                tick={{ fontSize: 12 }}
-              />
-              <Tooltip content={<CustomTooltip />} />
-
-              {/* Reference areas for normal range */}
-              <ReferenceArea
-                y1={60}
-                y2={100}
-                fill="#10b981"
-                fillOpacity={0.1}
-                ifOverflow="extendDomain"
-              />
-
-              <GradientArea
-                type="monotone"
-                dataKey="value"
-                strokeWidth={3}
-                dot={false}
-                activeDot={{ r: 6, strokeWidth: 0, fill: "#ef4444" }}
-                isAnimationActive={false}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Slider Control */}
-        <div className="mt-4 px-2">
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={sliderPosition}
-            onChange={handleSliderChange}
-            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
-            style={{
-              background: `linear-gradient(to right, ${darkMode ? '#ef4444' : '#f87171'} 0%, ${darkMode ? '#ef4444' : '#f87171'} ${sliderPosition}%, ${darkMode ? '#374151' : '#e5e7eb'} ${sliderPosition}%, ${darkMode ? '#374151' : '#e5e7eb'} 100%)`
-            }}
-          />
-          <div className="flex justify-between mt-1 text-xs text-gray-500 dark:text-gray-400">
-            <span>Older</span>
-            <span>Newer</span>
-          </div>
-        </div>
+        <ChartBody height={200} />
+        <SliderControl />
       </div>
 
+      {/* Detail Modal */}
       <DataModal
         isOpen={showDetails}
         onClose={() => setShowDetails(false)}
@@ -665,34 +498,33 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
         darkMode={darkMode}
       >
         <div className="space-y-6">
-          {/* Modal Filter UI */}
+
+          {/* Modal date filter */}
           <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
-            <div className="flex items-center gap-1.5 p-1 bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700/50 text-xs">
+            <div className="flex items-center gap-1 p-1 bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700/50 text-xs">
               {[
                 { id: 'today', label: 'Today' },
                 { id: 'week', label: '7 Days' },
                 { id: 'month', label: '30 Days' },
                 { id: 'custom', label: 'Custom' }
-              ].map(filter => {
-                const isActive = (filter.id === 'custom' && localDateRange?.customRange) ||
-                  (!localDateRange?.customRange && localDateRange?.period === filter.id) ||
-                  (!localDateRange?.period && !localDateRange?.customRange && filter.id === 'today');
+              ].map(f => {
+                const active =
+                  (f.id === 'custom' && localDateRange?.customRange) ||
+                  (!localDateRange?.customRange && localDateRange?.period === f.id) ||
+                  (!localDateRange?.period && !localDateRange?.customRange && f.id === 'today');
                 return (
                   <button
-                    key={filter.id}
-                    onClick={() => {
-                      if (filter.id === 'custom') {
-                        setLocalDateRange({ ...localDateRange, customRange: true });
-                      } else {
-                        setLocalDateRange({ period: filter.id, customRange: false });
-                      }
-                    }}
-                    className={`px-3 py-1.5 font-medium rounded-md transition-all ${isActive
-                      ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+                    key={f.id}
+                    onClick={() => f.id === 'custom'
+                      ? setLocalDateRange({ ...localDateRange, customRange: true })
+                      : setLocalDateRange({ period: f.id, customRange: false })
+                    }
+                    className={`px-3 py-1.5 font-medium rounded-md transition-all ${active
+                        ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
                       }`}
                   >
-                    {filter.label}
+                    {f.label}
                   </button>
                 );
               })}
@@ -703,178 +535,76 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
                 <input
                   type="date"
                   value={localDateRange?.from || ''}
-                  onChange={(e) => setLocalDateRange({ ...localDateRange, from: e.target.value })}
+                  onChange={e => setLocalDateRange({ ...localDateRange, from: e.target.value })}
                   className={`flex-1 md:flex-none px-2 py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-red-500/20 ${darkMode ? 'bg-gray-900 border-gray-700 text-gray-200 focus:border-red-500/50' : 'bg-white border-gray-200 text-gray-700 focus:border-red-500'}`}
                 />
                 <span className="text-gray-400 font-medium">to</span>
                 <input
                   type="date"
                   value={localDateRange?.to || ''}
-                  onChange={(e) => setLocalDateRange({ ...localDateRange, to: e.target.value })}
+                  onChange={e => setLocalDateRange({ ...localDateRange, to: e.target.value })}
                   className={`flex-1 md:flex-none px-2 py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-red-500/20 ${darkMode ? 'bg-gray-900 border-gray-700 text-gray-200 focus:border-red-500/50' : 'bg-white border-gray-200 text-gray-700 focus:border-red-500'}`}
                 />
               </div>
             )}
           </div>
 
-          {/* Main Chart in Modal */}
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={visibleData}>
-                {darkMode ? (
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false} vertical={false} />
-                ) : (
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                )}
-                <XAxis
-                  dataKey="timestamp"
-                  domain={['dataMin', 'dataMax']}
-                  ticks={timeTicks}
-                  tickFormatter={formatXAxis}
-                  stroke={darkMode ? "#9CA3AF" : "#666"}
-                  axisLine
-                  tickLine
-                  tick={{ fontSize: 12 }}
-                  type="number"
-                  scale="time"
-                  interval="preserveStartEnd"
-                />
-                <YAxis
-                  domain={[yMin, yMax]}
-                  stroke={darkMode ? "#9CA3AF" : "#666"}
-                  axisLine
-                  tickLine
-                  tick={{ fontSize: 12 }}
-                />
-                <Tooltip content={<CustomTooltip />} />
-
-                {/* Reference areas for normal range */}
-                <ReferenceArea
-                  y1={60}
-                  y2={100}
-                  fill="#10b981"
-                  fillOpacity={0.1}
-                  ifOverflow="extendDomain"
-                />
-
-                <GradientArea
-                  type="monotone"
-                  dataKey="value"
-                  strokeWidth={3}
-                  dot={false}
-                  activeDot={{ r: 6, strokeWidth: 0, fill: "#ef4444" }}
-                  isAnimationActive={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          {/* Modal chart + slider */}
+          <div>
+            <ChartBody height={300} />
+            <SliderControl />
           </div>
 
-          {/* Slider Control in Modal */}
-          <div className="mt-2 px-2">
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={sliderPosition}
-              onChange={handleSliderChange}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
-              style={{
-                background: `linear-gradient(to right, ${darkMode ? '#ef4444' : '#f87171'} 0%, ${darkMode ? '#ef4444' : '#f87171'} ${sliderPosition}%, ${darkMode ? '#374151' : '#e5e7eb'} ${sliderPosition}%, ${darkMode ? '#374151' : '#e5e7eb'} 100%)`
-              }}
-            />
-            <div className="flex justify-between mt-1 text-xs text-gray-500 dark:text-gray-400">
-              <span>Older</span>
-              <span>Newer</span>
-            </div>
+          {/* Stats grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { icon: <TrendingUp className="w-4 h-4 text-red-500" />, label: 'Average', value: `${averageHeartRate} BPM` },
+              { icon: <Activity className="w-4 h-4 text-green-500" />, label: 'Min / Max', value: `${min} / ${max} BPM` },
+              { icon: <Clock className="w-4 h-4 text-purple-500" />, label: 'Latest', value: `${latestReading?.once_heart_value ?? 'N/A'} BPM` },
+              { icon: <Heart className="w-4 h-4 text-pink-500" />, label: 'Zone', value: heartRateZone },
+            ].map(({ icon, label, value }) => (
+              <div key={label} className={`p-4 rounded-2xl border ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-100'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  {icon}
+                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{label}</span>
+                </div>
+                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{value}</div>
+              </div>
+            ))}
           </div>
 
-          <div className="space-y-6">
-            {/* Heart Rate Statistics */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <TrendingUp className="w-4 h-4 text-red-500" />
-                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Average
-                  </span>
-                </div>
-                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {averageHeartRate} BPM
-                </div>
-              </div>
-              <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <Activity className="w-4 h-4 text-green-500" />
-                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Min/Max
-                  </span>
-                </div>
-                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {min} / {max} BPM
-                </div>
-              </div>
-              <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <Clock className="w-4 h-4 text-purple-500" />
-                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Latest
-                  </span>
-                </div>
-                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {latestReading?.once_heart_value || 'N/A'} BPM
-                </div>
-              </div>
-              <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <Heart className="w-4 h-4 text-pink-500" />
-                  <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Zone
-                  </span>
-                </div>
-                <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {heartRateZone}
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Readings */}
-            <div>
-              <h4 className={`font-semibold text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-4`}>
-                Recent Readings
-              </h4>
-              <div className={`space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar`}>
-                {heartRateData.slice().reverse().map((reading, index) => (
-                  <div key={index} className={`flex items-center justify-between p-4 rounded-xl border ${darkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-100'
-                    }`}>
+          {/* Recent readings list */}
+          <div>
+            <h4 className={`font-semibold text-base mb-4 ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>Recent Readings</h4>
+            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+              {heartRateData.slice().reverse().map((reading, i) => {
+                const v = reading.once_heart_value;
+                const dotColor = v >= 60 && v <= 100 ? 'bg-green-500'
+                  : v >= 50 && v <= 120 ? 'bg-yellow-500'
+                    : v < 50 ? 'bg-blue-500'
+                      : 'bg-red-500';
+                return (
+                  <div key={i} className={`flex items-center justify-between p-4 rounded-xl border ${darkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-100'}`}>
                     <div className="flex items-center gap-4">
-                      <div className={`w-3 h-3 rounded-full shadow-sm ${reading.once_heart_value >= 60 && reading.once_heart_value <= 100 ? 'bg-green-500' :
-                        reading.once_heart_value >= 50 && reading.once_heart_value <= 120 ? 'bg-yellow-500' :
-                          reading.once_heart_value < 50 ? 'bg-blue-500' : 'bg-red-500'
-                        }`}></div>
+                      <div className={`w-3 h-3 rounded-full shadow-sm ${dotColor}`} />
                       <div>
                         <div className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                          {new Date(reading.date).toLocaleTimeString('en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            hour12: true
-                          })}
+                          {new Date(reading.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
                         </div>
                         <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                          {new Date(reading.date).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric'
-                          })}
+                          {new Date(reading.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </div>
                       </div>
                     </div>
                     <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {reading.once_heart_value} <span className="text-xs font-normal opacity-60">BPM</span>
+                      {v} <span className="text-xs font-normal opacity-60">BPM</span>
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           </div>
+
         </div>
       </DataModal>
     </div>

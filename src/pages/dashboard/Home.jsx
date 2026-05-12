@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { getBatteryStatus } from '../../lib/api';
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { Heart, Moon, Activity, Brain, Calendar, TrendingUp, Droplets } from 'lucide-react';
 import SleepDataComponent from '../../components/SleepDataComponent';
@@ -9,9 +10,55 @@ import StressDataComponent from '../../components/StressDataComponent';
 import HRVDataComponent from '../../components/HRVDataComponent';
 import BloodPressureDataComponent from '../../components/BloodPressureDataComponent';
 
-const HomeTab = ({ 
-  darkMode, 
-  selectedUserId, 
+// Horizontal battery icon — nub on LEFT (facing profile), fill grows right
+const BatteryIcon = ({ percentage = null, size = 40 }) => {
+  const pct = percentage !== null ? Math.max(0, Math.min(100, percentage)) : null;
+  const fillColor =
+    pct === null ? '#9CA3AF'
+    : pct > 50   ? '#22C55E'
+    : pct > 20   ? '#F59E0B'
+                 : '#EF4444';
+  // ViewBox: 0 0 64 30
+  // Nub (left / terminal): x=0, y=9, w=6, h=12, rx=2
+  // Outer shell:           x=6, y=0, w=58, h=30, rx=5
+  // Inner background:      x=9, y=3, w=52, h=24, rx=3
+  // Fill grows left→right inside inner area
+  const innerX = 9, innerW = 52, innerY = 3, innerH = 24;
+  const fillW = pct !== null ? (innerW * pct) / 100 : 0;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+      <svg
+        width={size * 1.8}
+        height={size}
+        viewBox="0 0 64 30"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        {/* Terminal nub — left side, points toward profile */}
+        <rect x="0" y="9" width="6" height="12" rx="2" fill="#4B5563" />
+        {/* Outer body shell */}
+        <rect x="6" y="0" width="58" height="30" rx="5" fill="#4B5563" />
+        {/* Inner background */}
+        <rect x={innerX} y={innerY} width={innerW} height={innerH} rx="3" fill="#E5E7EB" />
+        {/* Dynamic fill (left → right) */}
+        {pct !== null && fillW > 0 && (
+          <rect x={innerX} y={innerY} width={fillW} height={innerH} rx="3" fill={fillColor} />
+        )}
+        {/* Question mark when no data */}
+        {pct === null && (
+          <text x="36" y="20" textAnchor="middle" fontSize="12" fill="#9CA3AF" fontWeight="bold">?</text>
+        )}
+      </svg>
+      <span style={{ fontSize: size * 0.3, fontWeight: 700, color: fillColor, lineHeight: 1 }}>
+        {pct !== null ? `${pct}%` : '--'}
+      </span>
+    </div>
+  );
+};
+
+const HomeTab = ({
+  darkMode,
+  selectedUserId,
   selectedUserInfo,
   globalDateFilter,
   globalDateRange
@@ -24,6 +71,7 @@ const HomeTab = ({
   const [bloodPressureData, setBloodPressureData] = useState(null);
   const [stressApiData, setStressApiData] = useState(null);
   const [hrvApiData, setHrvApiData] = useState(null);
+  const [batteryData, setBatteryData] = useState(null);
 
   // State for loading
   const [isLoading, setIsLoading] = useState(false);
@@ -88,7 +136,7 @@ const HomeTab = ({
   // Calculate heart rate score
   const calculateHeartRateScore = (data) => {
     if (!data || data.length === 0) return 70;
-    
+
     const latestHR = data[data.length - 1]?.once_heart_value || 72;
     if (latestHR >= 60 && latestHR <= 80) return 95;
     if (latestHR >= 50 && latestHR <= 90) return 85;
@@ -99,7 +147,7 @@ const HomeTab = ({
   // Calculate SpO2 score
   const calculateSpO2Score = (data) => {
     if (!data || data.length === 0) return 90;
-    
+
     const latestSpO2 = data[data.length - 1]?.Blood_oxygen || 98;
     if (latestSpO2 >= 95) return 100;
     if (latestSpO2 >= 90) return 80;
@@ -110,7 +158,7 @@ const HomeTab = ({
   // Calculate steps score
   const calculateStepsScore = (data) => {
     if (!data || !data.step) return 50;
-    
+
     const steps = data.step;
     if (steps >= 10000) return 100;
     if (steps >= 7500) return 85;
@@ -147,12 +195,12 @@ const HomeTab = ({
   // Calculate overall health score
   const overallScore = useMemo(() => {
     const scores = [];
-    
+
     if (heartRateData) scores.push(calculateHeartRateScore(heartRateData));
     if (sleepData) scores.push(sleepScore);
     if (spo2Data) scores.push(calculateSpO2Score(spo2Data));
     if (stepsData) scores.push(calculateStepsScore(stepsData));
-    
+
     if (scores.length > 0) {
       const average = scores.reduce((a, b) => a + b, 0) / scores.length;
       return average.toFixed(1);
@@ -177,8 +225,8 @@ const HomeTab = ({
     if (globalDateRange?.customRange && globalDateRange.from && globalDateRange.to) {
       return `Filtering: ${globalDateRange.from} to ${globalDateRange.to}`;
     }
-    
-    switch(globalDateFilter) {
+
+    switch (globalDateFilter) {
       case 'today':
         return 'Showing data for today';
       case 'week':
@@ -206,30 +254,36 @@ const HomeTab = ({
     setIsLoading(anyLoading);
   }, [dataLoadingStates]);
 
-  // Stress data for fallback chart
-  const fallbackStressData = [
-    { time: '8AM', level: 25 },
-    { time: '10AM', level: 45 },
-    { time: '12PM', level: 65 },
-    { time: '2PM', level: 80 },
-    { time: '4PM', level: 55 },
-    { time: '6PM', level: 30 },
-    { time: '8PM', level: 20 }
-  ];
+  // Fetch battery status whenever the selected user changes
+  useEffect(() => {
+    let cancelled = false;
+    const fetchBattery = async () => {
+      try {
+        // Pass userId for mapped users only; omit for self
+        const data = await getBatteryStatus(selectedUserId || null);
+        if (!cancelled) setBatteryData(data);
+      } catch (err) {
+        console.warn('Battery status fetch failed:', err);
+        if (!cancelled) setBatteryData(null);
+      }
+    };
+    fetchBattery();
+    return () => { cancelled = true; };
+  }, [selectedUserId]);
 
   // Get latest timestamps
   const latestHeartRateTime = useMemo(() => {
     return heartRateData && heartRateData.length > 0 ? heartRateData[heartRateData.length - 1]?.measure_time || heartRateData[heartRateData.length - 1]?.created_at || heartRateData[heartRateData.length - 1]?.date : null;
   }, [heartRateData]);
-  
+
   const latestSpO2Time = useMemo(() => {
     return spo2Data && spo2Data.length > 0 ? spo2Data[spo2Data.length - 1]?.measure_time || spo2Data[spo2Data.length - 1]?.created_at || spo2Data[spo2Data.length - 1]?.date : null;
   }, [spo2Data]);
-  
+
   const latestSleepTime = useMemo(() => {
     return sleepData && sleepData.length > 0 ? sleepData[0]?.date : null;
   }, [sleepData]);
-  
+
   const latestStepsTime = useMemo(() => {
     return stepsData?.date || null;
   }, [stepsData]);
@@ -240,14 +294,14 @@ const HomeTab = ({
       if (typeof dateString === 'string' && dateString.length <= 10 && dateString.includes('-')) {
         const parts = dateString.split('-');
         if (parts.length === 3) {
-           const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-           return `${months[parseInt(parts[1])-1]} ${parseInt(parts[2])}, ${parts[0]}`;
+          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          return `${months[parseInt(parts[1]) - 1]} ${parseInt(parts[2])}, ${parts[0]}`;
         }
       }
       const d = new Date(dateString);
       if (isNaN(d.getTime())) return dateString;
-      return isDateOnly ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) 
-                        : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute:'2-digit' });
+      return isDateOnly ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     } catch {
       return dateString;
     }
@@ -269,27 +323,28 @@ const HomeTab = ({
 
   return (
     <div>
-      {/* User Header without Filters - Now just shows user info and current filter status */}
+      {/* User Header */}
       <div className={`rounded-2xl p-4 md:p-6 mb-6 md:mb-8 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          {/* User Info */}
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between w-full gap-4">
+
+          {/* Left: Avatar + Title */}
+          <div className="flex items-center gap-4 flex-1 min-w-0">
             {selectedUserInfo?.profileImage ? (
               <img
                 src={selectedUserInfo.profileImage}
                 alt={selectedUserInfo.name}
-                className="w-12 h-12 md:w-16 md:h-16 rounded-full object-cover ring-2 ring-blue-500"
+                className="w-12 h-12 md:w-16 md:h-16 rounded-full object-cover ring-2 ring-blue-500 flex-shrink-0"
                 onError={(e) => {
                   e.target.onerror = null;
                   e.target.src = 'https://via.placeholder.com/64?text=' + (selectedUserInfo?.name?.charAt(0) || 'U');
                 }}
               />
             ) : (
-              <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xl md:text-2xl font-bold ring-2 ring-blue-500">
+              <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xl md:text-2xl font-bold ring-2 ring-blue-500 flex-shrink-0">
                 {selectedUserInfo?.name?.charAt(0) || 'U'}
               </div>
             )}
-            <div>
+            <div className="min-w-0">
               <h2 className={`text-xl md:text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                 {selectedUserInfo?.name}'s Fitness Dashboard
               </h2>
@@ -299,15 +354,21 @@ const HomeTab = ({
             </div>
           </div>
 
-          {/* Loading Indicator */}
+          {/* Center: Loading Indicator */}
           {isLoading && (
-            <div className="flex items-center gap-2 px-3 py-1.5">
+            <div className="flex items-center gap-2 px-3 py-1.5 flex-shrink-0">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
               <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                 Loading data...
               </span>
             </div>
           )}
+
+          {/* Right: Vertical Battery Icon with live % */}
+          <div className="flex-shrink-0 flex items-center justify-end">
+            <BatteryIcon percentage={batteryData?.percentage ?? null} size={48} />
+          </div>
+
         </div>
       </div>
 
@@ -479,7 +540,7 @@ const HomeTab = ({
             <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
               {getDateRangeDisplay()}. Your metrics are being tracked and analyzed to provide you with the best insights for your health journey.
             </p>
-            
+
             {/* Data completion status */}
             <div className="flex flex-wrap gap-3 mt-3">
               <div className="flex items-center gap-1">
@@ -500,15 +561,14 @@ const HomeTab = ({
               </div>
             </div>
           </div>
-          
+
           {/* Overall Score */}
           <div className="flex items-center gap-4 ml-0 md:ml-4">
             <div className="text-center">
-              <div className={`text-3xl md:text-4xl font-bold ${
-                overallScore === 'N/A' ? 'text-gray-400' :
-                parseFloat(overallScore) >= 80 ? 'text-green-500' :
-                parseFloat(overallScore) >= 60 ? 'text-yellow-500' : 'text-red-500'
-              }`}>
+              <div className={`text-3xl md:text-4xl font-bold ${overallScore === 'N/A' ? 'text-gray-400' :
+                  parseFloat(overallScore) >= 80 ? 'text-green-500' :
+                    parseFloat(overallScore) >= 60 ? 'text-yellow-500' : 'text-red-500'
+                }`}>
                 {getScoreGrade(overallScore)}
               </div>
               <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -524,7 +584,7 @@ const HomeTab = ({
         </div>
       </div>
 
-      {/* Empty State - Show when no data is available */}
+      {/* Empty State */}
       {!heartRateData && !sleepData && !spo2Data && !stepsData && !isLoading && (
         <div className={`rounded-xl md:rounded-2xl p-8 md:p-12 shadow-lg border mt-6 text-center ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
           <Activity className="w-16 h-16 mx-auto mb-4 text-gray-400" />
