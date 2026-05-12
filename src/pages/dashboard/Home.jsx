@@ -10,7 +10,7 @@ import StressDataComponent from '../../components/StressDataComponent';
 import HRVDataComponent from '../../components/HRVDataComponent';
 import BloodPressureDataComponent from '../../components/BloodPressureDataComponent';
 
-// Horizontal battery icon — nub on LEFT (facing profile), fill grows right
+// Horizontal battery icon — nub on LEFT, percentage text inside the body
 const BatteryIcon = ({ percentage = null, size = 40 }) => {
   const pct = percentage !== null ? Math.max(0, Math.min(100, percentage)) : null;
   const fillColor =
@@ -22,37 +22,43 @@ const BatteryIcon = ({ percentage = null, size = 40 }) => {
   // Nub (left / terminal): x=0, y=9, w=6, h=12, rx=2
   // Outer shell:           x=6, y=0, w=58, h=30, rx=5
   // Inner background:      x=9, y=3, w=52, h=24, rx=3
-  // Fill grows left→right inside inner area
+  // Body center for text:  x=35, y=15
   const innerX = 9, innerW = 52, innerY = 3, innerH = 24;
   const fillW = pct !== null ? (innerW * pct) / 100 : 0;
+  const fillX = innerX + innerW - fillW; // anchor to right edge — fills right→left
+  const textX = innerX + innerW / 2; // 35 — center of the inner area
+  const textY = innerY + innerH / 2 + 4; // 19 — vertically centered
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-      <svg
-        width={size * 1.8}
-        height={size}
-        viewBox="0 0 64 30"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
+    <svg
+      width={size * 1.8}
+      height={size}
+      viewBox="0 0 64 30"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {/* Terminal nub — left side, points toward profile */}
+      <rect x="0" y="9" width="6" height="12" rx="2" fill="#4B5563" />
+      {/* Outer body shell */}
+      <rect x="6" y="0" width="58" height="30" rx="5" fill="#4B5563" />
+      {/* Inner background */}
+      <rect x={innerX} y={innerY} width={innerW} height={innerH} rx="3" fill="#E5E7EB" />
+      {/* Dynamic fill (right → left, opposite the nub) */}
+      {pct !== null && fillW > 0 && (
+        <rect x={fillX} y={innerY} width={fillW} height={innerH} rx="3" fill={fillColor} />
+      )}
+      {/* Percentage text centered inside the battery body */}
+      <text
+        x={textX}
+        y={textY}
+        textAnchor="middle"
+        fontSize="9"
+        fontWeight="bold"
+        fill="white"
+        style={{ filter: 'drop-shadow(0px 0px 1px rgba(0,0,0,0.5))' }}
       >
-        {/* Terminal nub — left side, points toward profile */}
-        <rect x="0" y="9" width="6" height="12" rx="2" fill="#4B5563" />
-        {/* Outer body shell */}
-        <rect x="6" y="0" width="58" height="30" rx="5" fill="#4B5563" />
-        {/* Inner background */}
-        <rect x={innerX} y={innerY} width={innerW} height={innerH} rx="3" fill="#E5E7EB" />
-        {/* Dynamic fill (left → right) */}
-        {pct !== null && fillW > 0 && (
-          <rect x={innerX} y={innerY} width={fillW} height={innerH} rx="3" fill={fillColor} />
-        )}
-        {/* Question mark when no data */}
-        {pct === null && (
-          <text x="36" y="20" textAnchor="middle" fontSize="12" fill="#9CA3AF" fontWeight="bold">?</text>
-        )}
-      </svg>
-      <span style={{ fontSize: size * 0.3, fontWeight: 700, color: fillColor, lineHeight: 1 }}>
-        {pct !== null ? `${pct}%` : '--'}
-      </span>
-    </div>
+        {pct !== null ? `${pct}%` : '—'}
+      </text>
+    </svg>
   );
 };
 
