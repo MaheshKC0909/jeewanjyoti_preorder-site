@@ -177,19 +177,18 @@ function Register() {
       } else {
         // Institution registration
         Object.entries(data).forEach(([key, value]) => {
-          if (key === 'logo' && value && value[0]) {
-            formData.append('logo', value[0])
+          if (key === 'logo') {
+            // Only append logo if a file is selected
+            if (value && value[0]) {
+              formData.append('logo', value[0])
+            }
           } else if (value !== undefined && value !== null) {
             formData.append(key, value)
           }
         })
       }
 
-      const response = await api.post(url, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      })
+      const response = await api.post(url, formData)
 
       console.log('Registration successful:', response.data)
       
