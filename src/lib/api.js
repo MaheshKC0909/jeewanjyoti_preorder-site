@@ -394,6 +394,51 @@ export async function getHeartRateData(userId = null, fromDate = null, toDate = 
 }
 
 /**
+ * Get daily aggregated Heart Rate data (for 7d / 30d bar-chart views).
+ * Returns { count, results } where each result:
+ *   { day, average_heart_rate, minimum_heart_rate, maximum_heart_rate }
+ * @param {string|null} userId - Optional user ID
+ * @param {string} range - '7d' or '30d'
+ * @returns {Promise<{count: number, results: Array}>}
+ */
+export async function getDailyHeartRateData(userId = null, range = '7d') {
+  const base = userId
+    ? `/api/HeartRate_Data/?user_id=${userId}&range=${range}`
+    : `/api/HeartRate_Data/?range=${range}`;
+
+  console.log('Fetching daily heart rate data:', base);
+
+  let allResults = [];
+  let nextUrl = base;
+  let useAbsolute = false;
+  let totalCount = 0;
+
+  while (nextUrl) {
+    let response;
+    if (useAbsolute) {
+      const secureUrl = nextUrl.replace(/^http:\/\//, 'https://');
+      response = await authenticatedFetch(secureUrl, {});
+    } else {
+      response = await apiRequest(nextUrl);
+    }
+    if (!response.ok) throw new Error(`Failed to fetch daily heart rate data: ${response.status}`);
+    const data = await response.json();
+    if (data && typeof data === 'object' && 'results' in data) {
+      allResults = allResults.concat(data.results);
+      totalCount = data.count ?? allResults.length;
+      nextUrl = data.next ? data.next : null;
+      useAbsolute = true;
+    } else {
+      allResults = Array.isArray(data) ? data : [data];
+      nextUrl = null;
+    }
+  }
+
+  console.log(`Daily heart rate: ${allResults.length} day(s) fetched`);
+  return { count: totalCount, results: allResults };
+}
+
+/**
  * Get Blood Pressure data
  * @param {string} userId - Optional user ID
  * @param {string} fromDate - Optional from date filter (YYYY-MM-DD)

@@ -139,11 +139,12 @@ const HomeTab = ({
     return Math.min(score, 100);
   };
 
-  // Calculate heart rate score
+  // Calculate heart rate score — handles both single readings (once_heart_value) and daily aggregates (average_heart_rate)
   const calculateHeartRateScore = (data) => {
     if (!data || data.length === 0) return 70;
 
-    const latestHR = data[data.length - 1]?.once_heart_value || 72;
+    const last = data[data.length - 1];
+    const latestHR = last?.once_heart_value ?? last?.average_heart_rate ?? 72;
     if (latestHR >= 60 && latestHR <= 80) return 95;
     if (latestHR >= 50 && latestHR <= 90) return 85;
     if (latestHR >= 40 && latestHR <= 100) return 75;
@@ -175,9 +176,11 @@ const HomeTab = ({
 
   // Memoized values for quick stats
   const latestHeartRate = useMemo(() => {
-    return heartRateData && Array.isArray(heartRateData) && heartRateData.length > 0
-      ? heartRateData[heartRateData.length - 1]?.once_heart_value
-      : '—';
+    if (!heartRateData || !Array.isArray(heartRateData) || heartRateData.length === 0) return '—';
+    const last = heartRateData[heartRateData.length - 1];
+    // single reading → once_heart_value; daily aggregate → average_heart_rate
+    const val = last?.once_heart_value ?? (last?.average_heart_rate ? Math.round(last.average_heart_rate) : undefined);
+    return val ?? '—';
   }, [heartRateData]);
 
   const sleepScore = useMemo(() => {
@@ -279,7 +282,10 @@ const HomeTab = ({
 
   // Get latest timestamps
   const latestHeartRateTime = useMemo(() => {
-    return heartRateData && heartRateData.length > 0 ? heartRateData[heartRateData.length - 1]?.measure_time || heartRateData[heartRateData.length - 1]?.created_at || heartRateData[heartRateData.length - 1]?.date : null;
+    if (!heartRateData || heartRateData.length === 0) return null;
+    const last = heartRateData[heartRateData.length - 1];
+    // single reading uses measure_time / created_at / date; daily aggregate uses day
+    return last?.measure_time || last?.created_at || last?.date || last?.day || null;
   }, [heartRateData]);
 
   const latestSpO2Time = useMemo(() => {
@@ -394,9 +400,17 @@ const HomeTab = ({
           </div>
           <div className="mt-2 text-xs text-red-100 flex justify-between items-center gap-2">
             <div>
-              {heartRateData && heartRateData.length > 1 && (
-                <span>Range: {Math.min(...heartRateData.map(d => d.once_heart_value))} - {Math.max(...heartRateData.map(d => d.once_heart_value))} BPM</span>
-              )}
+              {heartRateData && heartRateData.length > 1 && (() => {
+                // Support both single-reading and daily-aggregate shapes
+                const isMultiDay = 'day' in heartRateData[0];
+                const minVal = isMultiDay
+                  ? Math.min(...heartRateData.map(d => d.minimum_heart_rate))
+                  : Math.min(...heartRateData.map(d => d.once_heart_value));
+                const maxVal = isMultiDay
+                  ? Math.max(...heartRateData.map(d => d.maximum_heart_rate))
+                  : Math.max(...heartRateData.map(d => d.once_heart_value));
+                return <span>Range: {minVal} – {maxVal} BPM</span>;
+              })()}
             </div>
             {latestHeartRateTime && <div className="text-right whitespace-nowrap opacity-90">{formatDateTime(latestHeartRateTime)}</div>}
           </div>
