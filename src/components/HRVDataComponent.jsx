@@ -531,10 +531,10 @@ function MultiDayBarPreview({ data, darkMode }) {
         }
       `}</style>
       <div
-        className={`rounded-xl p-3 relative ${darkMode ? 'bg-gray-900/40' : 'bg-gray-50'}`}
+        className={`rounded-xl p-3 relative overflow-visible ${darkMode ? 'bg-gray-900/40' : 'bg-gray-50'}`}
         style={{ border: `1px solid ${darkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}` }}
       >
-        <div className="flex items-end justify-between gap-1.5" style={{ height: 64 }}>
+        <div className="flex items-end justify-between gap-1.5 overflow-visible" style={{ height: 64 }}>
           {bars.map((d, i) => {
             const z = zoneColor(d.hrv);
             const pct = Math.max(8, (d.hrv / (maxHrv * 1.15)) * 100);
@@ -574,16 +574,19 @@ function MultiDayBarPreview({ data, darkMode }) {
                       <p className="text-[10px] font-semibold mb-1.5" style={{ color: darkMode ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)' }}>
                         {label}
                       </p>
+                      <p className="text-[9px] font-medium mb-0.5" style={{ color: darkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)' }}>
+                        Average
+                      </p>
                       <p className="text-base font-bold tabular-nums" style={{ color: z.bar }}>{d.hrv} ms</p>
-                      <div className="flex items-center justify-center gap-2 mt-1.5">
-                        {d.max != null && (
-                          <span className="flex items-center gap-0.5 text-[9px] font-semibold" style={{ color: '#378ADD' }}>
-                            ↑ {Math.round(d.max)}
+                      <div className="flex flex-col gap-1 mt-1.5 text-left w-full px-0.5">
+                        {d.min != null && (
+                          <span className="text-[9px] font-semibold" style={{ color: darkMode ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.55)' }}>
+                            Min: <span style={{ color: '#EF9F27' }}>{Math.round(d.min)} ms</span>
                           </span>
                         )}
-                        {d.min != null && (
-                          <span className="flex items-center gap-0.5 text-[9px] font-semibold" style={{ color: '#EF9F27' }}>
-                            ↓ {Math.round(d.min)}
+                        {d.max != null && (
+                          <span className="text-[9px] font-semibold" style={{ color: darkMode ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.55)' }}>
+                            Max: <span style={{ color: '#378ADD' }}>{Math.round(d.max)} ms</span>
                           </span>
                         )}
                       </div>
@@ -959,11 +962,16 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
 
       {/* Mini sparkline on card — single-day, no fill */}
       {!spiralChartData.length && chartData.length > 1 && (
-        <div style={{ height: 52, marginTop: 6 }}>
+        <div style={{ height: 52, marginTop: 6 }} className="relative z-0">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+            <LineChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <Tooltip
+                content={<CustomTooltip darkMode={darkMode} />}
+                cursor={{ stroke: chartStroke, strokeWidth: 1, strokeDasharray: '3 3' }}
+              />
               <Line type="monotone" dataKey="value" stroke={chartStroke} strokeWidth={2}
-                dot={false} isAnimationActive={false} />
+                dot={false} activeDot={{ r: 4, fill: chartStroke, stroke: darkMode ? '#1f2937' : '#fff', strokeWidth: 2 }}
+                isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
