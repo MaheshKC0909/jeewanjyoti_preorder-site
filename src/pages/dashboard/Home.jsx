@@ -484,7 +484,7 @@ const HomeTab = ({
       </div>
 
       {/* Main Metrics Grid - Row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 mb-6 md:mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 mb-6 md:mb-8 items-stretch">
         <HeartRateDataComponent
           darkMode={darkMode}
           onHeartRateDataUpdate={setHeartRateData}

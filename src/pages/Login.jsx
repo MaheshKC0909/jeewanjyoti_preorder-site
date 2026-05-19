@@ -508,15 +508,15 @@ function Login() {
       
       const data = await response.json()
       console.log('Google login successful:', data)
-      console.log('Google login - user data:', data.user)
-      console.log('Google login - user role:', data.user?.role)
+      const loggedInEntity = loginType === 'institutional' ? data.institution : data.user
+      console.log('Google login - entity data:', loggedInEntity)
       
       // Store tokens and user data
-      storeTokens(data.access, data.refresh, data.user)
+      storeTokens(data.access, data.refresh, loggedInEntity)
       console.log('✅ Login successful, initiating notification flow...')
       
       // Check if profile is incomplete
-      if (data.user) {
+      if (loginType === 'individual' && data.user) {
         const requiredFields = ['first_name', 'last_name', 'birthdate', 'gender', 'height', 'weight', 'blood_group'];
         const missingFields = requiredFields.filter(field => !data.user[field] || data.user[field] === '' || data.user[field] === '0.00');
         
@@ -532,7 +532,7 @@ function Login() {
       }
       
       // Navigate first, then handle notifications in background
-      navigate('/dashboard')
+      navigate(loginType === 'institutional' ? '/institution-dashboard' : '/dashboard')
       
       // Call notification flow immediately (don't wait) - it will handle its own timing
       console.log('🚀 About to call handleNotificationsAfterLogin...')
@@ -585,15 +585,15 @@ function Login() {
       
       const data = await response.json()
       console.log('Login successful:', data)
-      console.log('Login - user data:', data.user)
-      console.log('Login - user role:', data.user?.role)
+      const loggedInEntity = loginType === 'institutional' ? data.institution : data.user
+      console.log('Login - entity data:', loggedInEntity)
       
       // Store tokens and user data
-      storeTokens(data.access, data.refresh, data.user)
+      storeTokens(data.access, data.refresh, loggedInEntity)
       console.log('✅ Login successful, initiating notification flow...')
       
       // Check if profile is incomplete
-      if (data.user) {
+      if (loginType === 'individual' && data.user) {
         const requiredFields = ['first_name', 'last_name', 'birthdate', 'gender', 'height', 'weight', 'blood_group'];
         const missingFields = requiredFields.filter(field => !data.user[field] || data.user[field] === '' || data.user[field] === '0.00');
         
@@ -609,7 +609,7 @@ function Login() {
       }
       
       // Navigate first, then handle notifications in background
-      navigate('/dashboard')
+      navigate(loginType === 'institutional' ? '/institution-dashboard' : '/dashboard')
       
       // Call notification flow immediately (don't wait) - it will handle its own timing
       console.log('🚀 About to call handleNotificationsAfterLogin...')

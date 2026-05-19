@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   AreaChart, Area, BarChart, Bar, Cell, ResponsiveContainer,
-  XAxis, YAxis, CartesianGrid, Tooltip, ReferenceArea
+  XAxis, YAxis, CartesianGrid, Tooltip, ReferenceArea,
+  Line
 } from 'recharts';
 import {
   Heart, TrendingUp, AlertCircle, RefreshCw, Activity,
@@ -11,6 +12,10 @@ import { getHeartRateData, getDailyHeartRateData } from '../lib/api';
 import DataModal from './ui/Modal';
 
 const WINDOW_SIZE = 300;
+
+/** Shared with SpO2 card — keeps side-by-side panels aligned */
+const DAILY_CHART_HEIGHT = 208;
+const LIVE_CHART_HEIGHT = 200;
 
 const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserId, dateRange }) => {
   const [heartRateData, setHeartRateData] = useState([]);
@@ -352,45 +357,101 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
     </div>
   );
 
-  // ── Bar chart (daily view) ────────────────────────────────────────────
-  const DailyBarChart = ({ height = 220 }) => (
-    <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={processedDailyData} barCategoryGap="30%" margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
-        <defs>
-          {processedDailyData.map((_, i) => (
-            <linearGradient key={i} id={`bar-grad-${i}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={processedDailyData[i].isNormal ? '#f87171' : '#fb923c'} stopOpacity={0.95} />
-              <stop offset="100%" stopColor={processedDailyData[i].isNormal ? '#ef4444' : '#f97316'} stopOpacity={0.7} />
+  // ── Daily BPM panel (bar + trend lines — distinct from SpO2 range capsules) ──
+  const HeartRateDailyPanel = ({ height = DAILY_CHART_HEIGHT, chartId = 'hr' }) => (
+    <div
+      className={`relative rounded-2xl overflow-hidden border ${darkMode ? 'border-red-500/10 bg-gradient-to-b from-slate-900/50 via-slate-900/20 to-transparent' : 'border-red-100/80 bg-gradient-to-b from-rose-50/90 via-red-50/30 to-white'}`}
+      style={{ height }}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={processedDailyData} barCategoryGap="26%" margin={{ top: 28, right: 12, left: 0, bottom: 8 }}>
+          <defs>
+            <filter id={`${chartId}BarShadow`} x="-20%" y="-20%" width="140%" height="160%">
+              <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor={darkMode ? '#000000' : '#111827'} floodOpacity={darkMode ? 0.35 : 0.18} />
+            </filter>
+            {processedDailyData.map((_, i) => (
+              <linearGradient key={i} id={`${chartId}-bar-grad-${i}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={processedDailyData[i].isNormal ? '#f87171' : '#fb923c'} stopOpacity={0.95} />
+                <stop offset="100%" stopColor={processedDailyData[i].isNormal ? '#ef4444' : '#f97316'} stopOpacity={0.7} />
+              </linearGradient>
+            ))}
+            <linearGradient id={`${chartId}LineMin`} x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#22c55e" stopOpacity={0.9} />
+              <stop offset="100%" stopColor="#10b981" stopOpacity={0.9} />
             </linearGradient>
-          ))}
-        </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#374151' : '#f0f0f0'} vertical={false} />
-        <XAxis
-          dataKey="label"
-          stroke={darkMode ? '#9CA3AF' : '#9ca3af'}
-          tick={{ fontSize: 11, fill: darkMode ? '#9CA3AF' : '#6b7280' }}
-          axisLine={false} tickLine={false}
-        />
-        <YAxis
-          domain={[yMin, yMax]}
-          stroke={darkMode ? '#9CA3AF' : '#9ca3af'}
-          tick={{ fontSize: 11, fill: darkMode ? '#9CA3AF' : '#6b7280' }}
-          axisLine={false} tickLine={false}
-          width={36}
-        />
-        <Tooltip content={<DailyTooltip />} cursor={{ fill: darkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)', radius: 6 }} />
-        <ReferenceArea y1={60} y2={100} fill="#10b981" fillOpacity={0.07} />
-        <Bar dataKey="avg" radius={[6, 6, 2, 2]} maxBarSize={40} isAnimationActive={false}>
-          {processedDailyData.map((_, i) => (
-            <Cell key={i} fill={`url(#bar-grad-${i})`} />
-          ))}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
+            <linearGradient id={`${chartId}LineMax`} x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#fb923c" stopOpacity={0.95} />
+              <stop offset="100%" stopColor="#f97316" stopOpacity={0.95} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="4 6" stroke={darkMode ? 'rgba(148,163,184,0.12)' : 'rgba(239,68,68,0.1)'} vertical={false} />
+          <XAxis
+            dataKey="label"
+            stroke="transparent"
+            tick={{ fontSize: 10, fill: darkMode ? '#94a3b8' : '#64748b' }}
+            axisLine={false}
+            tickLine={false}
+            tickMargin={8}
+            interval={processedDailyData.length > 14 ? 'preserveStartEnd' : 0}
+          />
+          <YAxis
+            domain={[yMin, yMax]}
+            stroke="transparent"
+            tick={{ fontSize: 10, fill: darkMode ? '#64748b' : '#94a3b8' }}
+            axisLine={false}
+            tickLine={false}
+            width={32}
+            tickMargin={6}
+          />
+          <Tooltip
+            content={<DailyTooltip />}
+            cursor={{ fill: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(239,68,68,0.06)', radius: 10 }}
+          />
+          <ReferenceArea y1={60} y2={100} fill="#10b981" fillOpacity={darkMode ? 0.1 : 0.12} />
+          <Line
+            type="monotone"
+            dataKey="min"
+            stroke={`url(#${chartId}LineMin)`}
+            strokeWidth={2}
+            dot={false}
+            activeDot={{ r: 3, strokeWidth: 0 }}
+            isAnimationActive={false}
+          />
+          <Line
+            type="monotone"
+            dataKey="max"
+            stroke={`url(#${chartId}LineMax)`}
+            strokeWidth={2}
+            dot={false}
+            activeDot={{ r: 3, strokeWidth: 0 }}
+            isAnimationActive={false}
+          />
+          <Bar dataKey="avg" radius={[10, 10, 4, 4]} maxBarSize={44} isAnimationActive={false} filter={`url(#${chartId}BarShadow)`}>
+            {processedDailyData.map((_, i) => (
+              <Cell key={i} fill={`url(#${chartId}-bar-grad-${i})`} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+      <div className={`absolute top-2 left-3 flex flex-wrap gap-3 text-[10px] ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-3 h-2.5 rounded-sm bg-gradient-to-t from-red-600 to-red-400 opacity-90" />
+          Avg BPM
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-4 border-t-2 border-emerald-500" />
+          Min trend
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-4 border-t-2 border-orange-500" />
+          Max trend
+        </span>
+      </div>
+    </div>
   );
 
   // ── Area chart (granular) ─────────────────────────────────────────────
-  const ChartBody = ({ height = 200 }) => (
+  const ChartBody = ({ height = LIVE_CHART_HEIGHT }) => (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={visibleData}>
         <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#374151' : '#f0f0f0'} horizontal={!darkMode} vertical={false} />
@@ -459,9 +520,9 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
 
   // ── Main render ───────────────────────────────────────────────────────
   return (
-    <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+    <div className={`h-full flex flex-col rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 shrink-0">
         <div className="flex items-center gap-3">
           <div className="p-3 md:p-4 rounded-xl bg-red-500 bg-opacity-20 shadow-lg">
             <Heart className="w-6 h-6 md:w-8 md:h-8 text-red-500" />
@@ -492,7 +553,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
       </div>
 
       {/* Status badges */}
-      <div className="mb-6 flex flex-wrap gap-3">
+      <div className="mb-4 flex flex-wrap gap-3 min-h-[40px] shrink-0">
         <div className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg ${status.bgColor}`}>
           <div className={`w-2 h-2 rounded-full ${status.color.replace('text-', 'bg-')}`} />
           <span className={`text-sm font-medium ${status.color}`}>{status.status} Range</span>
@@ -510,11 +571,10 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
       </div>
 
       {/* Chart */}
-      <div className="mb-2">
+      <div className="mb-2 flex-1 flex flex-col min-h-0">
         {isDailyView ? (
           <>
-            {/* Legend */}
-            <div className="mb-3 flex items-center gap-4 text-xs">
+            <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs min-h-[32px] shrink-0">
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
                 <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Normal Range (60–100 BPM)</span>
@@ -524,35 +584,40 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
                 <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Outside Normal Range</span>
               </div>
             </div>
-            <DailyBarChart height={200} />
+            <HeartRateDailyPanel height={DAILY_CHART_HEIGHT} chartId="hrCard" />
 
             {/* Mini summary cards below chart */}
-            <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="mt-4 grid grid-cols-3 gap-2 shrink-0">
               {[
-                { label: 'Avg BPM', value: averageHeartRate, color: 'text-red-500' },
-                { label: 'Min BPM', value: min, color: 'text-green-500' },
-                { label: 'Max BPM', value: max, color: 'text-orange-500' },
-              ].map(({ label, value, color }) => (
-                <div key={label} className={`rounded-xl p-3 text-center border ${darkMode ? 'bg-gray-700/40 border-gray-600' : 'bg-gray-50 border-gray-100'}`}>
-                  <div className={`text-lg font-bold ${color}`}>{value}</div>
-                  <div className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{label}</div>
+                { label: 'Period avg', value: averageHeartRate, accent: 'from-red-500 to-rose-600', icon: TrendingUp },
+                { label: 'Lowest day', value: min, accent: 'from-orange-500 to-amber-600', icon: Activity },
+                { label: 'Peak day', value: max, accent: 'from-rose-400 to-red-600', icon: Heart },
+              ].map(({ label, value, accent, icon: Icon }) => (
+                <div
+                  key={label}
+                  className={`relative overflow-hidden rounded-xl p-3 border ${darkMode ? 'bg-slate-800/60 border-slate-600/50' : 'bg-white border-red-100/80 shadow-sm'}`}
+                >
+                  <div className={`absolute inset-0 opacity-[0.07] bg-gradient-to-br ${accent}`} />
+                  <Icon className={`w-3.5 h-3.5 mb-1.5 ${darkMode ? 'text-red-400' : 'text-red-600'}`} />
+                  <div className={`text-lg font-bold bg-gradient-to-r ${accent} bg-clip-text text-transparent`}>{value}</div>
+                  <div className={`text-[10px] mt-0.5 uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>{label}</div>
                 </div>
               ))}
             </div>
           </>
         ) : (
           <>
-            <div className="mb-3 flex items-center gap-4 text-xs">
+            <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs min-h-[32px] shrink-0">
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Normal Range (60–100 BPM)</span>
+                <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Normal (60–100 BPM)</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
-                <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Outside Normal Range</span>
+                <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Outside normal</span>
               </div>
             </div>
-            <ChartBody height={200} />
+            <ChartBody height={LIVE_CHART_HEIGHT} />
             <SliderControl />
           </>
         )}
@@ -601,7 +666,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
           </div>
 
           {/* Modal chart */}
-          {isDailyView ? <DailyBarChart height={300} /> : (
+          {isDailyView ? <HeartRateDailyPanel height={300} chartId="hrModal" /> : (
             <>
               <ChartBody height={300} />
               <SliderControl />

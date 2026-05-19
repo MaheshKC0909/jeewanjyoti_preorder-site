@@ -3,6 +3,7 @@ import JeewanJyotiLanding from './JeewanJyotiLanding'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
+import InstitutionDashboard from './pages/InstitutionDashboard'
 import PaymentSuccess from './pages/PaymentSuccess'
 import MappingSuccess from './lib/MappingSuccess'
 import Blogs from './pages/Blogs'
@@ -14,6 +15,7 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/institution-dashboard" element={<InstitutionDashboard />} />
       <Route path="/payment-success" element={<PaymentSuccess />} />
       <Route path="/mapping-success" element={<MappingSuccess />} />
       <Route path="/blogs" element={<Blogs />} />
