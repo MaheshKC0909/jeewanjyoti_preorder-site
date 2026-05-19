@@ -1,8 +1,238 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import { Brain, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Calendar, X } from 'lucide-react';
+﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import {
+  AreaChart, Area, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip,
+  ComposedChart, Line, Scatter, ReferenceArea, ReferenceLine, Customized
+} from 'recharts';
+import { Brain, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Calendar, Eye, EyeOff, CheckCircle2, AlertTriangle, Flame } from 'lucide-react';
 import { getStressData } from '../lib/api';
 import DataModal from './ui/Modal';
+
+function isDailyStressRow(row) {
+  return row && typeof row.day === 'string' && typeof row.average_stress === 'number';
+}
+
+function parseDayISO(dayStr) {
+  if (!dayStr || typeof dayStr !== 'string') return null;
+  const match = dayStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return new Date(dayStr);
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+const DAILY_CHART_HEIGHT = 208;
+const LIVE_CHART_HEIGHT = 200;
+
+function stressTier(avg) {
+  if (avg < 30) {
+    return { primary: '#10b981', glow: '#34d399', bandTop: '#6ee7b7', bandBottom: '#059669', label: 'Low' };
+  }
+  if (avg < 60) {
+    return { primary: '#f59e0b', glow: '#fbbf24', bandTop: '#fde68a', bandBottom: '#d97706', label: 'Moderate' };
+  }
+  return { primary: '#ef4444', glow: '#f87171', bandTop: '#fecaca', bandBottom: '#dc2626', label: 'High' };
+}
+
+/** Soft vertical ribbons (wider than SpO2 capsules) with a calm-pulse mark at daily avg */
+function StressRibbonLayer({ data, chartId, darkMode }) {
+  return function Render(props) {
+    const { xAxisMap, yAxisMap, offset } = props;
+    if (!xAxisMap || !yAxisMap || !data?.length) return null;
+
+    const xAxis = Object.values(xAxisMap)[0];
+    const yAxis = Object.values(yAxisMap)[0];
+    const xScale = xAxis.scale;
+    const yScale = yAxis.scale;
+    const bandwidth = typeof xScale.bandwidth === 'function' ? xScale.bandwidth() : 28;
+    const left = offset?.left ?? 0;
+    const top = offset?.top ?? 0;
+
+    return (
+      <g className="stress-ribbons">
+        {data.map((d, i) => {
+          const cx = (xScale(d.label) ?? 0) + bandwidth / 2 + left;
+          const yTop = yScale(d.max) + top;
+          const yBottom = yScale(d.min) + top;
+          const h = Math.max(8, yBottom - yTop);
+          const w = Math.min(26, Math.max(12, bandwidth * 0.62));
+          const yAvg = yScale(d.avg) + top;
+          const tier = stressTier(d.avg);
+
+          return (
+            <g key={d.day || i}>
+              <ellipse cx={cx} cy={yTop} rx={w / 2} ry={3} fill={tier.bandTop} opacity={0.55} />
+              <ellipse cx={cx} cy={yBottom} rx={w / 2} ry={3} fill={tier.bandBottom} opacity={0.55} />
+              <rect
+                x={cx - w / 2}
+                y={yTop}
+                width={w}
+                height={h}
+                rx={w * 0.35}
+                fill={`url(#${chartId}-ribbon-${i})`}
+                opacity={darkMode ? 0.88 : 0.82}
+              />
+              <line
+                x1={cx - w / 2 + 2}
+                y1={yAvg}
+                x2={cx + w / 2 - 2}
+                y2={yAvg}
+                stroke={tier.primary}
+                strokeWidth={2}
+                strokeLinecap="round"
+                opacity={0.9}
+              />
+            </g>
+          );
+        })}
+      </g>
+    );
+  };
+}
+
+function StressCalmPulseDot({ cx, cy, payload, darkMode, showValue }) {
+  if (cx == null || cy == null || !payload) return null;
+  const tier = stressTier(payload.avg);
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={22} fill="none" stroke={tier.glow} strokeWidth={1.5} opacity={darkMode ? 0.35 : 0.45} />
+      <circle cx={cx} cy={cy} r={14} fill={tier.glow} opacity={darkMode ? 0.22 : 0.3} />
+      <circle cx={cx} cy={cy} r={9} fill={tier.primary} stroke={darkMode ? '#0f172a' : '#fff'} strokeWidth={2.5} />
+      <circle cx={cx - 2.5} cy={cy - 2.5} r={2.5} fill="#fff" opacity={0.5} />
+      {showValue && (
+        <text x={cx} y={cy - 18} textAnchor="middle" fontSize={10} fontWeight={700} fill={darkMode ? '#e9d5ff' : '#4c1d95'}>
+          {payload.avg}
+        </text>
+      )}
+    </g>
+  );
+}
+
+function StressDailyRangeChart({ processedDailyData, darkMode, height = DAILY_CHART_HEIGHT, chartId = 'stress' }) {
+  const showDayLabels = processedDailyData.length <= 12;
+  const stressYDomain = useMemo(() => {
+    if (!processedDailyData.length) return [0, 100];
+    const allVals = processedDailyData.flatMap((d) => [d.min, d.max, d.avg]);
+    const lo = Math.min(...allVals);
+    const hi = Math.max(...allVals);
+    return [Math.max(0, Math.floor(lo / 10) * 10 - 5), Math.min(100, Math.ceil(hi / 10) * 10 + 5)];
+  }, [processedDailyData]);
+
+  const DailyTooltip = ({ active, payload }) => {
+    if (!active || !payload?.length) return null;
+    const d = payload[0].payload;
+    const tier = stressTier(d.avg);
+    return (
+      <div
+        className={`p-4 rounded-2xl shadow-2xl border backdrop-blur-md min-w-[168px] ${darkMode ? 'bg-slate-900/90 border-purple-500/20' : 'bg-white/95 border-purple-200'}`}
+      >
+        <p className={`text-sm font-semibold mb-3 ${darkMode ? 'text-purple-100' : 'text-slate-800'}`}>{d.label}</p>
+        <p className="text-xs text-gray-500 mb-1">Average</p>
+        <p className="text-lg font-bold tabular-nums" style={{ color: tier.primary }}>{d.avg}</p>
+        <div className="flex justify-between gap-4 mt-2 text-xs">
+          <span>Min: <strong>{d.min}</strong></span>
+          <span>Max: <strong>{d.max}</strong></span>
+        </div>
+        <p className={`text-[10px] mt-2 pt-2 border-t ${darkMode ? 'border-slate-700 text-slate-500' : 'border-purple-50 text-slate-400'}`}>
+          {tier.label} stress
+        </p>
+      </div>
+    );
+  };
+
+  return (
+    <div
+      className={`relative rounded-2xl overflow-hidden border ${darkMode ? 'border-violet-500/15 bg-gradient-to-b from-slate-900/60 via-violet-950/20 to-transparent' : 'border-violet-200/80 bg-gradient-to-b from-violet-50/95 via-fuchsia-50/25 to-white'}`}
+      style={{ height }}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart data={processedDailyData} margin={{ top: 28, right: 12, left: 0, bottom: 8 }}>
+          <defs>
+            <linearGradient id={`${chartId}AvgLine`} x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#e879f9" />
+              <stop offset="50%" stopColor="#a855f7" />
+              <stop offset="100%" stopColor="#7c3aed" />
+            </linearGradient>
+            <linearGradient id={`${chartId}AvgGlow`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#d946ef" stopOpacity={0.28} />
+              <stop offset="100%" stopColor="#7c3aed" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id={`${chartId}MinTrail`} x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#6ee7b7" stopOpacity={0.85} />
+              <stop offset="100%" stopColor="#34d399" stopOpacity={0.85} />
+            </linearGradient>
+            <linearGradient id={`${chartId}MaxTrail`} x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#fcd34d" stopOpacity={0.9} />
+              <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.9} />
+            </linearGradient>
+            {processedDailyData.map((d, i) => {
+              const tier = stressTier(d.avg);
+              return (
+                <linearGradient key={i} id={`${chartId}-ribbon-${i}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={tier.bandTop} stopOpacity={0.55} />
+                  <stop offset="45%" stopColor={tier.primary} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={tier.bandBottom} stopOpacity={0.7} />
+                </linearGradient>
+              );
+            })}
+          </defs>
+          <CartesianGrid strokeDasharray="4 6" stroke={darkMode ? 'rgba(148,163,184,0.12)' : 'rgba(168,85,247,0.1)'} vertical={false} />
+          <XAxis
+            dataKey="label"
+            stroke="transparent"
+            tick={{ fontSize: 10, fill: darkMode ? '#94a3b8' : '#64748b' }}
+            axisLine={false}
+            tickLine={false}
+            tickMargin={8}
+            interval={processedDailyData.length > 14 ? 'preserveStartEnd' : 0}
+          />
+          <YAxis
+            domain={stressYDomain}
+            stroke="transparent"
+            tick={{ fontSize: 10, fill: darkMode ? '#64748b' : '#94a3b8' }}
+            axisLine={false}
+            tickLine={false}
+            width={32}
+            tickMargin={6}
+          />
+          <Tooltip content={<DailyTooltip />} cursor={{ stroke: '#a855f7', strokeWidth: 1, strokeDasharray: '4 4' }} />
+          <ReferenceArea y1={0} y2={30} fill="#10b981" fillOpacity={darkMode ? 0.08 : 0.12} />
+          <ReferenceArea y1={30} y2={60} fill="#f59e0b" fillOpacity={darkMode ? 0.06 : 0.1} />
+          <ReferenceArea y1={60} y2={100} fill="#ef4444" fillOpacity={darkMode ? 0.05 : 0.08} />
+          <ReferenceLine y={30} stroke="#10b981" strokeDasharray="6 4" strokeOpacity={0.45} />
+          <ReferenceLine y={60} stroke="#f59e0b" strokeDasharray="6 4" strokeOpacity={0.45} />
+          <Area type="monotone" dataKey="avg" stroke="none" fill={`url(#${chartId}AvgGlow)`} isAnimationActive={false} />
+          <Customized component={StressRibbonLayer({ data: processedDailyData, chartId, darkMode })} />
+          <Line type="monotone" dataKey="min" stroke={`url(#${chartId}MinTrail)`} strokeWidth={1.75} strokeDasharray="5 4" dot={false} activeDot={false} isAnimationActive={false} />
+          <Line type="monotone" dataKey="max" stroke={`url(#${chartId}MaxTrail)`} strokeWidth={1.75} strokeDasharray="5 4" dot={false} activeDot={false} isAnimationActive={false} />
+          <Line type="monotone" dataKey="avg" stroke={`url(#${chartId}AvgLine)`} strokeWidth={3} dot={false} activeDot={false} isAnimationActive={false} />
+          <Scatter
+            dataKey="avg"
+            name="Daily avg"
+            shape={(props) => <StressCalmPulseDot {...props} darkMode={darkMode} showValue={showDayLabels} />}
+            isAnimationActive={false}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+      <div className={`absolute top-2 left-3 flex flex-wrap gap-3 text-[10px] ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-2.5 h-3.5 rounded-md bg-gradient-to-b from-violet-300/80 to-violet-600/90 opacity-90" />
+          Day ribbon
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-fuchsia-500 shadow-[0_0_8px_#d946ef]" />
+          Avg pulse
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-4 border-t border-dashed border-emerald-400" />
+          Calm floor
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-4 border-t border-dashed border-amber-400" />
+          Peak trail
+        </span>
+      </div>
+    </div>
+  );
+}
+
 
 const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dateRange }) => {
   const [stressData, setStressData] = useState([]);
@@ -25,6 +255,12 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
   const cacheRef = useRef(new Map());
   const abortControllerRef = useRef(null);
   const isMountedRef = useRef(true);
+
+  const isDailyView = useMemo(() => {
+    if (stressData?.length && isDailyStressRow(stressData[0])) return true;
+    return !localDateRange?.customRange &&
+      (localDateRange?.period === 'week' || localDateRange?.period === 'month');
+  }, [localDateRange, stressData]);
 
   // Format date for API (YYYY-MM-DD)
   const formatDateForAPI = (date) => {
@@ -90,7 +326,11 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
       }
 
       if (data && data.length > 0) {
-        const sortedData = data.sort((a, b) => new Date(a.date) - new Date(b.date));
+        const sortedData = [...data].sort((a, b) => {
+          const ta = isDailyStressRow(a) ? parseDayISO(a.day) : new Date(a.date);
+          const tb = isDailyStressRow(b) ? parseDayISO(b.day) : new Date(b.date);
+          return ta - tb;
+        });
         
         cacheRef.current.set(cacheKey, {
           data: sortedData,
@@ -134,9 +374,8 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
     };
   }, [fetchStressData]);
 
-  // Process stress data for chart
   const processStressData = useCallback((data) => {
-    if (!data || data.length === 0) return [];
+    if (!data || data.length === 0 || isDailyStressRow(data[0])) return [];
 
     return data.map((item) => ({
       time: new Date(item.date).toLocaleTimeString('en-US', {
@@ -156,9 +395,56 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
     }));
   }, []);
 
-  // Calculate average stress
+  const processedDailyData = useMemo(() => {
+    if (!stressData?.length) return [];
+
+    if (isDailyStressRow(stressData[0])) {
+      return stressData
+        .slice()
+        .sort((a, b) => parseDayISO(a.day) - parseDayISO(b.day))
+        .map((item) => ({
+          day: item.day,
+          label: parseDayISO(item.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          avg: Math.round(item.average_stress),
+          min: item.minimum_stress,
+          max: item.maximum_stress,
+        }));
+    }
+
+    const buckets = new Map();
+    for (const item of stressData) {
+      const dateStr = item?.date;
+      const value = item?.stress;
+      if (!dateStr || typeof value !== 'number') continue;
+      const day = new Date(dateStr).toISOString().slice(0, 10);
+      const b = buckets.get(day) || { day, sum: 0, n: 0, min: Infinity, max: -Infinity };
+      b.sum += value;
+      b.n += 1;
+      b.min = Math.min(b.min, value);
+      b.max = Math.max(b.max, value);
+      buckets.set(day, b);
+    }
+
+    return Array.from(buckets.values())
+      .sort((a, b) => new Date(a.day) - new Date(b.day))
+      .map((b) => {
+        const avgRaw = b.n ? b.sum / b.n : 0;
+        return {
+          day: b.day,
+          label: parseDayISO(b.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          avg: Math.round(avgRaw),
+          min: Number.isFinite(b.min) ? b.min : 0,
+          max: Number.isFinite(b.max) ? b.max : 0,
+        };
+      });
+  }, [stressData]);
+
   const calculateAverageStress = useCallback((data) => {
     if (!data || data.length === 0) return 0;
+    if (isDailyStressRow(data[0])) {
+      const sum = data.reduce((acc, item) => acc + item.average_stress, 0);
+      return Math.round(sum / data.length);
+    }
     const sum = data.reduce((acc, item) => acc + item.stress, 0);
     return Math.round(sum / data.length);
   }, []);
@@ -173,23 +459,27 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
   // Get latest reading
   const getLatestReading = useCallback(() => {
     if (!stressData || stressData.length === 0) return null;
-    return stressData[stressData.length - 1];
+    const last = stressData[stressData.length - 1];
+    if (isDailyStressRow(last)) {
+      return { stress: Math.round(last.average_stress), day: last.day, isDaily: true };
+    }
+    return last;
   }, [stressData]);
 
-  // Format date range for display
   const getDateRangeDisplay = useCallback(() => {
     if (!stressData || stressData.length === 0) return 'No data';
-    const firstDate = new Date(stressData[0].date);
-    const lastDate = new Date(stressData[stressData.length - 1].date);
+    const first = stressData[0];
+    const last = stressData[stressData.length - 1];
+    const firstDate = isDailyStressRow(first) ? parseDayISO(first.day) : new Date(first.date);
+    const lastDate = isDailyStressRow(last) ? parseDayISO(last.day) : new Date(last.date);
     if (firstDate.toDateString() === lastDate.toDateString()) {
       return firstDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     }
     return `${firstDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${lastDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
   }, [stressData]);
 
-  // Get visible data based on slider position (12-hour window)
   const getVisibleData = useCallback(() => {
-    if (!stressData || stressData.length === 0) return [];
+    if (!stressData || stressData.length === 0 || isDailyStressRow(stressData[0])) return [];
 
     const processedData = processStressData(stressData);
     if (processedData.length === 0) return [];
@@ -242,6 +532,22 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
   const averageStress = React.useMemo(() => calculateAverageStress(stressData), [stressData, calculateAverageStress]);
   const status = React.useMemo(() => getStressStatus(latestReading?.stress || averageStress), [latestReading, averageStress, getStressStatus]);
   const dateRangeDisplay = React.useMemo(() => getDateRangeDisplay(), [stressData, getDateRangeDisplay]);
+
+  const dailyStressStats = useMemo(() => {
+    if (!processedDailyData.length) {
+      return { periodAvg: 0, calmest: 0, peak: 0, lowestFloor: 0, highestPeak: 0 };
+    }
+    const avgs = processedDailyData.map((d) => d.avg);
+    const mins = processedDailyData.map((d) => d.min);
+    const maxs = processedDailyData.map((d) => d.max);
+    return {
+      periodAvg: Math.round(avgs.reduce((a, b) => a + b, 0) / avgs.length),
+      calmest: Math.min(...avgs),
+      peak: Math.max(...avgs),
+      lowestFloor: Math.min(...mins),
+      highestPeak: Math.max(...maxs),
+    };
+  }, [processedDailyData]);
 
   if (loading) {
     return (
@@ -319,50 +625,111 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
 
   return (
     <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-3 md:p-4 rounded-xl bg-purple-500 bg-opacity-20 shadow-lg">
-            <Brain className="w-6 h-6 md:w-8 md:h-8 text-purple-500" />
+          <div className="p-3 rounded-xl bg-purple-500 bg-opacity-20 shadow-lg">
+            <Brain className="w-5 h-5 md:w-6 md:h-6 text-purple-500" />
           </div>
           <div>
-            <h3 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>Stress Level</h3>
-            <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{dateRangeDisplay}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className={`font-semibold text-sm ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>Stress Level</h3>
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${status.bgColor} ${status.color}`}>
+                {status.status}
+              </span>
+            </div>
+            <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{dateRangeDisplay}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <div className="text-right">
-            <div className={`text-xl md:text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              {latestReading?.stress || averageStress}
+            <div className={`text-lg md:text-xl font-bold tabular-nums ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              {latestReading?.stress ?? averageStress}
             </div>
-            <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Current Level</div>
+            <div className={`text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+              {isDailyView ? 'Latest day avg' : 'Current level'}
+            </div>
           </div>
-          <button onClick={() => setShowDetails(!showDetails)} className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
-            <Activity className="w-5 h-5 text-gray-500" />
+          <button
+            onClick={() => setShowDetails(true)}
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+            style={{ background: darkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}
+            aria-label="View stress chart"
+          >
+            {showDetails ? (
+              <EyeOff className="w-4 h-4" style={{ color: darkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)' }} />
+            ) : (
+              <Eye className="w-4 h-4" style={{ color: darkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)' }} />
+            )}
           </button>
         </div>
       </div>
 
-      <div className="mb-6">
+      <div className="mt-4 mb-2 flex flex-wrap gap-3 min-h-[36px] shrink-0">
         <div className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg ${status.bgColor}`}>
-          <div className={`w-2 h-2 rounded-full ${status.color.replace('text-', 'bg-')}`}></div>
-          <span className={`text-sm font-medium ${status.color}`}>{status.status} Stress</span>
+          <div className={`w-2 h-2 rounded-full ${status.color.replace('text-', 'bg-')}`} />
+          <span className={`text-sm font-medium ${status.color}`}>{status.status} stress</span>
         </div>
+        {isDailyView && (
+          <div className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg ${darkMode ? 'bg-violet-900/25' : 'bg-violet-50'}`}>
+            <Calendar className="w-4 h-4 text-violet-500" />
+            <span className="text-sm font-medium text-violet-600 dark:text-violet-400">Daily summary</span>
+          </div>
+        )}
       </div>
 
-      <div className="mb-6">
-        <div className={`mb-3 flex items-center justify-between text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-          <span>{dateRange?.customRange ? 'Selected period' : 'Last 24 hours'}</span>
-          <span>{stressData.length} reading{stressData.length !== 1 ? 's' : ''}</span>
-        </div>
-        <ResponsiveContainer width="100%" height={200}>
-          <AreaChart data={chartData} isAnimationActive={false}>
-            {darkMode ? <CartesianGrid strokeDasharray="3 3" stroke="#374151" /> : <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
-            <XAxis dataKey="time" stroke={darkMode ? "#9CA3AF" : "#666"} tick={{ fontSize: 12 }} />
-            <YAxis domain={[0, 100]} stroke={darkMode ? "#9CA3AF" : "#666"} tick={{ fontSize: 12 }} />
-            <Tooltip content={<CustomTooltip />} />
-            <Area type="monotone" dataKey="value" stroke={darkMode ? "#a855f7" : "#8b5cf6"} fill={darkMode ? "#a855f7" : "#8b5cf6"} fillOpacity={0.2} strokeWidth={3} />
-          </AreaChart>
-        </ResponsiveContainer>
+      <div className="mb-2 flex-1 flex flex-col min-h-0">
+        {isDailyView ? (
+          <>
+            <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs min-h-[32px] shrink-0">
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Low (&lt;30)</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Moderate (30–59)</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Flame className="w-3.5 h-3.5 text-red-500" />
+                <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>High (60+)</span>
+              </div>
+            </div>
+            <StressDailyRangeChart processedDailyData={processedDailyData} darkMode={darkMode} height={DAILY_CHART_HEIGHT} chartId="stressCard" />
+            <div className="mt-4 grid grid-cols-3 gap-2 shrink-0">
+              {[
+                { label: 'Period avg', value: dailyStressStats.periodAvg, accent: 'from-fuchsia-500 to-violet-600', icon: TrendingUp },
+                { label: 'Calmest day', value: dailyStressStats.calmest, accent: 'from-emerald-400 to-teal-600', icon: CheckCircle2 },
+                { label: 'Peak day', value: dailyStressStats.peak, accent: 'from-amber-400 to-orange-600', icon: Flame },
+              ].map(({ label, value, accent, icon: Icon }) => (
+                <div
+                  key={label}
+                  className={`relative overflow-hidden rounded-xl p-3 border ${darkMode ? 'bg-slate-800/60 border-slate-600/50' : 'bg-white border-violet-100/80 shadow-sm'}`}
+                >
+                  <div className={`absolute inset-0 opacity-[0.07] bg-gradient-to-br ${accent}`} />
+                  <Icon className={`w-3.5 h-3.5 mb-1.5 ${darkMode ? 'text-violet-400' : 'text-violet-600'}`} />
+                  <div className={`text-lg font-bold tabular-nums bg-gradient-to-r ${accent} bg-clip-text text-transparent`}>{value}</div>
+                  <div className={`text-[10px] mt-0.5 uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>{label}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+        <div className="mt-4">
+          <div className={`mb-3 flex items-center justify-between text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            <span>{dateRange?.customRange ? 'Selected period' : 'Last 24 hours'}</span>
+            <span>{stressData.length} reading{stressData.length !== 1 ? 's' : ''}</span>
+          </div>
+          <ResponsiveContainer width="100%" height={LIVE_CHART_HEIGHT}>
+            <AreaChart data={chartData} isAnimationActive={false}>
+              {darkMode ? <CartesianGrid strokeDasharray="3 3" stroke="#374151" /> : <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
+              <XAxis dataKey="time" stroke={darkMode ? '#9CA3AF' : '#666'} tick={{ fontSize: 12 }} />
+              <YAxis domain={[0, 100]} stroke={darkMode ? '#9CA3AF' : '#666'} tick={{ fontSize: 12 }} />
+              <Tooltip content={<CustomTooltip />} />
+              <Area type="monotone" dataKey="value" stroke={darkMode ? '#a855f7' : '#8b5cf6'} fill={darkMode ? '#a855f7' : '#8b5cf6'} fillOpacity={0.2} strokeWidth={3} />
+            </AreaChart>
+          </ResponsiveContainer>
+          </div>
+        )}
       </div>
 
       {/* Detailed View Modal */}
@@ -425,60 +792,52 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
             )}
           </div>
 
-          {/* Main Chart in Modal */}
-          <div className="h-[300px] w-full p-4 rounded-2xl bg-purple-50/50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-900/20">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={visibleData} isAnimationActive={false}>
-                <defs>
-                  <linearGradient id="colorStressModal" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={darkMode ? "#a855f7" : "#8b5cf6"} stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor={darkMode ? "#a855f7" : "#8b5cf6"} stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? '#374151' : '#f3f4f6'} />
-                <XAxis 
-                  dataKey="time" 
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: darkMode ? '#9CA3AF' : '#6B7280' }}
-                />
-                <YAxis 
-                  domain={[0, 100]}
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: darkMode ? '#9CA3AF' : '#6B7280' }}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Area 
-                  type="monotone" 
-                  dataKey="value" 
-                  stroke={darkMode ? "#a855f7" : "#8b5cf6"} 
-                  strokeWidth={3}
-                  fillOpacity={1} 
-                  fill="url(#colorStressModal)" 
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            {isDailyView
+              ? `${stressData.length} days with readings in this period`
+              : `${stressData.length} records available in this period`}
           </div>
 
-          {/* Slider Control */}
-          <div className="px-2">
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={sliderPosition}
-              onChange={(e) => setSliderPosition(Number(e.target.value))}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
-              style={{
-                background: `linear-gradient(to right, ${darkMode ? '#a855f7' : '#8b5cf6'} 0%, ${darkMode ? '#a855f7' : '#8b5cf6'} ${sliderPosition}%, ${darkMode ? '#374151' : '#e5e7eb'} ${sliderPosition}%, ${darkMode ? '#374151' : '#e5e7eb'} 100%)`
-              }}
-            />
-            <div className="flex justify-between mt-1 text-xs text-gray-500 dark:text-gray-400">
-              <span>Older</span>
-              <span>Newer</span>
-            </div>
-          </div>
+          {isDailyView ? (
+            <StressDailyRangeChart processedDailyData={processedDailyData} darkMode={darkMode} height={300} chartId="stressModal" />
+          ) : (
+            <>
+              <div className="h-[300px] w-full p-4 rounded-2xl bg-purple-50/50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-900/20">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={visibleData} isAnimationActive={false}>
+                    <defs>
+                      <linearGradient id="colorStressModal" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={darkMode ? '#a855f7' : '#8b5cf6'} stopOpacity={0.3} />
+                        <stop offset="95%" stopColor={darkMode ? '#a855f7' : '#8b5cf6'} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? '#374151' : '#f3f4f6'} />
+                    <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: darkMode ? '#9CA3AF' : '#6B7280' }} />
+                    <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: darkMode ? '#9CA3AF' : '#6B7280' }} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area type="monotone" dataKey="value" stroke={darkMode ? '#a855f7' : '#8b5cf6'} strokeWidth={3} fillOpacity={1} fill="url(#colorStressModal)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="px-2">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={sliderPosition}
+                  onChange={(e) => setSliderPosition(Number(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                  style={{
+                    background: `linear-gradient(to right, ${darkMode ? '#a855f7' : '#8b5cf6'} 0%, ${darkMode ? '#a855f7' : '#8b5cf6'} ${sliderPosition}%, ${darkMode ? '#374151' : '#e5e7eb'} ${sliderPosition}%, ${darkMode ? '#374151' : '#e5e7eb'} 100%)`,
+                  }}
+                />
+                <div className="flex justify-between mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  <span>Older</span>
+                  <span>Newer</span>
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -508,10 +867,29 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
             {/* Recent Readings */}
             <div>
               <h4 className={`font-semibold text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-4`}>
-                Reading Timeline
+                {isDailyView ? 'Daily Summary' : 'Reading Timeline'}
               </h4>
-              <div className={`space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar`}>
-                {stressData.slice().reverse().map((reading, index) => (
+              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                {isDailyView
+                  ? processedDailyData.slice().reverse().map((row) => {
+                    const tier = stressTier(row.avg);
+                    return (
+                      <div key={row.day} className={`flex items-center justify-between p-4 rounded-xl border ${darkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-100'}`}>
+                        <div className="flex items-center gap-4">
+                          <div className="w-3 h-3 rounded-full shadow-sm" style={{ background: tier.primary }} />
+                          <div>
+                            <div className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>{row.label}</div>
+                            <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Min {row.min} Â· Max {row.max}</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-bold tabular-nums" style={{ color: tier.primary }}>{row.avg}</div>
+                          <div className="text-[10px] font-medium" style={{ color: tier.primary }}>{tier.label}</div>
+                        </div>
+                      </div>
+                    );
+                  })
+                  : stressData.slice().reverse().map((reading, index) => (
                   <div key={index} className={`flex items-center justify-between p-4 rounded-xl border ${
                     darkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-100'
                   }`}>
