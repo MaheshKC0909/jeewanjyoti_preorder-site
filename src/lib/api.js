@@ -273,12 +273,14 @@ async function fetchAllPages(initialUrl) {
  * @returns {Promise<Array>} List of sleep data records
  */
 export async function getSleepData(userId = null, fromDate = null, toDate = null, range = null) {
-  let url = userId ? `/api/sleep-data/?user_id=${userId}` : '/api/sleep-data/?';
+  const userData = getUserData();
+  const endpoint = userData?.institution_type ? 'institution_sleep_data' : 'sleep-data';
+  let url = userId ? `/api/${endpoint}/?user_id=${userId}` : `/api/${endpoint}/?`;
 
   if (fromDate && toDate) {
     url = userId 
-      ? `/api/sleep-data/?user_id=${userId}&from=${fromDate}&to=${toDate}`
-      : `/api/sleep-data/?from=${fromDate}&to=${toDate}`;
+      ? `/api/${endpoint}/?user_id=${userId}&from=${fromDate}&to=${toDate}`
+      : `/api/${endpoint}/?from=${fromDate}&to=${toDate}`;
     console.log('Fetching sleep data with from/to:', url);
   }
   else if (range) {
@@ -316,12 +318,14 @@ export async function getSleepData(userId = null, fromDate = null, toDate = null
  * @returns {Promise<Array>} List of SpO2 data records
  */
 export async function getSpO2Data(userId = null, fromDate = null, toDate = null, range = null) {
-  let url = userId ? `/api/Spo2-data/?user_id=${userId}` : '/api/Spo2-data/?';
+  const userData = getUserData();
+  const endpoint = userData?.institution_type ? 'institution_Spo2_data' : 'Spo2-data';
+  let url = userId ? `/api/${endpoint}/?user_id=${userId}` : `/api/${endpoint}/?`;
 
   if (fromDate && toDate) {
     url = userId 
-      ? `/api/Spo2-data/?user_id=${userId}&from=${fromDate}&to=${toDate}`
-      : `/api/Spo2-data/?from=${fromDate}&to=${toDate}`;
+      ? `/api/${endpoint}/?user_id=${userId}&from=${fromDate}&to=${toDate}`
+      : `/api/${endpoint}/?from=${fromDate}&to=${toDate}`;
     console.log('Fetching SpO2 data with from/to:', url);
   }
   else if (range) {
@@ -359,12 +363,14 @@ export async function getSpO2Data(userId = null, fromDate = null, toDate = null,
  * @returns {Promise<Array>} List of Heart Rate data records
  */
 export async function getHeartRateData(userId = null, fromDate = null, toDate = null, range = null) {
-  let url = userId ? `/api/HeartRate_Data/?user_id=${userId}` : '/api/HeartRate_Data/?';
+  const userData = getUserData();
+  const endpoint = userData?.institution_type ? 'institution_heartrate_data' : 'HeartRate_Data';
+  let url = userId ? `/api/${endpoint}/?user_id=${userId}` : `/api/${endpoint}/?`;
 
   if (fromDate && toDate) {
     url = userId 
-      ? `/api/HeartRate_Data/?user_id=${userId}&from=${fromDate}&to=${toDate}`
-      : `/api/HeartRate_Data/?from=${fromDate}&to=${toDate}`;
+      ? `/api/${endpoint}/?user_id=${userId}&from=${fromDate}&to=${toDate}`
+      : `/api/${endpoint}/?from=${fromDate}&to=${toDate}`;
     console.log('Fetching heart rate data with from/to:', url);
   }
   else if (range) {
@@ -402,9 +408,11 @@ export async function getHeartRateData(userId = null, fromDate = null, toDate = 
  * @returns {Promise<{count: number, results: Array}>}
  */
 export async function getDailyHeartRateData(userId = null, range = '7d') {
+  const userData = getUserData();
+  const endpoint = userData?.institution_type ? 'institution_heartrate_data' : 'HeartRate_Data';
   const base = userId
-    ? `/api/HeartRate_Data/?user_id=${userId}&range=${range}`
-    : `/api/HeartRate_Data/?range=${range}`;
+    ? `/api/${endpoint}/?user_id=${userId}&range=${range}`
+    : `/api/${endpoint}/?range=${range}`;
 
   console.log('Fetching daily heart rate data:', base);
 
@@ -447,12 +455,14 @@ export async function getDailyHeartRateData(userId = null, range = '7d') {
  * @returns {Promise<Array>} List of Blood Pressure data records
  */
 export async function getBloodPressureData(userId = null, fromDate = null, toDate = null, range = null) {
-  let url = userId ? `/api/BloodPressure_Data/?user_id=${userId}` : '/api/BloodPressure_Data/?';
+  const userData = getUserData();
+  const endpoint = userData?.institution_type ? 'institution_BP_data' : 'BloodPressure_Data';
+  let url = userId ? `/api/${endpoint}/?user_id=${userId}` : `/api/${endpoint}/?`;
 
   if (fromDate && toDate) {
     url = userId 
-      ? `/api/BloodPressure_Data/?user_id=${userId}&from=${fromDate}&to=${toDate}`
-      : `/api/BloodPressure_Data/?from=${fromDate}&to=${toDate}`;
+      ? `/api/${endpoint}/?user_id=${userId}&from=${fromDate}&to=${toDate}`
+      : `/api/${endpoint}/?from=${fromDate}&to=${toDate}`;
     console.log('Fetching blood pressure data with from/to:', url);
   }
   else if (range) {
@@ -490,12 +500,14 @@ export async function getBloodPressureData(userId = null, fromDate = null, toDat
  * @returns {Promise<Array>} List of Stress data records
  */
 export async function getStressData(userId = null, fromDate = null, toDate = null, range = null) {
-  let url = userId ? `/api/Stress_Data/?user_id=${userId}` : '/api/Stress_Data/?';
+  const userData = getUserData();
+  const endpoint = userData?.institution_type ? 'institution_Stress_data' : 'Stress_Data';
+  let url = userId ? `/api/${endpoint}/?user_id=${userId}` : `/api/${endpoint}/?`;
 
   if (fromDate && toDate) {
     url = userId 
-      ? `/api/Stress_Data/?user_id=${userId}&from=${fromDate}&to=${toDate}`
-      : `/api/Stress_Data/?from=${fromDate}&to=${toDate}`;
+      ? `/api/${endpoint}/?user_id=${userId}&from=${fromDate}&to=${toDate}`
+      : `/api/${endpoint}/?from=${fromDate}&to=${toDate}`;
     console.log('Fetching stress data with from/to:', url);
   }
   else if (range) {
@@ -533,12 +545,14 @@ export async function getStressData(userId = null, fromDate = null, toDate = nul
  * @returns {Promise<Array>} List of HRV data records
  */
 export async function getHRVData(userId = null, fromDate = null, toDate = null, range = null) {
-  let url = userId ? `/api/HRV_Iso_Data/?user_id=${userId}` : '/api/HRV_Iso_Data/?';
+  const userData = getUserData();
+  const endpoint = userData?.institution_type ? 'institution_HRV_data' : 'HRV_Iso_Data';
+  let url = userId ? `/api/${endpoint}/?user_id=${userId}` : `/api/${endpoint}/?`;
 
   if (fromDate && toDate) {
     url = userId 
-      ? `/api/HRV_Iso_Data/?user_id=${userId}&from=${fromDate}&to=${toDate}`
-      : `/api/HRV_Iso_Data/?from=${fromDate}&to=${toDate}`;
+      ? `/api/${endpoint}/?user_id=${userId}&from=${fromDate}&to=${toDate}`
+      : `/api/${endpoint}/?from=${fromDate}&to=${toDate}`;
     console.log('Fetching HRV data with from/to:', url);
   }
   else if (range) {
@@ -623,7 +637,9 @@ export async function getStepsData(userId = null, fromDate = null, toDate = null
  */
 export async function getDayTotalActivity(userId = null, range = null, fromDate = null, toDate = null) {
   try {
-    let url = '/api/Day_total_activity/';
+    const userData = getUserData();
+    const endpoint = userData?.institution_type ? 'institution_activity_data' : 'Day_total_activity';
+    let url = `/api/${endpoint}/`;
     const params = new URLSearchParams();
 
     if (userId) params.append('user_id', userId);
@@ -723,7 +739,9 @@ export async function logoutUser() {
  * @returns {Promise<object>} Battery status { percentage, timestamp, device_id, user }
  */
 export async function getBatteryStatus(userId = null) {
-  const url = userId ? `/api/battery-status/?user_id=${userId}` : '/api/battery-status/';
+  const userData = getUserData();
+  const endpoint = userData?.institution_type ? 'institution_battry_status' : 'battery-status';
+  const url = userId ? `/api/${endpoint}/?user_id=${userId}` : `/api/${endpoint}/`;
   const response = await apiRequest(url);
   if (!response.ok) {
     throw new Error('Failed to fetch battery status');
