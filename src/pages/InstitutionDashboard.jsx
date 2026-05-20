@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Users, Activity, BarChart3, FileText,
-  Bell, Smartphone, Settings, LogOut, Menu, ChevronDown, RefreshCw
+  Bell, Smartphone, Settings, LogOut, Menu, ChevronDown, RefreshCw, Moon, Sun
 } from 'lucide-react';
 import OverviewTab from './institution/Overview';
 import MembersTab from './institution/Members';
@@ -40,6 +40,7 @@ export default function InstitutionDashboard() {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [selectedUserName, setSelectedUserName] = useState(institutionName);
   const [selectedUserProfileImage, setSelectedUserProfileImage] = useState(null);
+  const [darkMode, setDarkMode] = useState(false);
 
   const handleLogout = () => {
     clearTokens();
@@ -68,13 +69,13 @@ export default function InstitutionDashboard() {
   const renderContent = () => {
     if (activeTab === 'overview') return <OverviewTab />;
     if (activeTab === 'members') return <MembersTab onViewVitals={handleViewVitals} />;
-    if (activeTab === 'vitals') return <VitalsTab selectedUserId={selectedUserId} selectedUserInfo={{ name: selectedUserName, profileImage: selectedUserProfileImage }} />;
+    if (activeTab === 'vitals') return <VitalsTab selectedUserId={selectedUserId} selectedUserInfo={{ name: selectedUserName, profileImage: selectedUserProfileImage }} darkMode={darkMode} />;
     if (activeTab === 'subscription') return <SubscriptionTab />;
     return <PlaceholderTab tab={activeTab} />;
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', background: '#f8fafc', fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, sans-serif" }}>
+    <div style={{ minHeight: '100vh', display: 'flex', background: darkMode ? '#0f172a' : '#f8fafc', fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         * { box-sizing: border-box; }
@@ -152,12 +153,12 @@ export default function InstitutionDashboard() {
       <main style={{ flex: 1, marginLeft: collapsed ? 72 : 240, transition: 'margin-left 0.25s cubic-bezier(.4,0,.2,1)', display: 'flex', flexDirection: 'column' }}>
         {/* Top bar */}
         <header style={{
-          height: 64, background: '#fff', borderBottom: '1px solid #e2e8f0',
+          height: 64, background: darkMode ? '#1e293b' : '#fff', borderBottom: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`,
           padding: '0 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           position: 'sticky', top: 0, zIndex: 50
         }}>
           <div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: '#0f172a' }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: darkMode ? '#fff' : '#0f172a' }}>
               {NAV.filter(Boolean).find(n => n.id === activeTab)?.label || 'Dashboard'}
             </div>
             <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>
@@ -165,15 +166,22 @@ export default function InstitutionDashboard() {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button style={{ position: 'relative', width: 38, height: 38, borderRadius: 10, background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-              <RefreshCw size={15} color="#6b7280" />
+            <button 
+              onClick={() => setDarkMode(!darkMode)}
+              style={{ position: 'relative', width: 38, height: 38, borderRadius: 10, background: darkMode ? '#334155' : '#f8fafc', border: `1px solid ${darkMode ? '#475569' : '#e2e8f0'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              {darkMode ? <Sun size={15} color="#cbd5e1" /> : <Moon size={15} color="#6b7280" />}
             </button>
-            <button style={{ position: 'relative', width: 38, height: 38, borderRadius: 10, background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-              <Bell size={15} color="#6b7280" />
+            <button 
+              onClick={() => window.location.reload()}
+              style={{ position: 'relative', width: 38, height: 38, borderRadius: 10, background: darkMode ? '#334155' : '#f8fafc', border: `1px solid ${darkMode ? '#475569' : '#e2e8f0'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              <RefreshCw size={15} color={darkMode ? '#cbd5e1' : "#6b7280"} />
+            </button>
+            <button style={{ position: 'relative', width: 38, height: 38, borderRadius: 10, background: darkMode ? '#334155' : '#f8fafc', border: `1px solid ${darkMode ? '#475569' : '#e2e8f0'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              <Bell size={15} color={darkMode ? '#cbd5e1' : "#6b7280"} />
               <span style={{ position: 'absolute', top: 7, right: 7, width: 7, height: 7, background: '#ef4444', borderRadius: '50%', border: '1.5px solid #fff' }} />
             </button>
-            <div style={{ width: 1, height: 28, background: '#e2e8f0', margin: '0 4px' }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px 6px 6px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, cursor: 'pointer' }}>
+            <div style={{ width: 1, height: 28, background: darkMode ? '#334155' : '#e2e8f0', margin: '0 4px' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px 6px 6px', background: darkMode ? '#334155' : '#f8fafc', border: `1px solid ${darkMode ? '#475569' : '#e2e8f0'}`, borderRadius: 12, cursor: 'pointer' }}>
               {institutionLogo ? (
                 <img src={institutionLogo} alt={institutionName} style={{ width: 32, height: 32, borderRadius: 9, objectFit: 'cover' }} />
               ) : (
@@ -182,7 +190,7 @@ export default function InstitutionDashboard() {
                 </div>
               )}
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', lineHeight: 1.3 }}>{institutionName}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: darkMode ? '#fff' : '#0f172a', lineHeight: 1.3 }}>{institutionName}</div>
                 <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{institutionType}</div>
               </div>
               <ChevronDown size={14} color="#9ca3af" />

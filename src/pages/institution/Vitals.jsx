@@ -15,19 +15,14 @@ const BatteryIcon = ({ percentage = null, size = 40 }) => {
   const pct = percentage !== null ? Math.max(0, Math.min(100, percentage)) : null;
   const fillColor =
     pct === null ? '#9CA3AF'
-    : pct > 50   ? '#22C55E'
-    : pct > 20   ? '#F59E0B'
-                 : '#EF4444';
-  // ViewBox: 0 0 64 30
-  // Nub (left / terminal): x=0, y=9, w=6, h=12, rx=2
-  // Outer shell:           x=6, y=0, w=58, h=30, rx=5
-  // Inner background:      x=9, y=3, w=52, h=24, rx=3
-  // Body center for text:  x=35, y=15
+      : pct > 50 ? '#22C55E'
+        : pct > 20 ? '#F59E0B'
+          : '#EF4444';
   const innerX = 9, innerW = 52, innerY = 3, innerH = 24;
   const fillW = pct !== null ? (innerW * pct) / 100 : 0;
-  const fillX = innerX + innerW - fillW; // anchor to right edge — fills right→left
-  const textX = innerX + innerW / 2; // 35 — center of the inner area
-  const textY = innerY + innerH / 2 + 4; // 19 — vertically centered
+  const fillX = innerX + innerW - fillW;
+  const textX = innerX + innerW / 2;
+  const textY = innerY + innerH / 2 + 4;
   return (
     <svg
       width={size * 1.8}
@@ -36,17 +31,12 @@ const BatteryIcon = ({ percentage = null, size = 40 }) => {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      {/* Terminal nub — left side, points toward profile */}
       <rect x="0" y="9" width="6" height="12" rx="2" fill="#4B5563" />
-      {/* Outer body shell */}
       <rect x="6" y="0" width="58" height="30" rx="5" fill="#4B5563" />
-      {/* Inner background */}
       <rect x={innerX} y={innerY} width={innerW} height={innerH} rx="3" fill="#E5E7EB" />
-      {/* Dynamic fill (right → left, opposite the nub) */}
       {pct !== null && fillW > 0 && (
         <rect x={fillX} y={innerY} width={fillW} height={innerH} rx="3" fill={fillColor} />
       )}
-      {/* Percentage text centered inside the battery body */}
       <text
         x={textX}
         y={textY}
@@ -69,7 +59,6 @@ const VitalsTab = ({
   globalDateFilter,
   globalDateRange
 }) => {
-  // State for all health data
   const [sleepData, setSleepData] = useState(null);
   const [spo2Data, setSpO2Data] = useState(null);
   const [heartRateData, setHeartRateData] = useState(null);
@@ -79,7 +68,6 @@ const VitalsTab = ({
   const [hrvApiData, setHrvApiData] = useState(null);
   const [batteryData, setBatteryData] = useState(null);
 
-  // State for loading
   const [isLoading, setIsLoading] = useState(false);
   const [dataLoadingStates, setDataLoadingStates] = useState({
     heartRate: false,
@@ -91,58 +79,32 @@ const VitalsTab = ({
     hrv: false
   });
 
-  // Cache ref
   const cacheRef = useRef(new Map());
 
-  // Calculate sleep score based on data
   const calculateSleepScore = (data) => {
     if (!data) return 0;
-
     let score = 0;
-
     const duration = data.duration;
-    if (duration >= 7 && duration <= 9) {
-      score += 30;
-    } else if (duration >= 6 && duration <= 10) {
-      score += 20;
-    } else {
-      score += 10;
-    }
-
+    if (duration >= 7 && duration <= 9) score += 30;
+    else if (duration >= 6 && duration <= 10) score += 20;
+    else score += 10;
     const deepSleep = data.deep_sleep_percentage;
-    if (deepSleep >= 15 && deepSleep <= 20) {
-      score += 25;
-    } else if (deepSleep >= 10 && deepSleep <= 25) {
-      score += 15;
-    } else {
-      score += 5;
-    }
-
+    if (deepSleep >= 15 && deepSleep <= 20) score += 25;
+    else if (deepSleep >= 10 && deepSleep <= 25) score += 15;
+    else score += 5;
     const lightSleep = data.light_sleep_percentage;
-    if (lightSleep >= 45 && lightSleep <= 55) {
-      score += 25;
-    } else if (lightSleep >= 40 && lightSleep <= 60) {
-      score += 15;
-    } else {
-      score += 5;
-    }
-
+    if (lightSleep >= 45 && lightSleep <= 55) score += 25;
+    else if (lightSleep >= 40 && lightSleep <= 60) score += 15;
+    else score += 5;
     const awake = data.awake_percentage;
-    if (awake < 5) {
-      score += 20;
-    } else if (awake < 10) {
-      score += 10;
-    } else {
-      score += 5;
-    }
-
+    if (awake < 5) score += 20;
+    else if (awake < 10) score += 10;
+    else score += 5;
     return Math.min(score, 100);
   };
 
-  // Calculate heart rate score — handles both single readings (once_heart_value) and daily aggregates (average_heart_rate)
   const calculateHeartRateScore = (data) => {
     if (!data || data.length === 0) return 70;
-
     const last = data[data.length - 1];
     const latestHR = last?.once_heart_value ?? last?.average_heart_rate ?? 72;
     if (latestHR >= 60 && latestHR <= 80) return 95;
@@ -151,10 +113,8 @@ const VitalsTab = ({
     return 60;
   };
 
-  // Calculate SpO2 score
   const calculateSpO2Score = (data) => {
     if (!data || data.length === 0) return 90;
-
     const latestSpO2 = data[data.length - 1]?.Blood_oxygen || 98;
     if (latestSpO2 >= 95) return 100;
     if (latestSpO2 >= 90) return 80;
@@ -162,10 +122,8 @@ const VitalsTab = ({
     return 40;
   };
 
-  // Calculate steps score
   const calculateStepsScore = (data) => {
     if (!data || !data.step) return 50;
-
     const steps = data.step;
     if (steps >= 10000) return 100;
     if (steps >= 7500) return 85;
@@ -174,11 +132,9 @@ const VitalsTab = ({
     return 30;
   };
 
-  // Memoized values for quick stats
   const latestHeartRate = useMemo(() => {
     if (!heartRateData || !Array.isArray(heartRateData) || heartRateData.length === 0) return '—';
     const last = heartRateData[heartRateData.length - 1];
-    // single reading → once_heart_value; daily aggregate → average_heart_rate
     const val = last?.once_heart_value ?? (last?.average_heart_rate ? Math.round(last.average_heart_rate) : undefined);
     return val ?? '—';
   }, [heartRateData]);
@@ -201,15 +157,12 @@ const VitalsTab = ({
       : '—';
   }, [stepsData]);
 
-  // Calculate overall health score
   const overallScore = useMemo(() => {
     const scores = [];
-
     if (heartRateData) scores.push(calculateHeartRateScore(heartRateData));
     if (sleepData) scores.push(sleepScore);
     if (spo2Data) scores.push(calculateSpO2Score(spo2Data));
     if (stepsData) scores.push(calculateStepsScore(stepsData));
-
     if (scores.length > 0) {
       const average = scores.reduce((a, b) => a + b, 0) / scores.length;
       return average.toFixed(1);
@@ -217,7 +170,6 @@ const VitalsTab = ({
     return 'N/A';
   }, [heartRateData, sleepData, spo2Data, stepsData, sleepScore]);
 
-  // Get score letter grade
   const getScoreGrade = (score) => {
     if (score === 'N/A') return 'N/A';
     const numScore = parseFloat(score);
@@ -229,46 +181,32 @@ const VitalsTab = ({
     return 'D';
   };
 
-  // Format date range for display
   const getDateRangeDisplay = () => {
     if (globalDateRange?.customRange && globalDateRange.from && globalDateRange.to) {
       return `Filtering: ${globalDateRange.from} to ${globalDateRange.to}`;
     }
-
     switch (globalDateFilter) {
-      case 'today':
-        return 'Showing data for today';
-      case 'week':
-        return 'Showing data for the last 7 days';
-      case 'month':
-        return 'Showing data for the last 30 days';
-      case 'custom':
-        return 'Showing custom date range';
-      default:
-        return 'Showing latest data';
+      case 'today': return 'Showing data for today';
+      case 'week': return 'Showing data for the last 7 days';
+      case 'month': return 'Showing data for the last 30 days';
+      case 'custom': return 'Showing custom date range';
+      default: return 'Showing latest data';
     }
   };
 
-  // Track loading states from child components
   const handleDataLoading = (dataType, isLoading) => {
-    setDataLoadingStates(prev => ({
-      ...prev,
-      [dataType]: isLoading
-    }));
+    setDataLoadingStates(prev => ({ ...prev, [dataType]: isLoading }));
   };
 
-  // Update overall loading state
   useEffect(() => {
     const anyLoading = Object.values(dataLoadingStates).some(state => state === true);
     setIsLoading(anyLoading);
   }, [dataLoadingStates]);
 
-  // Fetch battery status whenever the selected user changes
   useEffect(() => {
     let cancelled = false;
     const fetchBattery = async () => {
       try {
-        // Pass userId for mapped users only; omit for self
         const data = await getBatteryStatus(selectedUserId || null);
         if (!cancelled) setBatteryData(data);
       } catch (err) {
@@ -280,16 +218,16 @@ const VitalsTab = ({
     return () => { cancelled = true; };
   }, [selectedUserId]);
 
-  // Get latest timestamps
   const latestHeartRateTime = useMemo(() => {
     if (!heartRateData || heartRateData.length === 0) return null;
     const last = heartRateData[heartRateData.length - 1];
-    // single reading uses measure_time / created_at / date; daily aggregate uses day
     return last?.measure_time || last?.created_at || last?.date || last?.day || null;
   }, [heartRateData]);
 
   const latestSpO2Time = useMemo(() => {
-    return spo2Data && spo2Data.length > 0 ? spo2Data[spo2Data.length - 1]?.measure_time || spo2Data[spo2Data.length - 1]?.created_at || spo2Data[spo2Data.length - 1]?.date : null;
+    return spo2Data && spo2Data.length > 0
+      ? spo2Data[spo2Data.length - 1]?.measure_time || spo2Data[spo2Data.length - 1]?.created_at || spo2Data[spo2Data.length - 1]?.date
+      : null;
   }, [spo2Data]);
 
   const latestSleepTime = useMemo(() => {
@@ -312,7 +250,8 @@ const VitalsTab = ({
       }
       const d = new Date(dateString);
       if (isNaN(d.getTime())) return dateString;
-      return isDateOnly ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      return isDateOnly
+        ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
         : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     } catch {
       return dateString;
@@ -336,7 +275,7 @@ const VitalsTab = ({
   return (
     <div>
       {/* User Header */}
-      <div className={`rounded-2xl p-4 md:p-6 mb-6 md:mb-8 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+      <div className={`rounded-2xl p-4 md:p-6 mb-3 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
         <div className="flex items-center justify-between w-full gap-4">
 
           {/* Left: Avatar + Title */}
@@ -376,7 +315,7 @@ const VitalsTab = ({
             </div>
           )}
 
-          {/* Right: Vertical Battery Icon with live % */}
+          {/* Right: Battery Icon */}
           <div className="flex-shrink-0 flex items-center justify-end">
             <BatteryIcon percentage={batteryData?.percentage ?? null} size={48} />
           </div>
@@ -385,7 +324,7 @@ const VitalsTab = ({
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-3">
         <div className="rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg bg-gradient-to-br from-red-500 to-red-600 text-white">
           <div className="flex items-center justify-between">
             <div>
@@ -401,7 +340,6 @@ const VitalsTab = ({
           <div className="mt-2 text-xs text-red-100 flex justify-between items-center gap-2">
             <div>
               {heartRateData && heartRateData.length > 1 && (() => {
-                // Support both single-reading and daily-aggregate shapes
                 const isMultiDay = 'day' in heartRateData[0];
                 const minVal = isMultiDay
                   ? Math.min(...heartRateData.map(d => d.minimum_heart_rate))
@@ -484,7 +422,7 @@ const VitalsTab = ({
       </div>
 
       {/* Main Metrics Grid - Row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 md:gap-3 mb-3 items-stretch">
         <HeartRateDataComponent
           darkMode={darkMode}
           onHeartRateDataUpdate={setHeartRateData}
@@ -492,7 +430,6 @@ const VitalsTab = ({
           selectedUserId={selectedUserId}
           dateRange={globalDateRange}
         />
-
         <SpO2DataComponent
           darkMode={darkMode}
           onSpO2DataUpdate={setSpO2Data}
@@ -503,7 +440,7 @@ const VitalsTab = ({
       </div>
 
       {/* Main Metrics Grid - Row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 md:gap-3 mb-3">
         <SleepDataComponent
           darkMode={darkMode}
           onSleepDataUpdate={setSleepData}
@@ -511,7 +448,6 @@ const VitalsTab = ({
           selectedUserId={selectedUserId}
           dateRange={globalDateRange}
         />
-
         <ActivitySummary
           darkMode={darkMode}
           onActivityDataUpdate={setStepsData}
@@ -522,7 +458,7 @@ const VitalsTab = ({
       </div>
 
       {/* Main Metrics Grid - Row 3 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 md:gap-3 mb-3">
         <StressDataComponent
           darkMode={darkMode}
           onStressDataUpdate={setStressApiData}
@@ -530,8 +466,7 @@ const VitalsTab = ({
           selectedUserId={selectedUserId}
           dateRange={globalDateRange}
         />
-
-        <div className="space-y-4">
+        <div className="space-y-2">
           <BloodPressureDataComponent
             darkMode={darkMode}
             onBloodPressureDataUpdate={setBloodPressureData}
@@ -539,7 +474,6 @@ const VitalsTab = ({
             selectedUserId={selectedUserId}
             dateRange={globalDateRange}
           />
-
           <HRVDataComponent
             darkMode={darkMode}
             onHRVDataUpdate={setHrvApiData}
@@ -560,8 +494,6 @@ const VitalsTab = ({
             <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
               {getDateRangeDisplay()}. Your metrics are being tracked and analyzed to provide you with the best insights for your health journey.
             </p>
-
-            {/* Data completion status */}
             <div className="flex flex-wrap gap-3 mt-3">
               <div className="flex items-center gap-1">
                 <Heart className={`w-4 h-4 ${heartRateData ? 'text-red-500' : 'text-gray-400'}`} />
@@ -586,8 +518,8 @@ const VitalsTab = ({
           <div className="flex items-center gap-4 ml-0 md:ml-4">
             <div className="text-center">
               <div className={`text-3xl md:text-4xl font-bold ${overallScore === 'N/A' ? 'text-gray-400' :
-                  parseFloat(overallScore) >= 80 ? 'text-green-500' :
-                    parseFloat(overallScore) >= 60 ? 'text-yellow-500' : 'text-red-500'
+                parseFloat(overallScore) >= 80 ? 'text-green-500' :
+                  parseFloat(overallScore) >= 60 ? 'text-yellow-500' : 'text-red-500'
                 }`}>
                 {getScoreGrade(overallScore)}
               </div>
@@ -606,7 +538,7 @@ const VitalsTab = ({
 
       {/* Empty State */}
       {!heartRateData && !sleepData && !spo2Data && !stepsData && !isLoading && (
-        <div className={`rounded-xl md:rounded-2xl p-8 md:p-12 shadow-lg border mt-6 text-center ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+        <div className={`rounded-xl md:rounded-2xl p-8 md:p-12 shadow-lg border mt-3 text-center ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
           <Activity className="w-16 h-16 mx-auto mb-4 text-gray-400" />
           <h3 className={`text-lg md:text-xl font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
             No Health Data Available
