@@ -4,7 +4,8 @@ import { Zap, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Eye, EyeOff, 
 import { getHRVData } from '../lib/api';
 import DataModal from './ui/Modal';
 import DayDrillDownBanner from './vitals/DayDrillDownBanner';
-import { useVitalDayDrillDown } from '../hooks/useVitalDayDrillDown';
+import { useVitalLocalDateRange } from '../hooks/useVitalLocalDateRange';
+import { isDayDrillDown } from '../utils/vitalDateRange';
 
 function isDailyHRVRow(row) {
   return row && typeof row.day === 'string' && typeof row.average_hrv === 'number';
@@ -673,17 +674,13 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
   const [error, setError] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [sliderPosition, setSliderPosition] = useState(100);
-  const [localDateRange, setLocalDateRange] = useState(dateRange);
+  const { localDateRange, setLocalDateRange, drillToDay, exitDayDrill } = useVitalLocalDateRange(dateRange);
   const [spiralProgress, setSpiralProgress] = useState(0);
   const spiralRafRef = useRef(null);
-
-  useEffect(() => { setLocalDateRange(dateRange); }, [dateRange]);
-  useEffect(() => { setLocalDateRange(dateRange); }, [showDetails, dateRange]);
 
   const cacheRef = useRef(new Map());
   const abortControllerRef = useRef(null);
   const isMountedRef = useRef(true);
-  const { drillToDay, exitDayDrill } = useVitalDayDrillDown(localDateRange, setLocalDateRange);
 
   const formatDateForAPI = (date) => {
     if (!date) return null;

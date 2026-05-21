@@ -29,7 +29,7 @@ export function buildDrillDownRange(currentRange, day) {
   const dayISO = typeof day === 'string' ? day : (day?.day ?? day?.dayISO);
   const parentPeriod =
     currentRange?.parentPeriod ||
-    (currentRange?.period === 'month' ? 'month' : 'week');
+    (currentRange?.period === 'month' ? 'month' : currentRange?.period === 'week' ? 'week' : 'week');
   return {
     parentPeriod,
     period: parentPeriod,
@@ -42,5 +42,10 @@ export function buildDrillDownRange(currentRange, day) {
 /** Return to the week/month range the user had before drilling. */
 export function buildReturnFromDrillDown(range) {
   const period = range?.parentPeriod || 'week';
+  return { period, customRange: false, drillDown: false };
+}
+
+/** Modal/card filter: Today, 7 Days, 30 Days. */
+export function buildPeriodFilterRange(period) {
   return { period, customRange: false, drillDown: false };
 }

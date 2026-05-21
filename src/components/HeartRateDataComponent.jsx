@@ -11,14 +11,14 @@ import {
 import { getHeartRateData, getDailyHeartRateData } from '../lib/api';
 import DataModal from './ui/Modal';
 import DayDrillDownBanner from './vitals/DayDrillDownBanner';
-import { useVitalDayDrillDown } from '../hooks/useVitalDayDrillDown';
-
+import { useVitalLocalDateRange } from '../hooks/useVitalLocalDateRange';
+import { isDayDrillDown, isMultidayPeriod, buildPeriodFilterRange } from '../utils/vitalDateRange';
+ 
 const WINDOW_SIZE = 300;
-
-/** Shared with SpO2 card — keeps side-by-side panels aligned */
+ 
 const DAILY_CHART_HEIGHT = 208;
 const LIVE_CHART_HEIGHT = 200;
-
+ 
 const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserId, dateRange }) => {
   const [heartRateData, setHeartRateData] = useState([]);
   const [dailyData, setDailyData] = useState([]);
@@ -27,41 +27,34 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
   const [showDetails, setShowDetails] = useState(false);
   const [sliderPosition, setSliderPosition] = useState(100);
   const [draftPosition, setDraftPosition] = useState(100);
-  const [localDateRange, setLocalDateRange] = useState(dateRange);
-
-  useEffect(() => { setLocalDateRange(dateRange); }, [dateRange]);
-  useEffect(() => { setLocalDateRange(dateRange); }, [showDetails, dateRange]);
+  const { localDateRange, setLocalDateRange, drillToDay, exitDayDrill } = useVitalLocalDateRange(dateRange);
 
   const cacheRef = useRef(new Map());
   const abortControllerRef = useRef(null);
   const isMountedRef = useRef(true);
   const sliderTimerRef = useRef(null);
-  const { drillToDay, exitDayDrill } = useVitalDayDrillDown(localDateRange, setLocalDateRange);
 
-  // ── is this a "daily" (bar-chart) period? ──────────────────────────────
-  const isDailyView = useMemo(() =>
-    !localDateRange?.customRange &&
-    (localDateRange?.period === 'week' || localDateRange?.period === 'month'),
-    [localDateRange]
-  );
-
+  const isDailyView = useMemo(() => {
+    if (isDayDrillDown(localDateRange)) return false;
+    return isMultidayPeriod(localDateRange);
+  }, [localDateRange]);
+ 
   const formatDateForAPI = (date) => {
     if (!date) return null;
     if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
     return new Date(date).toISOString().split('T')[0];
   };
-
-  // ── Fetch ──────────────────────────────────────────────────────────────
+ 
   const fetchHeartRateData = useCallback(async () => {
     if (abortControllerRef.current) abortControllerRef.current.abort();
     abortControllerRef.current = new AbortController();
-
+ 
     try {
       setLoading(true);
       setError(null);
-
+ 
       let date = null, range = null, cacheKey;
-
+ 
       if (localDateRange?.customRange && localDateRange?.date) {
         date = formatDateForAPI(localDateRange.date);
         cacheKey = `${selectedUserId || 'null'}-date-${date}`;
@@ -71,14 +64,14 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
             : '24h';
         cacheKey = `${selectedUserId || 'null'}-${range}`;
       }
-
-      // ── Daily aggregated view (7d / 30d) ──────────────────────────────
+ 
       if (range === '7d' || range === '30d') {
         const dailyCacheKey = `daily-${cacheKey}`;
         if (cacheRef.current.has(dailyCacheKey)) {
           const cached = cacheRef.current.get(dailyCacheKey);
           if (Date.now() - cached.timestamp < 5 * 60 * 1000) {
             if (isMountedRef.current) {
+              setHeartRateData([]);
               setDailyData(cached.data);
               onHeartRateDataUpdate(cached.data);
               setLoading(false);
@@ -87,24 +80,27 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
           }
         }
 
-        // ⬇️  Replace with your real daily-summary API call
         const data = await getDailyHeartRateData(selectedUserId, range);
         if (!isMountedRef.current || abortControllerRef.current.signal.aborted) return;
-
+ 
         if (data?.results?.length) {
           const sorted = [...data.results].sort((a, b) => new Date(a.day) - new Date(b.day));
           cacheRef.current.set(dailyCacheKey, { data: sorted, timestamp: Date.now() });
           if (isMountedRef.current) {
+            setHeartRateData([]);
             setDailyData(sorted);
             onHeartRateDataUpdate(sorted);
           }
         } else {
-          if (isMountedRef.current) { setDailyData([]); onHeartRateDataUpdate([]); }
+          if (isMountedRef.current) {
+            setHeartRateData([]);
+            setDailyData([]);
+            onHeartRateDataUpdate([]);
+          }
         }
         return;
       }
-
-      // ── Granular (area-chart) view ─────────────────────────────────────
+ 
       if (cacheRef.current.has(cacheKey)) {
         const cached = cacheRef.current.get(cacheKey);
         if (Date.now() - cached.timestamp < 5 * 60 * 1000) {
@@ -116,21 +112,26 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
           return;
         }
       }
-
+ 
       const data = await getHeartRateData(selectedUserId, date, range);
       if (!isMountedRef.current || abortControllerRef.current.signal.aborted) return;
-
+ 
       if (data?.length) {
         const sorted = data.sort((a, b) => new Date(a.date) - new Date(b.date));
         cacheRef.current.set(cacheKey, { data: sorted, timestamp: Date.now() });
         if (isMountedRef.current) {
+          setDailyData([]);
           setHeartRateData(sorted);
           onHeartRateDataUpdate(sorted);
           setSliderPosition(100);
           setDraftPosition(100);
         }
       } else {
-        if (isMountedRef.current) { setHeartRateData([]); onHeartRateDataUpdate([]); }
+        if (isMountedRef.current) {
+          setDailyData([]);
+          setHeartRateData([]);
+          onHeartRateDataUpdate([]);
+        }
       }
     } catch (err) {
       if (err.name === 'AbortError' || err.code === 'ERR_CANCELLED' || !isMountedRef.current) return;
@@ -141,7 +142,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
   }, [selectedUserId, onHeartRateDataUpdate,
     localDateRange?.date,
     localDateRange?.customRange, localDateRange?.period]);
-
+ 
   useEffect(() => {
     isMountedRef.current = true;
     fetchHeartRateData();
@@ -151,8 +152,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
       clearTimeout(sliderTimerRef.current);
     };
   }, [fetchHeartRateData]);
-
-  // ── Process granular data ─────────────────────────────────────────────
+ 
   const allProcessed = useMemo(() => {
     if (!heartRateData?.length) return [];
     return heartRateData.map((item) => {
@@ -167,8 +167,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
       };
     }).sort((a, b) => a.timestamp - b.timestamp);
   }, [heartRateData]);
-
-  // ── Process daily data ────────────────────────────────────────────────
+ 
   const processedDailyData = useMemo(() => {
     if (!dailyData?.length) return [];
     return dailyData.map((item) => ({
@@ -180,8 +179,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
       isNormal: item.average_heart_rate >= 60 && item.average_heart_rate <= 100,
     }));
   }, [dailyData]);
-
-  // ── Windowed slice ────────────────────────────────────────────────────
+ 
   const visibleData = useMemo(() => {
     if (!allProcessed.length) return [];
     if (allProcessed.length <= WINDOW_SIZE) return allProcessed;
@@ -189,16 +187,14 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
     const startIndex = Math.round((sliderPosition / 100) * maxStart);
     return allProcessed.slice(startIndex, startIndex + WINDOW_SIZE);
   }, [allProcessed, sliderPosition]);
-
-  // ── Slider ────────────────────────────────────────────────────────────
+ 
   const handleSliderChange = useCallback((e) => {
     const val = parseInt(e.target.value, 10);
     setDraftPosition(val);
     clearTimeout(sliderTimerRef.current);
     sliderTimerRef.current = setTimeout(() => setSliderPosition(val), 80);
   }, []);
-
-  // ── Time ticks ────────────────────────────────────────────────────────
+ 
   const timeTicks = useMemo(() => {
     if (!visibleData.length) return [];
     const first = visibleData[0].timestamp;
@@ -214,16 +210,15 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
     while (t <= last) { ticks.push(t); t += intervalMs; }
     return ticks;
   }, [visibleData]);
-
-  // ── Stats ─────────────────────────────────────────────────────────────
+ 
   const sourceData = isDailyView ? dailyData : heartRateData;
-
+ 
   const averageHeartRate = useMemo(() => {
     if (!sourceData?.length) return 0;
     if (isDailyView) return Math.round(dailyData.reduce((s, i) => s + i.average_heart_rate, 0) / dailyData.length);
     return Math.round(heartRateData.reduce((s, i) => s + i.once_heart_value, 0) / heartRateData.length);
   }, [sourceData, isDailyView, dailyData, heartRateData]);
-
+ 
   const { min, max } = useMemo(() => {
     if (!sourceData?.length) return { min: 0, max: 0 };
     if (isDailyView) return {
@@ -233,22 +228,22 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
     const vals = heartRateData.map(i => i.once_heart_value);
     return { min: Math.min(...vals), max: Math.max(...vals) };
   }, [sourceData, isDailyView, dailyData, heartRateData]);
-
+ 
   const latestReading = useMemo(() =>
     heartRateData.length ? heartRateData[heartRateData.length - 1] : null,
     [heartRateData]);
-
+ 
   const currentValue = isDailyView
     ? (dailyData.length ? Math.round(dailyData[dailyData.length - 1].average_heart_rate) : averageHeartRate)
     : (latestReading?.once_heart_value || averageHeartRate);
-
+ 
   const status = useMemo(() => {
     if (currentValue >= 60 && currentValue <= 100) return { status: 'Normal', color: 'text-green-600', bgColor: 'bg-green-50 dark:bg-green-900/20' };
     if (currentValue >= 50 && currentValue <= 120) return { status: 'Elevated', color: 'text-yellow-600', bgColor: 'bg-yellow-50 dark:bg-yellow-900/20' };
     if (currentValue < 50) return { status: 'Low', color: 'text-blue-600', bgColor: 'bg-blue-50 dark:bg-blue-900/20' };
     return { status: 'High', color: 'text-red-600', bgColor: 'bg-red-50 dark:bg-red-900/20' };
   }, [currentValue]);
-
+ 
   const heartRateZone = useMemo(() => {
     if (currentValue < 50) return 'Resting';
     if (currentValue < 60) return 'Recovery';
@@ -257,7 +252,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
     if (currentValue < 90) return 'Anaerobic';
     return 'Maximum';
   }, [currentValue]);
-
+ 
   const dateRangeDisplay = useMemo(() => {
     const src = isDailyView ? dailyData : heartRateData;
     if (!src?.length) return 'No data';
@@ -268,11 +263,10 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
       return first.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     return `${first.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${last.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
   }, [isDailyView, dailyData, heartRateData]);
-
+ 
   const yMin = Math.max(40, Math.min(60, min - 10));
   const yMax = Math.min(200, Math.max(120, max + 10));
-
-  // ── Tooltips ──────────────────────────────────────────────────────────
+ 
   const CustomTooltip = ({ active, payload }) => {
     if (!active || !payload?.length) return null;
     return (
@@ -282,13 +276,14 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
       </div>
     );
   };
-
-  const DailyTooltip = ({ active, payload, label }) => {
+ 
+  const DailyTooltip = ({ active, payload }) => {
     if (!active || !payload?.length) return null;
     const d = payload[0].payload;
     return (
       <div className={`p-4 border rounded-xl shadow-xl ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-        <p className={`text-sm font-semibold mb-2 ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>{d.label}</p>
+        <p className={`text-sm font-semibold mb-1 ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>{d.label}</p>
+        <p className={`text-[10px] mb-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Click to view readings</p>
         <div className="space-y-1 text-xs">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
@@ -309,8 +304,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
       </div>
     );
   };
-
-  // ── Gradient area (granular) ──────────────────────────────────────────
+ 
   const GradientArea = (props) => {
     const MAX_STOPS = 20;
     const step = Math.max(1, Math.floor(visibleData.length / MAX_STOPS));
@@ -333,11 +327,10 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
       </>
     );
   };
-
+ 
   const formatXAxis = (ts) =>
     new Date(ts).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-
-  // ── Slider ────────────────────────────────────────────────────────────
+ 
   const SliderControl = () => (
     <div className="mt-4 px-2">
       {allProcessed.length > WINDOW_SIZE && (
@@ -358,22 +351,23 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
       </div>
     </div>
   );
-
-  // ── Daily BPM panel (bar + trend lines — distinct from SpO2 range capsules) ──
+ 
+  // Daily BPM panel — bars are clickable day filters
   const HeartRateDailyPanel = ({ height = DAILY_CHART_HEIGHT, chartId = 'hr' }) => (
     <div
       className={`relative rounded-2xl overflow-hidden border ${darkMode ? 'border-red-500/10 bg-gradient-to-b from-slate-900/50 via-slate-900/20 to-transparent' : 'border-red-100/80 bg-gradient-to-b from-rose-50/90 via-red-50/30 to-white'}`}
       style={{ height }}
     >
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart 
-          data={processedDailyData} 
-          barCategoryGap="26%" 
+        <BarChart
+          data={processedDailyData}
+          barCategoryGap="26%"
           margin={{ top: 28, right: 12, left: 0, bottom: 8 }}
-          onClick={(data) => {
-            if (data?.activePayload?.length) {
-              const payload = data.activePayload[0].payload;
-              if (payload.day) drillToDay(payload.day);
+          style={{ cursor: 'pointer' }}
+          onClick={(chartData) => {
+            if (chartData?.activePayload?.length) {
+              const payload = chartData.activePayload[0].payload;
+              if (payload?.day) drillToDay(payload.day);
             }
           }}
         >
@@ -439,8 +433,13 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
             isAnimationActive={false}
           />
           <Bar dataKey="avg" radius={[10, 10, 4, 4]} maxBarSize={44} isAnimationActive={false} filter={`url(#${chartId}BarShadow)`} cursor="pointer">
-            {processedDailyData.map((_, i) => (
-              <Cell key={i} fill={`url(#${chartId}-bar-grad-${i})`} />
+            {processedDailyData.map((entry, i) => (
+              <Cell
+                key={entry.day || i}
+                fill={`url(#${chartId}-bar-grad-${i})`}
+                cursor="pointer"
+                onClick={() => entry.day && drillToDay(entry.day)}
+              />
             ))}
           </Bar>
         </BarChart>
@@ -461,8 +460,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
       </div>
     </div>
   );
-
-  // ── Area chart (granular) ─────────────────────────────────────────────
+ 
   const ChartBody = ({ height = LIVE_CHART_HEIGHT }) => (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={visibleData}>
@@ -478,8 +476,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
       </AreaChart>
     </ResponsiveContainer>
   );
-
-  // ── Loading / Error / Empty ────────────────────────────────────────────
+ 
   if (loading) return (
     <>
       <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
@@ -495,7 +492,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
       </DataModal>
     </>
   );
-
+ 
   if (error) return (
     <>
       <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
@@ -512,7 +509,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
       </DataModal>
     </>
   );
-
+ 
   const isEmpty = isDailyView ? !dailyData.length : !heartRateData.length;
   if (isEmpty) return (
     <>
@@ -529,8 +526,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
       </DataModal>
     </>
   );
-
-  // ── Main render ───────────────────────────────────────────────────────
+ 
   return (
     <div className={`h-full flex flex-col rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
       {/* Header */}
@@ -563,7 +559,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
           </button>
         </div>
       </div>
-
+ 
       {/* Status badges */}
       <div className="mb-4 flex flex-wrap gap-3 min-h-[40px] shrink-0">
         <div className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg ${status.bgColor}`}>
@@ -581,7 +577,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
           </div>
         )}
       </div>
-
+ 
       {/* Chart */}
       <div className="mb-2 flex-1 flex flex-col min-h-0">
         {isDailyView ? (
@@ -597,11 +593,10 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
               </div>
             </div>
             <p className={`mb-2 text-center text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-              Click a day to view readings
+              Click a bar to view that day's readings
             </p>
             <HeartRateDailyPanel height={DAILY_CHART_HEIGHT} chartId="hrCard" />
-
-            {/* Mini summary cards below chart */}
+ 
             <div className="mt-4 grid grid-cols-3 gap-2 shrink-0">
               {[
                 { label: 'Period avg', value: averageHeartRate, accent: 'from-red-500 to-rose-600', icon: TrendingUp },
@@ -643,7 +638,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
           </>
         )}
       </div>
-
+ 
       {/* Detail Modal */}
       <DataModal isOpen={showDetails} onClose={() => setShowDetails(false)} title="Heart Rate Analysis" darkMode={darkMode}>
         <div className="space-y-6">
@@ -662,9 +657,13 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
                   (!localDateRange?.period && !localDateRange?.customRange && f.id === 'today');
                 return (
                   <button key={f.id}
-                    onClick={() => f.id === 'custom'
-                      ? setLocalDateRange({ ...localDateRange, customRange: true })
-                      : setLocalDateRange({ period: f.id, customRange: false })}
+                    onClick={() => {
+                      if (f.id === 'custom') {
+                        setLocalDateRange((prev) => ({ ...prev, customRange: true, drillDown: false }));
+                      } else {
+                        setLocalDateRange(buildPeriodFilterRange(f.id));
+                      }
+                    }}
                     className={`px-3 py-1.5 font-medium rounded-md transition-all ${active
                       ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 shadow-sm'
                       : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
@@ -681,12 +680,12 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
               </div>
             )}
           </div>
-
+ 
           {/* Modal chart */}
           {isDailyView ? (
             <>
               <p className={`mb-2 text-center text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                Click a day to view readings
+                Click a bar to view that day's readings
               </p>
               <HeartRateDailyPanel height={300} chartId="hrModal" />
             </>
@@ -702,7 +701,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
               <SliderControl />
             </>
           )}
-
+ 
           {/* Stats grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
@@ -717,8 +716,8 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
               </div>
             ))}
           </div>
-
-          {/* Recent readings — daily view shows day-level rows */}
+ 
+          {/* Recent readings */}
           <div>
             <h4 className={`font-semibold text-base mb-4 ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
               {isDailyView ? 'Daily Summary' : 'Recent Readings'}
@@ -728,12 +727,16 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
                 [...processedDailyData].reverse().map((d, i) => {
                   const dotColor = d.isNormal ? 'bg-green-500' : 'bg-orange-500';
                   return (
-                    <div key={i} className={`flex items-center justify-between p-4 rounded-xl border ${darkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-100'}`}>
+                    <div
+                      key={i}
+                      className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-colors ${darkMode ? 'bg-gray-700/30 border-gray-600 hover:bg-gray-700/60' : 'bg-gray-50 border-gray-100 hover:bg-red-50/60'}`}
+                      onClick={() => drillToDay(d.day)}
+                    >
                       <div className="flex items-center gap-4">
                         <div className={`w-3 h-3 rounded-full shadow-sm ${dotColor}`} />
                         <div>
                           <div className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>{d.label}</div>
-                          <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Min {d.min} · Max {d.max}</div>
+                          <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Min {d.min} · Max {d.max} · Tap to expand</div>
                         </div>
                       </div>
                       <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -773,5 +776,5 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
     </div>
   );
 };
-
+ 
 export default HeartRateDataComponent;

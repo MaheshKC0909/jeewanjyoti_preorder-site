@@ -1,15 +1,15 @@
 import { useCallback } from 'react';
 import { buildDrillDownRange, buildReturnFromDrillDown } from '../utils/vitalDateRange';
 
-export function useVitalDayDrillDown(localDateRange, setLocalDateRange) {
+export function useVitalDayDrillDown(_localDateRange, setLocalDateRange) {
   const drillToDay = useCallback(
-    (day) => setLocalDateRange(buildDrillDownRange(localDateRange, day)),
-    [localDateRange, setLocalDateRange]
+    (day) => setLocalDateRange((prev) => buildDrillDownRange(prev, day)),
+    [setLocalDateRange]
   );
 
   const exitDayDrill = useCallback(
-    () => setLocalDateRange(buildReturnFromDrillDown(localDateRange)),
-    [localDateRange, setLocalDateRange]
+    () => setLocalDateRange((prev) => buildReturnFromDrillDown(prev)),
+    [setLocalDateRange]
   );
 
   return { drillToDay, exitDayDrill };

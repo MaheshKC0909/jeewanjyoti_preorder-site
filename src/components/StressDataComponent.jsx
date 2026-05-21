@@ -7,8 +7,8 @@ import { Brain, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Calendar, E
 import { getStressData } from '../lib/api';
 import DataModal from './ui/Modal';
 import DayDrillDownBanner from './vitals/DayDrillDownBanner';
-import { useVitalDayDrillDown } from '../hooks/useVitalDayDrillDown';
-import { isDayDrillDown } from '../utils/vitalDateRange';
+import { useVitalLocalDateRange } from '../hooks/useVitalLocalDateRange';
+import { isDayDrillDown, isMultidayPeriod } from '../utils/vitalDateRange';
 
 function isDailyStressRow(row) {
   return row && typeof row.day === 'string' && typeof row.average_stress === 'number';
@@ -95,14 +95,19 @@ function StressRibbonLayer({ data, chartId, darkMode, onDayClick }) {
   };
 }
 
-function StressCalmPulseDot({ cx, cy, payload, darkMode, showValue }) {
+function StressCalmPulseDot({ cx, cy, payload, darkMode, showValue, onDayClick }) {
   if (cx == null || cy == null || !payload) return null;
   const tier = stressTier(payload.avg);
+  const handleClick = (e) => {
+    e?.stopPropagation?.();
+    if (payload.day) onDayClick?.(payload.day);
+  };
   return (
-    <g>
-      <circle cx={cx} cy={cy} r={22} fill="none" stroke={tier.glow} strokeWidth={1.5} opacity={darkMode ? 0.35 : 0.45} />
-      <circle cx={cx} cy={cy} r={14} fill={tier.glow} opacity={darkMode ? 0.22 : 0.3} />
-      <circle cx={cx} cy={cy} r={9} fill={tier.primary} stroke={darkMode ? '#0f172a' : '#fff'} strokeWidth={2.5} />
+    <g style={{ cursor: onDayClick ? 'pointer' : undefined }} onClick={handleClick}>
+      <circle cx={cx} cy={cy} r={28} fill="transparent" />
+      <circle cx={cx} cy={cy} r={22} fill="none" stroke={tier.glow} strokeWidth={1.5} opacity={darkMode ? 0.35 : 0.45} pointerEvents="none" />
+      <circle cx={cx} cy={cy} r={14} fill={tier.glow} opacity={darkMode ? 0.22 : 0.3} pointerEvents="none" />
+      <circle cx={cx} cy={cy} r={9} fill={tier.primary} stroke={darkMode ? '#0f172a' : '#fff'} strokeWidth={2.5} pointerEvents="none" />
       <circle cx={cx - 2.5} cy={cy - 2.5} r={2.5} fill="#fff" opacity={0.5} />
       {showValue && (
         <text x={cx} y={cy - 18} textAnchor="middle" fontSize={10} fontWeight={700} fill={darkMode ? '#e9d5ff' : '#4c1d95'}>
@@ -229,7 +234,7 @@ function StressDailyRangeChart({ processedDailyData, darkMode, onDayClick, heigh
           <Scatter
             dataKey="avg"
             name="Daily avg"
-            shape={(props) => <StressCalmPulseDot {...props} darkMode={darkMode} showValue={showDayLabels} />}
+            shape={(props) => <StressCalmPulseDot {...props} darkMode={darkMode} showValue={showDayLabels} onDayClick={onDayClick} />}
             isAnimationActive={false}
           />
         </ComposedChart>
@@ -263,29 +268,17 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
   const [error, setError] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [sliderPosition, setSliderPosition] = useState(100); // 100 = most recent, 0 = oldest
-  const [localDateRange, setLocalDateRange] = useState(dateRange);
-
-  useEffect(() => {
-    setLocalDateRange(dateRange);
-  }, [dateRange]);
-
-  // Sync local date range with global when modal opens/closes
-  useEffect(() => {
-    setLocalDateRange(dateRange);
-  }, [showDetails, dateRange]);
+  const { localDateRange, setLocalDateRange, drillToDay, exitDayDrill } = useVitalLocalDateRange(dateRange);
 
   // Cache and refs
   const cacheRef = useRef(new Map());
   const abortControllerRef = useRef(null);
   const isMountedRef = useRef(true);
 
-  const { drillToDay, exitDayDrill } = useVitalDayDrillDown(localDateRange, setLocalDateRange);
-
   const isDailyView = useMemo(() => {
     if (isDayDrillDown(localDateRange)) return false;
     if (stressData?.length && isDailyStressRow(stressData[0])) return true;
-    return !localDateRange?.customRange &&
-      (localDateRange?.period === 'week' || localDateRange?.period === 'month');
+    return isMultidayPeriod(localDateRange);
   }, [localDateRange, stressData]);
 
   // Format date for API (YYYY-MM-DD)
@@ -906,7 +899,14 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
                   ? processedDailyData.slice().reverse().map((row) => {
                     const tier = stressTier(row.avg);
                     return (
-                      <div key={row.day} className={`flex items-center justify-between p-4 rounded-xl border ${darkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-100'}`}>
+                      <div
+                        key={row.day}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => drillToDay(row.day)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); drillToDay(row.day); } }}
+                        className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-colors ${darkMode ? 'bg-gray-700/30 border-gray-600 hover:bg-gray-700/60' : 'bg-gray-50 border-gray-100 hover:bg-violet-50/60'}`}
+                      >
                         <div className="flex items-center gap-4">
                           <div className="w-3 h-3 rounded-full shadow-sm" style={{ background: tier.primary }} />
                           <div>

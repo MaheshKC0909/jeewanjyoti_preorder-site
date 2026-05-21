@@ -7,8 +7,8 @@ import { Thermometer, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Calen
 import { getBloodPressureData } from '../lib/api';
 import DataModal from './ui/Modal';
 import DayDrillDownBanner from './vitals/DayDrillDownBanner';
-import { useVitalDayDrillDown } from '../hooks/useVitalDayDrillDown';
-import { isDayDrillDown } from '../utils/vitalDateRange';
+import { useVitalLocalDateRange } from '../hooks/useVitalLocalDateRange';
+import { isDayDrillDown, isMultidayPeriod } from '../utils/vitalDateRange';
 
 function isDailyBPRow(row) {
   return row && typeof row.day === 'string' && typeof row.avg_systolic === 'number';
@@ -84,16 +84,21 @@ function BPDualRangeLayer({ data, chartId, darkMode, onDayClick }) {
   };
 }
 
-function BpAvgDot({ cx, cy, payload, type, darkMode, showValue }) {
+function BpAvgDot({ cx, cy, payload, type, darkMode, showValue, onDayClick }) {
   if (cx == null || cy == null || !payload) return null;
   const isSys = type === 'sys';
   const val = isSys ? payload.avgSys : payload.avgDia;
   const color = isSys ? '#f97316' : '#3b82f6';
   const glow = isSys ? '#fb923c' : '#60a5fa';
+  const handleClick = (e) => {
+    e?.stopPropagation?.();
+    if (payload.day) onDayClick?.(payload.day);
+  };
   return (
-    <g>
-      <circle cx={cx} cy={cy} r={16} fill={glow} opacity={darkMode ? 0.18 : 0.25} />
-      <circle cx={cx} cy={cy} r={9} fill={color} stroke={darkMode ? '#0f172a' : '#fff'} strokeWidth={2} />
+    <g style={{ cursor: onDayClick ? 'pointer' : undefined }} onClick={handleClick}>
+      <circle cx={cx} cy={cy} r={22} fill="transparent" />
+      <circle cx={cx} cy={cy} r={16} fill={glow} opacity={darkMode ? 0.18 : 0.25} pointerEvents="none" />
+      <circle cx={cx} cy={cy} r={9} fill={color} stroke={darkMode ? '#0f172a' : '#fff'} strokeWidth={2} pointerEvents="none" />
       {showValue && (
         <text x={cx} y={cy - 14} textAnchor="middle" fontSize={9} fontWeight={700} fill={darkMode ? '#e2e8f0' : '#1e293b'}>
           {Math.round(val)}
@@ -300,29 +305,17 @@ const BloodPressureDataComponent = ({ darkMode, onBloodPressureDataUpdate, selec
   const [error, setError] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [sliderPosition, setSliderPosition] = useState(100); // 100 = most recent, 0 = oldest
-  const [localDateRange, setLocalDateRange] = useState(dateRange);
-
-  useEffect(() => {
-    setLocalDateRange(dateRange);
-  }, [dateRange]);
-
-  // Sync local date range with global when modal opens/closes
-  useEffect(() => {
-    setLocalDateRange(dateRange);
-  }, [showDetails, dateRange]);
+  const { localDateRange, setLocalDateRange, drillToDay, exitDayDrill } = useVitalLocalDateRange(dateRange);
 
   // Cache and refs
   const cacheRef = useRef(new Map());
   const abortControllerRef = useRef(null);
   const isMountedRef = useRef(true);
 
-  const { drillToDay, exitDayDrill } = useVitalDayDrillDown(localDateRange, setLocalDateRange);
-
   const isDailyView = useMemo(() => {
     if (isDayDrillDown(localDateRange)) return false;
     if (bpData?.length && isDailyBPRow(bpData[0])) return true;
-    return !localDateRange?.customRange &&
-      (localDateRange?.period === 'week' || localDateRange?.period === 'month');
+    return isMultidayPeriod(localDateRange);
   }, [localDateRange, bpData]);
 
   const formatDateForAPI = (date) => {
@@ -705,8 +698,8 @@ const BloodPressureDataComponent = ({ darkMode, onBloodPressureDataUpdate, selec
           <Customized component={BPDualRangeLayer({ data: processedDailyData, chartId, darkMode, onDayClick: drillToDay })} />
           <Line type="monotone" dataKey="avgSys" stroke={`url(#${chartId}SysLine)`} strokeWidth={2} dot={false} activeDot={false} isAnimationActive={false} />
           <Line type="monotone" dataKey="avgDia" stroke={`url(#${chartId}DiaLine)`} strokeWidth={2} dot={false} activeDot={false} isAnimationActive={false} />
-          <Scatter dataKey="avgSys" shape={(props) => <BpAvgDot {...props} type="sys" darkMode={darkMode} showValue={showDayLabels} />} isAnimationActive={false} />
-          <Scatter dataKey="avgDia" shape={(props) => <BpAvgDot {...props} type="dia" darkMode={darkMode} showValue={showDayLabels} />} isAnimationActive={false} />
+          <Scatter dataKey="avgSys" shape={(props) => <BpAvgDot {...props} type="sys" darkMode={darkMode} showValue={showDayLabels} onDayClick={drillToDay} />} isAnimationActive={false} />
+          <Scatter dataKey="avgDia" shape={(props) => <BpAvgDot {...props} type="dia" darkMode={darkMode} showValue={showDayLabels} onDayClick={drillToDay} />} isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
       <div className={`absolute top-2 left-3 flex flex-wrap gap-3 text-[10px] ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -1009,7 +1002,11 @@ const BloodPressureDataComponent = ({ darkMode, onBloodPressureDataUpdate, selec
                   {processedDailyData.slice().reverse().map((row) => (
                     <div
                       key={row.day}
-                      className={`flex items-center justify-between p-3 rounded-xl border ${darkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-100'}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => drillToDay(row.day)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); drillToDay(row.day); } }}
+                      className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${darkMode ? 'bg-gray-800/50 border-gray-700 hover:bg-gray-800' : 'bg-gray-50 border-gray-100 hover:bg-orange-50/60'}`}
                     >
                       <span className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{row.label}</span>
                       <span className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>

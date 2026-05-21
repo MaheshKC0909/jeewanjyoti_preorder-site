@@ -7,7 +7,8 @@ import { Droplets, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Calendar
 import { getSpO2Data } from '../lib/api';
 import DataModal from './ui/Modal';
 import DayDrillDownBanner from './vitals/DayDrillDownBanner';
-import { useVitalDayDrillDown } from '../hooks/useVitalDayDrillDown';
+import { useVitalLocalDateRange } from '../hooks/useVitalLocalDateRange';
+import { isDayDrillDown, isMultidayPeriod } from '../utils/vitalDateRange';
 
 function isDailySpO2Row(row) {
   return row && typeof row.day === 'string' && (
@@ -84,13 +85,18 @@ function RangeCapsulesLayer({ data, chartId, darkMode, onDayClick }) {
   };
 }
 
-function AvgPulseDot({ cx, cy, payload, darkMode, showValue }) {
+function AvgPulseDot({ cx, cy, payload, darkMode, showValue, onDayClick }) {
   if (cx == null || cy == null || !payload) return null;
   const tier = spo2Tier(payload.avg);
+  const handleClick = (e) => {
+    e?.stopPropagation?.();
+    if (payload.day) onDayClick?.(payload.day);
+  };
   return (
-    <g>
-      <circle cx={cx} cy={cy} r={18} fill={tier.glow} opacity={darkMode ? 0.2 : 0.28} />
-      <circle cx={cx} cy={cy} r={11} fill={tier.primary} stroke={darkMode ? '#0f172a' : '#ffffff'} strokeWidth={2.5} />
+    <g style={{ cursor: onDayClick ? 'pointer' : undefined }} onClick={handleClick}>
+      <circle cx={cx} cy={cy} r={26} fill="transparent" />
+      <circle cx={cx} cy={cy} r={18} fill={tier.glow} opacity={darkMode ? 0.2 : 0.28} pointerEvents="none" />
+      <circle cx={cx} cy={cy} r={11} fill={tier.primary} stroke={darkMode ? '#0f172a' : '#ffffff'} strokeWidth={2.5} pointerEvents="none" />
       <circle cx={cx - 3} cy={cy - 3} r={3} fill="#ffffff" opacity={0.45} />
       {showValue && (
         <text x={cx} y={cy - 16} textAnchor="middle" fontSize={10} fontWeight={700} fill={darkMode ? '#e2e8f0' : '#0f172a'}>
@@ -107,29 +113,18 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
   const [error, setError] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [sliderPosition, setSliderPosition] = useState(100); // 100 = most recent, 0 = oldest
-  const [localDateRange, setLocalDateRange] = useState(dateRange);
-
-  useEffect(() => {
-    setLocalDateRange(dateRange);
-  }, [dateRange]);
-
-  // Sync local date range with global when modal opens/closes
-  useEffect(() => {
-    setLocalDateRange(dateRange);
-  }, [showDetails, dateRange]);
+  const { localDateRange, setLocalDateRange, drillToDay, exitDayDrill } = useVitalLocalDateRange(dateRange);
 
   // Cache and refs
   const cacheRef = useRef(new Map());
   const abortControllerRef = useRef(null);
   const isMountedRef = useRef(true);
-  const { drillToDay, exitDayDrill } = useVitalDayDrillDown(localDateRange, setLocalDateRange);
 
-  // ── is this a "daily" (bar-chart) period? ──────────────────────────────
-  const isDailyView = useMemo(() =>
-    !localDateRange?.customRange &&
-    (localDateRange?.period === 'week' || localDateRange?.period === 'month'),
-    [localDateRange]
-  );
+  const isDailyView = useMemo(() => {
+    if (isDayDrillDown(localDateRange)) return false;
+    if (spo2Data?.length && isDailySpO2Row(spo2Data[0])) return true;
+    return isMultidayPeriod(localDateRange);
+  }, [localDateRange, spo2Data]);
 
   // Format date for API (YYYY-MM-DD)
   const formatDateForAPI = (date) => {
@@ -678,7 +673,7 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
           <Scatter
             dataKey="avg"
             name="Daily avg"
-            shape={(props) => <AvgPulseDot {...props} darkMode={darkMode} showValue={showDayLabels} />}
+            shape={(props) => <AvgPulseDot {...props} darkMode={darkMode} showValue={showDayLabels} onDayClick={drillToDay} />}
             isAnimationActive={false}
           />
         </ComposedChart>
@@ -1204,7 +1199,14 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
               <div className={`space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar`}>
                 {isDailyView
                   ? processedDailyData.slice().reverse().map((row) => (
-                    <div key={row.day} className={`flex items-center justify-between p-4 rounded-xl border ${darkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-100'}`}>
+                    <div
+                      key={row.day}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => drillToDay(row.day)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); drillToDay(row.day); } }}
+                      className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-colors ${darkMode ? 'bg-gray-700/30 border-gray-600 hover:bg-gray-700/60' : 'bg-gray-50 border-gray-100 hover:bg-cyan-50/60'}`}
+                    >
                       <div className="flex items-center gap-4">
                         <div className={`w-3 h-3 rounded-full shadow-sm ${row.avg >= 95 ? 'bg-green-500' : row.avg >= 90 ? 'bg-yellow-500' : 'bg-red-500'}`} />
                         <div>
