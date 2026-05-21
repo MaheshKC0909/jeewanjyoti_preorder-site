@@ -55,14 +55,14 @@ export default function InstitutionDashboard() {
   const handleViewVitals = (userId, userName, profileImage) => {
     setSelectedUserId(userId);
     setSelectedUserName(userName);
-    
+
     // Normalize profile image URL (add backend domain if relative)
     if (profileImage && profileImage.startsWith('/')) {
       setSelectedUserProfileImage(`https://jeewanjyoti-backend.smart.org.np${profileImage}`);
     } else {
       setSelectedUserProfileImage(profileImage);
     }
-    
+
     setActiveTab('vitals');
   };
 
@@ -114,8 +114,8 @@ export default function InstitutionDashboard() {
                 transition: 'background 0.15s', overflow: 'hidden', whiteSpace: 'nowrap',
                 justifyContent: collapsed ? 'center' : 'flex-start'
               }}
-              onMouseEnter={e => { if (!active) e.currentTarget.style.background = '#1e293b'; }}
-              onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}>
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = '#1e293b'; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}>
                 <item.icon size={18} color={active ? '#fff' : '#64748b'} style={{ flexShrink: 0 }} />
                 {!collapsed && (
                   <>
@@ -141,8 +141,8 @@ export default function InstitutionDashboard() {
             background: 'transparent', border: 'none', cursor: 'pointer',
             justifyContent: collapsed ? 'center' : 'flex-start'
           }}
-          onMouseEnter={e => e.currentTarget.style.background = '#1e293b'}
-          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            onMouseEnter={e => e.currentTarget.style.background = '#1e293b'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
             <LogOut size={16} color="#ef4444" />
             {!collapsed && <span style={{ fontSize: 13, fontWeight: 600, color: '#ef4444' }}>Logout</span>}
           </button>
@@ -166,12 +166,12 @@ export default function InstitutionDashboard() {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button 
+            <button
               onClick={() => setDarkMode(!darkMode)}
               style={{ position: 'relative', width: 38, height: 38, borderRadius: 10, background: darkMode ? '#334155' : '#f8fafc', border: `1px solid ${darkMode ? '#475569' : '#e2e8f0'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
               {darkMode ? <Sun size={15} color="#cbd5e1" /> : <Moon size={15} color="#6b7280" />}
             </button>
-            <button 
+            <button
               onClick={() => window.location.reload()}
               style={{ position: 'relative', width: 38, height: 38, borderRadius: 10, background: darkMode ? '#334155' : '#f8fafc', border: `1px solid ${darkMode ? '#475569' : '#e2e8f0'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
               <RefreshCw size={15} color={darkMode ? '#cbd5e1' : "#6b7280"} />
