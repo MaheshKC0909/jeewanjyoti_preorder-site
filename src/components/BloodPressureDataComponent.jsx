@@ -624,7 +624,19 @@ const BloodPressureDataComponent = ({ darkMode, onBloodPressureDataUpdate, selec
       style={{ height }}
     >
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={processedDailyData} margin={{ top: 28, right: 12, left: 0, bottom: 8 }}>
+        <ComposedChart 
+          data={processedDailyData} 
+          margin={{ top: 28, right: 12, left: 0, bottom: 8 }}
+          onClick={(data) => {
+            if (data && data.activePayload && data.activePayload.length > 0) {
+              const payload = data.activePayload[0].payload;
+              if (payload.day) {
+                setLocalDateRange({ period: 'custom', customRange: true, date: payload.day });
+              }
+            }
+          }}
+          style={{ cursor: 'pointer' }}
+        >
           <defs>
             <linearGradient id={`${chartId}SysLine`} x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%" stopColor="#fb923c" />

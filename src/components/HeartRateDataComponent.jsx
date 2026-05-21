@@ -363,7 +363,19 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
       style={{ height }}
     >
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={processedDailyData} barCategoryGap="26%" margin={{ top: 28, right: 12, left: 0, bottom: 8 }}>
+        <BarChart 
+          data={processedDailyData} 
+          barCategoryGap="26%" 
+          margin={{ top: 28, right: 12, left: 0, bottom: 8 }}
+          onClick={(data) => {
+            if (data && data.activePayload && data.activePayload.length > 0) {
+              const payload = data.activePayload[0].payload;
+              if (payload.day) {
+                setLocalDateRange({ period: 'custom', customRange: true, date: payload.day });
+              }
+            }
+          }}
+        >
           <defs>
             <filter id={`${chartId}BarShadow`} x="-20%" y="-20%" width="140%" height="160%">
               <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor={darkMode ? '#000000' : '#111827'} floodOpacity={darkMode ? 0.35 : 0.18} />
@@ -425,7 +437,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
             activeDot={{ r: 3, strokeWidth: 0 }}
             isAnimationActive={false}
           />
-          <Bar dataKey="avg" radius={[10, 10, 4, 4]} maxBarSize={44} isAnimationActive={false} filter={`url(#${chartId}BarShadow)`}>
+          <Bar dataKey="avg" radius={[10, 10, 4, 4]} maxBarSize={44} isAnimationActive={false} filter={`url(#${chartId}BarShadow)`} cursor="pointer">
             {processedDailyData.map((_, i) => (
               <Cell key={i} fill={`url(#${chartId}-bar-grad-${i})`} />
             ))}

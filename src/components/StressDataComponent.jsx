@@ -105,7 +105,7 @@ function StressCalmPulseDot({ cx, cy, payload, darkMode, showValue }) {
   );
 }
 
-function StressDailyRangeChart({ processedDailyData, darkMode, height = DAILY_CHART_HEIGHT, chartId = 'stress' }) {
+function StressDailyRangeChart({ processedDailyData, darkMode, onDayClick, height = DAILY_CHART_HEIGHT, chartId = 'stress' }) {
   const showDayLabels = processedDailyData.length <= 12;
   const stressYDomain = useMemo(() => {
     if (!processedDailyData.length) return [0, 100];
@@ -143,7 +143,19 @@ function StressDailyRangeChart({ processedDailyData, darkMode, height = DAILY_CH
       style={{ height }}
     >
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={processedDailyData} margin={{ top: 28, right: 12, left: 0, bottom: 8 }}>
+        <ComposedChart 
+          data={processedDailyData} 
+          margin={{ top: 28, right: 12, left: 0, bottom: 8 }}
+          onClick={(data) => {
+            if (onDayClick && data && data.activePayload && data.activePayload.length > 0) {
+              const payload = data.activePayload[0].payload;
+              if (payload.day) {
+                onDayClick(payload.day);
+              }
+            }
+          }}
+          style={{ cursor: onDayClick ? 'pointer' : 'default' }}
+        >
           <defs>
             <linearGradient id={`${chartId}AvgLine`} x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%" stopColor="#e879f9" />
@@ -692,7 +704,13 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
                 <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>High (60+)</span>
               </div>
             </div>
-            <StressDailyRangeChart processedDailyData={processedDailyData} darkMode={darkMode} height={DAILY_CHART_HEIGHT} chartId="stressCard" />
+            <StressDailyRangeChart 
+              processedDailyData={processedDailyData} 
+              darkMode={darkMode} 
+              height={DAILY_CHART_HEIGHT} 
+              chartId="stressCard" 
+              onDayClick={(day) => setLocalDateRange({ period: 'custom', customRange: true, date: day })}
+            />
             <div className="mt-4 grid grid-cols-3 gap-2 shrink-0">
               {[
                 { label: 'Period avg', value: dailyStressStats.periodAvg, accent: 'from-fuchsia-500 to-violet-600', icon: TrendingUp },

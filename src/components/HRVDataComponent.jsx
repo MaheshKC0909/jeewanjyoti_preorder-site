@@ -160,7 +160,7 @@ function StatCard({ value, label, darkMode, accent }) {
   );
 }
 
-function DailyHRVChart({ data, darkMode }) {
+function DailyHRVChart({ data, darkMode, onDayClick }) {
   const [hoveredIdx, setHoveredIdx] = useState(null);
   const [mounted, setMounted] = useState(false);
   const containerRef = useRef(null);
@@ -351,9 +351,10 @@ function DailyHRVChart({ data, darkMode }) {
                 width={(440 - PAD_LEFT - PAD_RIGHT) / barCount}
                 height={CHART_H - PAD_TOP - PAD_BOTTOM + 24}
                 fill="transparent"
-                style={{ cursor: 'crosshair' }}
+                style={{ cursor: onDayClick ? 'pointer' : 'crosshair' }}
                 onMouseEnter={() => setHoveredIdx(i)}
                 onMouseLeave={() => setHoveredIdx(null)}
+                onClick={() => onDayClick && onDayClick(d.dayISO)}
               />
             </g>
           );
@@ -431,7 +432,7 @@ function DailyHRVChart({ data, darkMode }) {
   );
 }
 
-function DailyHRVSection({ spiralChartData, spiralStats, darkMode, progress }) {
+function DailyHRVSection({ spiralChartData, spiralStats, darkMode, progress, onDayClick }) {
   if (!spiralChartData.length || !spiralStats) return null;
 
   return (
@@ -471,7 +472,7 @@ function DailyHRVSection({ spiralChartData, spiralStats, darkMode, progress }) {
       {/* Main chart */}
       <div className={`rounded-2xl p-4 ${darkMode ? 'bg-gray-900/40' : 'bg-gray-50/80'}`}
         style={{ border: `1px solid ${darkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}` }}>
-        <DailyHRVChart data={spiralChartData} darkMode={darkMode} />
+        <DailyHRVChart data={spiralChartData} darkMode={darkMode} onDayClick={onDayClick} />
       </div>
     </div>
   );
@@ -979,7 +980,7 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
 
       {/* Multi-day card preview — animated interactive bar chart */}
       {spiralChartData.length > 0 && (
-        <MultiDayBarPreview data={spiralChartData} darkMode={darkMode} />
+        <MultiDayBarPreview data={spiralChartData} darkMode={darkMode} onDayClick={(day) => setLocalDateRange({ period: 'custom', customRange: true, date: day })} />
       )}
 
       {/* Detail Modal */}
@@ -1038,6 +1039,7 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
               spiralChartData={spiralChartData}
               spiralStats={spiralStats}
               darkMode={darkMode}
+              onDayClick={(day) => setLocalDateRange({ period: 'custom', customRange: true, date: day })}
             />
           ) : (
             <>
