@@ -3,6 +3,8 @@ import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tool
 import { Zap, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Eye, EyeOff, TrendingDown, Minus } from 'lucide-react';
 import { getHRVData } from '../lib/api';
 import DataModal from './ui/Modal';
+import DayDrillDownBanner from './vitals/DayDrillDownBanner';
+import { useVitalDayDrillDown } from '../hooks/useVitalDayDrillDown';
 
 function isDailyHRVRow(row) {
   return row && typeof row.day === 'string' && typeof row.average_hrv === 'number';
@@ -501,7 +503,7 @@ const CustomTooltip = ({ active, payload, darkMode }) => {
   return null;
 };
 
-function MultiDayBarPreview({ data, darkMode }) {
+function MultiDayBarPreview({ data, darkMode, onDayClick }) {
   const [hoveredIdx, setHoveredIdx] = useState(null);
   const [mounted, setMounted] = useState(false);
   const bars = data.slice(-7);
@@ -547,9 +549,18 @@ function MultiDayBarPreview({ data, darkMode }) {
             return (
               <div
                 key={d.dayISO}
+                role={onDayClick ? 'button' : undefined}
+                tabIndex={onDayClick ? 0 : undefined}
                 className="flex flex-col items-center gap-1 flex-1 min-w-0 relative cursor-pointer"
                 onMouseEnter={() => setHoveredIdx(i)}
                 onMouseLeave={() => setHoveredIdx(null)}
+                onClick={() => onDayClick?.(d.dayISO)}
+                onKeyDown={(e) => {
+                  if (onDayClick && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    onDayClick(d.dayISO);
+                  }
+                }}
               >
                 {/* Tooltip */}
                 {isHovered && (
@@ -672,6 +683,7 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
   const cacheRef = useRef(new Map());
   const abortControllerRef = useRef(null);
   const isMountedRef = useRef(true);
+  const { drillToDay, exitDayDrill } = useVitalDayDrillDown(localDateRange, setLocalDateRange);
 
   const formatDateForAPI = (date) => {
     if (!date) return null;
@@ -980,8 +992,20 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
 
       {/* Multi-day card preview — animated interactive bar chart */}
       {spiralChartData.length > 0 && (
-        <MultiDayBarPreview data={spiralChartData} darkMode={darkMode} onDayClick={(day) => setLocalDateRange({ period: 'custom', customRange: true, date: day })} />
+        <>
+          <p className={`mt-2 text-center text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+            Click a day to view readings
+          </p>
+          <MultiDayBarPreview data={spiralChartData} darkMode={darkMode} onDayClick={drillToDay} />
+        </>
       )}
+
+      <DayDrillDownBanner
+        dateRange={localDateRange}
+        onBack={exitDayDrill}
+        darkMode={darkMode}
+        accentClass="text-[#7F77DD]"
+      />
 
       {/* Detail Modal */}
       <DataModal
@@ -1039,10 +1063,16 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
               spiralChartData={spiralChartData}
               spiralStats={spiralStats}
               darkMode={darkMode}
-              onDayClick={(day) => setLocalDateRange({ period: 'custom', customRange: true, date: day })}
+              onDayClick={drillToDay}
             />
           ) : (
             <>
+              <DayDrillDownBanner
+                dateRange={localDateRange}
+                onBack={exitDayDrill}
+                darkMode={darkMode}
+                accentClass="text-[#7F77DD]"
+              />
               <div className="grid grid-cols-3 gap-3">
                 <StatCard value={`${averageHRV} ms`} label="Average" darkMode={darkMode} accent={chartStroke} />
                 <StatCard value={`${latestHrvMs} ms`} label="Latest" darkMode={darkMode} accent={chartStroke} />

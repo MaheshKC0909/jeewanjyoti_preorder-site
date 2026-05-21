@@ -6,6 +6,9 @@ import {
 import { Brain, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Calendar, Eye, EyeOff, CheckCircle2, AlertTriangle, Flame } from 'lucide-react';
 import { getStressData } from '../lib/api';
 import DataModal from './ui/Modal';
+import DayDrillDownBanner from './vitals/DayDrillDownBanner';
+import { useVitalDayDrillDown } from '../hooks/useVitalDayDrillDown';
+import { isDayDrillDown } from '../utils/vitalDateRange';
 
 function isDailyStressRow(row) {
   return row && typeof row.day === 'string' && typeof row.average_stress === 'number';
@@ -32,7 +35,7 @@ function stressTier(avg) {
 }
 
 /** Soft vertical ribbons (wider than SpO2 capsules) with a calm-pulse mark at daily avg */
-function StressRibbonLayer({ data, chartId, darkMode }) {
+function StressRibbonLayer({ data, chartId, darkMode, onDayClick }) {
   return function Render(props) {
     const { xAxisMap, yAxisMap, offset } = props;
     if (!xAxisMap || !yAxisMap || !data?.length) return null;
@@ -68,6 +71,11 @@ function StressRibbonLayer({ data, chartId, darkMode }) {
                 rx={w * 0.35}
                 fill={`url(#${chartId}-ribbon-${i})`}
                 opacity={darkMode ? 0.88 : 0.82}
+                style={{ cursor: onDayClick ? 'pointer' : undefined }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDayClick?.(d.day);
+                }}
               />
               <line
                 x1={cx - w / 2 + 2}
@@ -133,6 +141,11 @@ function StressDailyRangeChart({ processedDailyData, darkMode, onDayClick, heigh
         <p className={`text-[10px] mt-2 pt-2 border-t ${darkMode ? 'border-slate-700 text-slate-500' : 'border-purple-50 text-slate-400'}`}>
           {tier.label} stress
         </p>
+        {onDayClick && (
+          <p className={`text-[10px] mt-1 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+            Click to view that day&apos;s readings
+          </p>
+        )}
       </div>
     );
   };
@@ -147,11 +160,9 @@ function StressDailyRangeChart({ processedDailyData, darkMode, onDayClick, heigh
           data={processedDailyData} 
           margin={{ top: 28, right: 12, left: 0, bottom: 8 }}
           onClick={(data) => {
-            if (onDayClick && data && data.activePayload && data.activePayload.length > 0) {
+            if (onDayClick && data?.activePayload?.length) {
               const payload = data.activePayload[0].payload;
-              if (payload.day) {
-                onDayClick(payload.day);
-              }
+              if (payload.day) onDayClick(payload.day);
             }
           }}
           style={{ cursor: onDayClick ? 'pointer' : 'default' }}
@@ -211,7 +222,7 @@ function StressDailyRangeChart({ processedDailyData, darkMode, onDayClick, heigh
           <ReferenceLine y={30} stroke="#10b981" strokeDasharray="6 4" strokeOpacity={0.45} />
           <ReferenceLine y={60} stroke="#f59e0b" strokeDasharray="6 4" strokeOpacity={0.45} />
           <Area type="monotone" dataKey="avg" stroke="none" fill={`url(#${chartId}AvgGlow)`} isAnimationActive={false} />
-          <Customized component={StressRibbonLayer({ data: processedDailyData, chartId, darkMode })} />
+          <Customized component={StressRibbonLayer({ data: processedDailyData, chartId, darkMode, onDayClick })} />
           <Line type="monotone" dataKey="min" stroke={`url(#${chartId}MinTrail)`} strokeWidth={1.75} strokeDasharray="5 4" dot={false} activeDot={false} isAnimationActive={false} />
           <Line type="monotone" dataKey="max" stroke={`url(#${chartId}MaxTrail)`} strokeWidth={1.75} strokeDasharray="5 4" dot={false} activeDot={false} isAnimationActive={false} />
           <Line type="monotone" dataKey="avg" stroke={`url(#${chartId}AvgLine)`} strokeWidth={3} dot={false} activeDot={false} isAnimationActive={false} />
@@ -268,7 +279,10 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
   const abortControllerRef = useRef(null);
   const isMountedRef = useRef(true);
 
+  const { drillToDay, exitDayDrill } = useVitalDayDrillDown(localDateRange, setLocalDateRange);
+
   const isDailyView = useMemo(() => {
+    if (isDayDrillDown(localDateRange)) return false;
     if (stressData?.length && isDailyStressRow(stressData[0])) return true;
     return !localDateRange?.customRange &&
       (localDateRange?.period === 'week' || localDateRange?.period === 'month');
@@ -704,33 +718,25 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
                 <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>High (60+)</span>
               </div>
             </div>
-            <StressDailyRangeChart 
-              processedDailyData={processedDailyData} 
-              darkMode={darkMode} 
-              height={DAILY_CHART_HEIGHT} 
-              chartId="stressCard" 
-              onDayClick={(day) => setLocalDateRange({ period: 'custom', customRange: true, date: day })}
+            <p className={`mb-2 text-center text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+              Click a day to view readings
+            </p>
+            <StressDailyRangeChart
+              processedDailyData={processedDailyData}
+              darkMode={darkMode}
+              height={DAILY_CHART_HEIGHT}
+              chartId="stressCard"
+              onDayClick={drillToDay}
             />
-            <div className="mt-4 grid grid-cols-3 gap-2 shrink-0">
-              {[
-                { label: 'Period avg', value: dailyStressStats.periodAvg, accent: 'from-fuchsia-500 to-violet-600', icon: TrendingUp },
-                { label: 'Calmest day', value: dailyStressStats.calmest, accent: 'from-emerald-400 to-teal-600', icon: CheckCircle2 },
-                { label: 'Peak day', value: dailyStressStats.peak, accent: 'from-amber-400 to-orange-600', icon: Flame },
-              ].map(({ label, value, accent, icon: Icon }) => (
-                <div
-                  key={label}
-                  className={`relative overflow-hidden rounded-xl p-3 border ${darkMode ? 'bg-slate-800/60 border-slate-600/50' : 'bg-white border-violet-100/80 shadow-sm'}`}
-                >
-                  <div className={`absolute inset-0 opacity-[0.07] bg-gradient-to-br ${accent}`} />
-                  <Icon className={`w-3.5 h-3.5 mb-1.5 ${darkMode ? 'text-violet-400' : 'text-violet-600'}`} />
-                  <div className={`text-lg font-bold tabular-nums bg-gradient-to-r ${accent} bg-clip-text text-transparent`}>{value}</div>
-                  <div className={`text-[10px] mt-0.5 uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>{label}</div>
-                </div>
-              ))}
-            </div>
           </>
         ) : (
         <div className="mt-4">
+          <DayDrillDownBanner
+            dateRange={localDateRange}
+            onBack={exitDayDrill}
+            darkMode={darkMode}
+            accentClass="text-violet-600 dark:text-violet-400"
+          />
           <div className={`mb-3 flex items-center justify-between text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
             <span>{dateRange?.customRange ? 'Selected date' : 'Last 24 hours'}</span>
             <span>{stressData.length} reading{stressData.length !== 1 ? 's' : ''}</span>
@@ -808,9 +814,26 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
           </div>
 
           {isDailyView ? (
-            <StressDailyRangeChart processedDailyData={processedDailyData} darkMode={darkMode} height={300} chartId="stressModal" />
+            <>
+              <p className={`mb-2 text-center text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                Click a day to view readings
+              </p>
+              <StressDailyRangeChart
+                processedDailyData={processedDailyData}
+                darkMode={darkMode}
+                height={300}
+                chartId="stressModal"
+                onDayClick={drillToDay}
+              />
+            </>
           ) : (
             <>
+              <DayDrillDownBanner
+                dateRange={localDateRange}
+                onBack={exitDayDrill}
+                darkMode={darkMode}
+                accentClass="text-violet-600 dark:text-violet-400"
+              />
               <div className="h-[300px] w-full p-4 rounded-2xl bg-purple-50/50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-900/20">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={visibleData} isAnimationActive={false}>

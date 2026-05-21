@@ -6,6 +6,9 @@ import {
 import { Thermometer, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Calendar, Eye, EyeOff } from 'lucide-react';
 import { getBloodPressureData } from '../lib/api';
 import DataModal from './ui/Modal';
+import DayDrillDownBanner from './vitals/DayDrillDownBanner';
+import { useVitalDayDrillDown } from '../hooks/useVitalDayDrillDown';
+import { isDayDrillDown } from '../utils/vitalDateRange';
 
 function isDailyBPRow(row) {
   return row && typeof row.day === 'string' && typeof row.avg_systolic === 'number';
@@ -28,7 +31,7 @@ function bpTier(sys, dia) {
 }
 
 /** Side-by-side systolic / diastolic range capsules per day */
-function BPDualRangeLayer({ data, chartId, darkMode }) {
+function BPDualRangeLayer({ data, chartId, darkMode, onDayClick }) {
   return function Render(props) {
     const { xAxisMap, yAxisMap, offset } = props;
     if (!xAxisMap || !yAxisMap || !data?.length) return null;
@@ -43,7 +46,7 @@ function BPDualRangeLayer({ data, chartId, darkMode }) {
     const pairGap = Math.min(10, Math.max(5, bandwidth * 0.18));
     const capW = Math.min(11, Math.max(6, bandwidth * 0.22));
 
-    const drawCapsule = (cx, yMinVal, yMaxVal, gradId) => {
+    const drawCapsule = (cx, yMinVal, yMaxVal, gradId, day) => {
       const yTop = yScale(yMaxVal) + top;
       const yBottom = yScale(yMinVal) + top;
       const h = Math.max(5, yBottom - yTop);
@@ -56,6 +59,11 @@ function BPDualRangeLayer({ data, chartId, darkMode }) {
           rx={capW / 2}
           fill={`url(#${gradId})`}
           opacity={darkMode ? 0.92 : 0.88}
+          style={{ cursor: onDayClick ? 'pointer' : undefined }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDayClick?.(day);
+          }}
         />
       );
     };
@@ -66,8 +74,8 @@ function BPDualRangeLayer({ data, chartId, darkMode }) {
           const cx = (xScale(d.label) ?? 0) + bandwidth / 2 + left;
           return (
             <g key={d.day || i}>
-              {drawCapsule(cx - pairGap, d.minSys, d.maxSys, `${chartId}-sys-${i}`)}
-              {drawCapsule(cx + pairGap, d.minDia, d.maxDia, `${chartId}-dia-${i}`)}
+              {drawCapsule(cx - pairGap, d.minSys, d.maxSys, `${chartId}-sys-${i}`, d.day)}
+              {drawCapsule(cx + pairGap, d.minDia, d.maxDia, `${chartId}-dia-${i}`, d.day)}
             </g>
           );
         })}
@@ -120,7 +128,7 @@ function PreviewBPTooltip({ active, payload, darkMode }) {
 }
 
 /** Compact multi-day preview on card (matches HRV MultiDayBarPreview height) */
-function BPMultiDayPreview({ data, darkMode }) {
+function BPMultiDayPreview({ data, darkMode, onDayClick }) {
   const [hoveredIdx, setHoveredIdx] = useState(null);
   const [mounted, setMounted] = useState(false);
   const bars = data.slice(-7);
@@ -146,9 +154,18 @@ function BPMultiDayPreview({ data, darkMode }) {
             return (
               <div
                 key={d.day}
+                role={onDayClick ? 'button' : undefined}
+                tabIndex={onDayClick ? 0 : undefined}
                 className="flex flex-col items-center gap-1 flex-1 min-w-0 relative cursor-pointer"
                 onMouseEnter={() => setHoveredIdx(i)}
                 onMouseLeave={() => setHoveredIdx(null)}
+                onClick={() => onDayClick?.(d.day)}
+                onKeyDown={(e) => {
+                  if (onDayClick && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    onDayClick(d.day);
+                  }
+                }}
               >
                 {isHovered && (
                   <div
@@ -299,7 +316,10 @@ const BloodPressureDataComponent = ({ darkMode, onBloodPressureDataUpdate, selec
   const abortControllerRef = useRef(null);
   const isMountedRef = useRef(true);
 
+  const { drillToDay, exitDayDrill } = useVitalDayDrillDown(localDateRange, setLocalDateRange);
+
   const isDailyView = useMemo(() => {
+    if (isDayDrillDown(localDateRange)) return false;
     if (bpData?.length && isDailyBPRow(bpData[0])) return true;
     return !localDateRange?.customRange &&
       (localDateRange?.period === 'week' || localDateRange?.period === 'month');
@@ -628,11 +648,9 @@ const BloodPressureDataComponent = ({ darkMode, onBloodPressureDataUpdate, selec
           data={processedDailyData} 
           margin={{ top: 28, right: 12, left: 0, bottom: 8 }}
           onClick={(data) => {
-            if (data && data.activePayload && data.activePayload.length > 0) {
+            if (data?.activePayload?.length) {
               const payload = data.activePayload[0].payload;
-              if (payload.day) {
-                setLocalDateRange({ period: 'custom', customRange: true, date: payload.day });
-              }
+              if (payload.day) drillToDay(payload.day);
             }
           }}
           style={{ cursor: 'pointer' }}
@@ -684,7 +702,7 @@ const BloodPressureDataComponent = ({ darkMode, onBloodPressureDataUpdate, selec
           <ReferenceArea y1={80} y2={120} fill="#10b981" fillOpacity={darkMode ? 0.06 : 0.1} />
           <ReferenceLine y={120} stroke="#f97316" strokeDasharray="5 5" strokeOpacity={0.55} label={{ value: '120', position: 'insideTopRight', fill: '#f97316', fontSize: 9 }} />
           <ReferenceLine y={80} stroke="#3b82f6" strokeDasharray="5 5" strokeOpacity={0.55} label={{ value: '80', position: 'insideBottomRight', fill: '#3b82f6', fontSize: 9 }} />
-          <Customized component={BPDualRangeLayer({ data: processedDailyData, chartId, darkMode })} />
+          <Customized component={BPDualRangeLayer({ data: processedDailyData, chartId, darkMode, onDayClick: drillToDay })} />
           <Line type="monotone" dataKey="avgSys" stroke={`url(#${chartId}SysLine)`} strokeWidth={2} dot={false} activeDot={false} isAnimationActive={false} />
           <Line type="monotone" dataKey="avgDia" stroke={`url(#${chartId}DiaLine)`} strokeWidth={2} dot={false} activeDot={false} isAnimationActive={false} />
           <Scatter dataKey="avgSys" shape={(props) => <BpAvgDot {...props} type="sys" darkMode={darkMode} showValue={showDayLabels} />} isAnimationActive={false} />
@@ -878,8 +896,20 @@ const BloodPressureDataComponent = ({ darkMode, onBloodPressureDataUpdate, selec
 
       {/* Multi-day card preview */}
       {isDailyView && processedDailyData.length > 0 && (
-        <BPMultiDayPreview data={processedDailyData} darkMode={darkMode} />
+        <>
+          <p className={`mt-2 text-center text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+            Click a day to view readings
+          </p>
+          <BPMultiDayPreview data={processedDailyData} darkMode={darkMode} onDayClick={drillToDay} />
+        </>
       )}
+
+      <DayDrillDownBanner
+        dateRange={localDateRange}
+        onBack={exitDayDrill}
+        darkMode={darkMode}
+        accentClass="text-orange-600 dark:text-orange-400"
+      />
 
       {/* Detailed View Modal */}
       <DataModal
@@ -942,6 +972,9 @@ const BloodPressureDataComponent = ({ darkMode, onBloodPressureDataUpdate, selec
           
           {isDailyView ? (
             <>
+              <p className={`mb-2 text-center text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                Click a day to view readings
+              </p>
               <BPDailyRangeChart height={300} chartId="bpModal" />
               <div className="grid grid-cols-3 gap-4 mt-6">
                 <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}>
@@ -994,6 +1027,12 @@ const BloodPressureDataComponent = ({ darkMode, onBloodPressureDataUpdate, selec
             </>
           ) : (
             <>
+              <DayDrillDownBanner
+                dateRange={localDateRange}
+                onBack={exitDayDrill}
+                darkMode={darkMode}
+                accentClass="text-orange-600 dark:text-orange-400"
+              />
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={visibleData} isAnimationActive={false}>
               {darkMode ? <CartesianGrid strokeDasharray="3 3" stroke="#374151" /> : <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}

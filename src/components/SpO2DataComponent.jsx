@@ -6,6 +6,8 @@ import {
 import { Droplets, TrendingUp, AlertCircle, RefreshCw, Activity, Clock, Calendar, CheckCircle2, AlertTriangle, XCircle, X } from 'lucide-react';
 import { getSpO2Data } from '../lib/api';
 import DataModal from './ui/Modal';
+import DayDrillDownBanner from './vitals/DayDrillDownBanner';
+import { useVitalDayDrillDown } from '../hooks/useVitalDayDrillDown';
 
 function isDailySpO2Row(row) {
   return row && typeof row.day === 'string' && (
@@ -34,7 +36,7 @@ function spo2Tier(avg) {
 }
 
 /** Vertical min–max capsule per day (drawn in chart pixel space). */
-function RangeCapsulesLayer({ data, chartId, darkMode }) {
+function RangeCapsulesLayer({ data, chartId, darkMode, onDayClick }) {
   return function Render(props) {
     const { xAxisMap, yAxisMap, offset } = props;
     if (!xAxisMap || !yAxisMap || !data?.length) return null;
@@ -66,6 +68,11 @@ function RangeCapsulesLayer({ data, chartId, darkMode }) {
                 rx={w / 2}
                 fill={`url(#${chartId}-capsule-${i})`}
                 opacity={darkMode ? 0.9 : 0.85}
+                style={{ cursor: onDayClick ? 'pointer' : undefined }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDayClick?.(d.day);
+                }}
               />
               <line x1={cx - w / 2 - 4} y1={yTop} x2={cx + w / 2 + 4} y2={yTop} stroke={tier.primary} strokeWidth={1.5} opacity={0.45} />
               <line x1={cx - w / 2 - 4} y1={yBottom} x2={cx + w / 2 + 4} y2={yBottom} stroke={tier.primary} strokeWidth={1.5} opacity={0.45} />
@@ -115,6 +122,7 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
   const cacheRef = useRef(new Map());
   const abortControllerRef = useRef(null);
   const isMountedRef = useRef(true);
+  const { drillToDay, exitDayDrill } = useVitalDayDrillDown(localDateRange, setLocalDateRange);
 
   // ── is this a "daily" (bar-chart) period? ──────────────────────────────
   const isDailyView = useMemo(() =>
@@ -566,6 +574,9 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
             <p className={`font-bold ${darkMode ? 'text-slate-200' : 'text-slate-800'}`}>{d.max}%</p>
           </div>
         </div>
+        <p className={`mt-2 pt-2 border-t text-[10px] ${darkMode ? 'border-slate-700 text-slate-500' : 'border-cyan-50 text-slate-400'}`}>
+          Click to view that day&apos;s readings
+        </p>
       </div>
     );
   };
@@ -596,11 +607,9 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
           data={processedDailyData} 
           margin={{ top: 28, right: 12, left: 0, bottom: 8 }}
           onClick={(data) => {
-            if (data && data.activePayload && data.activePayload.length > 0) {
+            if (data?.activePayload?.length) {
               const payload = data.activePayload[0].payload;
-              if (payload.day) {
-                setLocalDateRange({ period: 'custom', customRange: true, date: payload.day });
-              }
+              if (payload.day) drillToDay(payload.day);
             }
           }}
           style={{ cursor: 'pointer' }}
@@ -656,7 +665,7 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
             label={{ value: '95%', position: 'insideTopRight', fill: '#10b981', fontSize: 10 }}
           />
           <Area type="monotone" dataKey="avg" stroke="none" fill={`url(#${chartId}AvgGlow)`} isAnimationActive={false} />
-          <Customized component={RangeCapsulesLayer({ data: processedDailyData, chartId, darkMode })} />
+          <Customized component={RangeCapsulesLayer({ data: processedDailyData, chartId, darkMode, onDayClick: drillToDay })} />
           <Line
             type="monotone"
             dataKey="avg"
@@ -879,6 +888,9 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
         <div>
           {isDailyView ? (
             <>
+              <p className={`mb-2 text-center text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                Click a day to view readings
+              </p>
               <SpO2DailyRangeChart height={DAILY_CHART_HEIGHT} chartId="spo2Card" />
               <div className="mt-4 grid grid-cols-3 gap-2 shrink-0">
                 {[
@@ -899,7 +911,14 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
               </div>
             </>
           ) : (
-            <ResponsiveContainer width="100%" height={LIVE_CHART_HEIGHT}>
+            <>
+              <DayDrillDownBanner
+                dateRange={localDateRange}
+                onBack={exitDayDrill}
+                darkMode={darkMode}
+                accentClass="text-cyan-600 dark:text-cyan-400"
+              />
+              <ResponsiveContainer width="100%" height={LIVE_CHART_HEIGHT}>
               <LineChart data={visibleData}>
                 {darkMode ? (
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false} vertical={false} />
@@ -955,6 +974,7 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
                 />
               </LineChart>
             </ResponsiveContainer>
+            </>
           )}
         </div>
 
@@ -1034,8 +1054,20 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
           {/* Main Chart in Modal */}
           <div className="h-[300px] w-full">
             {isDailyView ? (
-              <SpO2DailyRangeChart height={300} chartId="spo2Modal" />
+              <>
+                <p className={`mb-2 text-center text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                  Click a day to view readings
+                </p>
+                <SpO2DailyRangeChart height={300} chartId="spo2Modal" />
+              </>
             ) : (
+              <>
+                <DayDrillDownBanner
+                  dateRange={localDateRange}
+                  onBack={exitDayDrill}
+                  darkMode={darkMode}
+                  accentClass="text-cyan-600 dark:text-cyan-400"
+                />
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={visibleData}>
                   {darkMode ? (
@@ -1092,6 +1124,7 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
                   />
                 </LineChart>
               </ResponsiveContainer>
+              </>
             )}
           </div>
 

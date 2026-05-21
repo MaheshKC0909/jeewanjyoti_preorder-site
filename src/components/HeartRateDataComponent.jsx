@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { getHeartRateData, getDailyHeartRateData } from '../lib/api';
 import DataModal from './ui/Modal';
+import DayDrillDownBanner from './vitals/DayDrillDownBanner';
+import { useVitalDayDrillDown } from '../hooks/useVitalDayDrillDown';
 
 const WINDOW_SIZE = 300;
 
@@ -34,6 +36,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
   const abortControllerRef = useRef(null);
   const isMountedRef = useRef(true);
   const sliderTimerRef = useRef(null);
+  const { drillToDay, exitDayDrill } = useVitalDayDrillDown(localDateRange, setLocalDateRange);
 
   // ── is this a "daily" (bar-chart) period? ──────────────────────────────
   const isDailyView = useMemo(() =>
@@ -368,11 +371,9 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
           barCategoryGap="26%" 
           margin={{ top: 28, right: 12, left: 0, bottom: 8 }}
           onClick={(data) => {
-            if (data && data.activePayload && data.activePayload.length > 0) {
+            if (data?.activePayload?.length) {
               const payload = data.activePayload[0].payload;
-              if (payload.day) {
-                setLocalDateRange({ period: 'custom', customRange: true, date: payload.day });
-              }
+              if (payload.day) drillToDay(payload.day);
             }
           }}
         >
@@ -595,6 +596,9 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
                 <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Outside Normal Range</span>
               </div>
             </div>
+            <p className={`mb-2 text-center text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+              Click a day to view readings
+            </p>
             <HeartRateDailyPanel height={DAILY_CHART_HEIGHT} chartId="hrCard" />
 
             {/* Mini summary cards below chart */}
@@ -618,6 +622,12 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
           </>
         ) : (
           <>
+            <DayDrillDownBanner
+              dateRange={localDateRange}
+              onBack={exitDayDrill}
+              darkMode={darkMode}
+              accentClass="text-red-600 dark:text-red-400"
+            />
             <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs min-h-[32px] shrink-0">
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
@@ -673,8 +683,21 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
           </div>
 
           {/* Modal chart */}
-          {isDailyView ? <HeartRateDailyPanel height={300} chartId="hrModal" /> : (
+          {isDailyView ? (
             <>
+              <p className={`mb-2 text-center text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                Click a day to view readings
+              </p>
+              <HeartRateDailyPanel height={300} chartId="hrModal" />
+            </>
+          ) : (
+            <>
+              <DayDrillDownBanner
+                dateRange={localDateRange}
+                onBack={exitDayDrill}
+                darkMode={darkMode}
+                accentClass="text-red-600 dark:text-red-400"
+              />
               <ChartBody height={300} />
               <SliderControl />
             </>
