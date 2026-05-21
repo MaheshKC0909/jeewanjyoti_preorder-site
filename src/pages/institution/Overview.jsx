@@ -3,7 +3,7 @@
 // Requires:  npm install recharts lucide-react
 // No layout, no sidebar — just the content rendered inside InstitutionDashboard.
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import {
   Users, Activity, FileText, AlertTriangle,
   TrendingUp, TrendingDown, Wifi, WifiOff, Zap, ChevronRight,
@@ -110,20 +110,57 @@ const STAT_CARDS = [
 
 // ─── Small reusable pieces ────────────────────────────────────────────────────
 
-function AnimatedCount({ target, duration = 1100 }) {
-  const [val, setVal] = useState(0);
+const CHART_ANIM = { isAnimationActive: false };
+
+/** Paint below-the-fold charts after first frame so pies mount instantly */
+function useDeferredMount(delayMs = 80) {
+  const [ready, setReady] = useState(false);
   useEffect(() => {
-    let start = null;
-    const step = ts => {
-      if (!start) start = ts;
-      const p = Math.min((ts - start) / duration, 1);
-      setVal(Math.floor(p * target));
-      if (p < 1) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
-  }, [target, duration]);
-  return <>{val.toLocaleString()}</>;
+    const id = window.setTimeout(() => setReady(true), delayMs);
+    return () => window.clearTimeout(id);
+  }, [delayMs]);
+  return ready;
 }
+
+const ActiveVsInactivePie = memo(function ActiveVsInactivePie() {
+  const legendItems = ACTIVE_VS_INACTIVE.map((d) => ({
+    color: d.color,
+    label: `${d.name} ${((d.value / 1284) * 100).toFixed(1)}%`,
+  }));
+  return (
+    <Card>
+      <CardHead title="Active vs inactive" />
+      <Legend items={legendItems} />
+      <ResponsiveContainer width="100%" height={160}>
+        <PieChart>
+          <Pie
+            data={ACTIVE_VS_INACTIVE}
+            cx="50%"
+            cy="50%"
+            innerRadius={50}
+            outerRadius={72}
+            paddingAngle={3}
+            dataKey="value"
+            isAnimationActive={false}
+          >
+            {ACTIVE_VS_INACTIVE.map((d, i) => (
+              <Cell key={d.name} fill={d.color} stroke="none" />
+            ))}
+          </Pie>
+          <Tooltip formatter={(v, n) => [v.toLocaleString(), n]} />
+        </PieChart>
+      </ResponsiveContainer>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
+        {ACTIVE_VS_INACTIVE.map((d) => (
+          <div key={d.name} style={{ background: '#f8fafc', borderRadius: 12, padding: '10px 12px', textAlign: 'center' }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>{d.value.toLocaleString()}</div>
+            <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{d.name}</div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+});
 
 function BatteryBar({ level }) {
   const color = level > 60 ? '#10b981' : level > 30 ? '#f59e0b' : '#ef4444';
@@ -137,7 +174,7 @@ function BatteryBar({ level }) {
   );
 }
 
-const CT = ({ active, payload, label }) => {
+const CT = memo(function CT({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
     <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 12px', fontSize: 12, boxShadow: '0 4px 16px rgba(0,0,0,.08)' }}>
@@ -147,7 +184,7 @@ const CT = ({ active, payload, label }) => {
       ))}
     </div>
   );
-};
+});
 
 // Card shell — uses inline styles to play nicely inside the parent dashboard (no Tailwind clash)
 function Card({ children, style = {} }) {
@@ -189,7 +226,9 @@ const gridStyle = { stroke: '#f1f5f9' };
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
-export default function Overview() {
+function Overview() {
+  const chartsDeferred = useDeferredMount(100);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
@@ -213,14 +252,14 @@ export default function Overview() {
             <div>
               <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 500, marginBottom: 2 }}>{s.label}</div>
               <div style={{ fontSize: 26, fontWeight: 800, color: '#0f172a', letterSpacing: '-1px', fontVariantNumeric: 'tabular-nums' }}>
-                <AnimatedCount target={s.value} />
+                {s.value.toLocaleString()}
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* ── Row 1: Growth area + Active/Inactive donut ── */}
+      {/* ── Row 1: Growth area + Active/Inactive donut (priority — paints first) ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
         <Card>
           <CardHead title="Cumulative member growth — 12 months" action="Full report" />
@@ -236,33 +275,29 @@ export default function Overview() {
               <XAxis dataKey="month" tick={tickStyle} axisLine={false} tickLine={false} />
               <YAxis domain={[850, 1350]} tick={tickStyle} axisLine={false} tickLine={false} />
               <Tooltip content={<CT />} />
-              <Area type="monotone" dataKey="total" name="Members" stroke="#3b82f6" strokeWidth={2.5} fill="url(#gGrad)" dot={{ r: 3, fill: '#3b82f6' }} activeDot={{ r: 5 }} />
+              <Area type="monotone" dataKey="total" name="Members" stroke="#3b82f6" strokeWidth={2.5} fill="url(#gGrad)" dot={false} activeDot={{ r: 5 }} {...CHART_ANIM} />
             </AreaChart>
           </ResponsiveContainer>
         </Card>
-
-        <Card>
-          <CardHead title="Active vs inactive" />
-          <Legend items={ACTIVE_VS_INACTIVE.map(d => ({ color: d.color, label: `${d.name} ${((d.value / 1284) * 100).toFixed(1)}%` }))} />
-          <ResponsiveContainer width="100%" height={160}>
-            <PieChart>
-              <Pie data={ACTIVE_VS_INACTIVE} cx="50%" cy="50%" innerRadius={50} outerRadius={72} paddingAngle={3} dataKey="value" label={({ value }) => value} labelLine={false}>
-                {ACTIVE_VS_INACTIVE.map((d, i) => <Cell key={i} fill={d.color} stroke="none" />)}
-              </Pie>
-              <Tooltip formatter={(v, n) => [v.toLocaleString(), n]} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
-            {ACTIVE_VS_INACTIVE.map(d => (
-              <div key={d.name} style={{ background: '#f8fafc', borderRadius: 12, padding: '10px 12px', textAlign: 'center' }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>{d.value.toLocaleString()}</div>
-                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{d.name}</div>
-              </div>
-            ))}
-          </div>
-        </Card>
+        <ActiveVsInactivePie />
       </div>
 
+      {!chartsDeferred ? (
+        <div style={{ minHeight: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 13 }}>
+          Loading charts…
+        </div>
+      ) : (
+        <OverviewChartsDeferred />
+      )}
+    </div>
+  );
+}
+
+export default memo(Overview);
+
+function OverviewChartsDeferred() {
+  return (
+    <>
       {/* ── Row 2: Weekly + Monthly additions ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <Card>
@@ -273,7 +308,7 @@ export default function Overview() {
               <XAxis dataKey="week" tick={{ ...tickStyle, fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis tick={tickStyle} axisLine={false} tickLine={false} />
               <Tooltip content={<CT />} />
-              <Bar dataKey="added" name="Added" fill="#85b7eb" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="added" name="Added" fill="#85b7eb" radius={[4, 4, 0, 0]} {...CHART_ANIM} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -286,7 +321,7 @@ export default function Overview() {
               <XAxis dataKey="month" tick={tickStyle} axisLine={false} tickLine={false} />
               <YAxis tick={tickStyle} axisLine={false} tickLine={false} />
               <Tooltip content={<CT />} />
-              <Bar dataKey="added" name="Added" fill="#5dcaa5" radius={[5, 5, 0, 0]} />
+              <Bar dataKey="added" name="Added" fill="#5dcaa5" radius={[5, 5, 0, 0]} {...CHART_ANIM} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -302,7 +337,7 @@ export default function Overview() {
               <XAxis type="number" tick={tickStyle} axisLine={false} tickLine={false} />
               <YAxis type="category" dataKey="age" tick={{ ...tickStyle, fontSize: 11 }} axisLine={false} tickLine={false} width={42} />
               <Tooltip content={<CT />} />
-              <Bar dataKey="total" name="Total" fill="#1d9e75" radius={[0, 5, 5, 0]} />
+              <Bar dataKey="total" name="Total" fill="#1d9e75" radius={[0, 5, 5, 0]} {...CHART_ANIM} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -316,8 +351,8 @@ export default function Overview() {
               <XAxis dataKey="age" tick={{ ...tickStyle, fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis tick={tickStyle} axisLine={false} tickLine={false} />
               <Tooltip content={<CT />} />
-              <Bar dataKey="active"   name="Active"   stackId="a" fill="#378add" />
-              <Bar dataKey="inactive" name="Inactive" stackId="a" fill="#f09595" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="active"   name="Active"   stackId="a" fill="#378add" {...CHART_ANIM} />
+              <Bar dataKey="inactive" name="Inactive" stackId="a" fill="#f09595" radius={[4, 4, 0, 0]} {...CHART_ANIM} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -334,8 +369,8 @@ export default function Overview() {
               <XAxis dataKey="day" tick={tickStyle} axisLine={false} tickLine={false} />
               <YAxis tick={tickStyle} axisLine={false} tickLine={false} />
               <Tooltip content={<CT />} />
-              <Bar dataKey="thisWeek" name="This week" fill="#378add" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="lastWeek" name="Last week" fill="#b5d4f4" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="thisWeek" name="This week" fill="#378add" radius={[3, 3, 0, 0]} {...CHART_ANIM} />
+              <Bar dataKey="lastWeek" name="Last week" fill="#b5d4f4" radius={[3, 3, 0, 0]} {...CHART_ANIM} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -348,7 +383,7 @@ export default function Overview() {
               <XAxis type="number" domain={[0, 80]} tick={tickStyle} axisLine={false} tickLine={false} unit="%" />
               <YAxis type="category" dataKey="age" tick={{ ...tickStyle, fontSize: 11 }} axisLine={false} tickLine={false} width={42} />
               <Tooltip content={<CT />} formatter={v => [`${v}%`, 'Inactivity']} />
-              <Bar dataKey="rate" name="Rate" fill="#ef4444" radius={[0, 5, 5, 0]} />
+              <Bar dataKey="rate" name="Rate" fill="#ef4444" radius={[0, 5, 5, 0]} {...CHART_ANIM} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -360,7 +395,7 @@ export default function Overview() {
               <PolarGrid stroke="#e2e8f0" />
               <PolarAngleAxis dataKey="metric" tick={{ fontSize: 10, fill: '#94a3b8' }} />
               <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 9, fill: '#cbd5e1' }} />
-              <Radar name="Coverage" dataKey="A" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.2} strokeWidth={2} />
+              <Radar name="Coverage" dataKey="A" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.2} strokeWidth={2} {...CHART_ANIM} />
               <Tooltip content={<CT />} />
             </RadarChart>
           </ResponsiveContainer>
@@ -377,9 +412,9 @@ export default function Overview() {
             <XAxis dataKey="age" tick={tickStyle} axisLine={false} tickLine={false} />
             <YAxis tick={tickStyle} axisLine={false} tickLine={false} />
             <Tooltip content={<CT />} />
-            <Bar dataKey="hr"   name="Heart rate"  fill="#e24b4a" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="spo2" name="SpO₂"        fill="#378add" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="temp" name="Temperature" fill="#1d9e75" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="hr"   name="Heart rate"  fill="#e24b4a" radius={[4, 4, 0, 0]} {...CHART_ANIM} />
+            <Bar dataKey="spo2" name="SpO₂"        fill="#378add" radius={[4, 4, 0, 0]} {...CHART_ANIM} />
+            <Bar dataKey="temp" name="Temperature" fill="#1d9e75" radius={[4, 4, 0, 0]} {...CHART_ANIM} />
           </BarChart>
         </ResponsiveContainer>
       </Card>
@@ -436,7 +471,6 @@ export default function Overview() {
           </div>
         </Card>
       </div>
-
-    </div>
+    </>
   );
 }

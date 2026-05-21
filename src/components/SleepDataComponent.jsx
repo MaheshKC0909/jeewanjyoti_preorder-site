@@ -583,6 +583,7 @@ const SleepDataComponent = ({ darkMode, onSleepDataUpdate, selectedUserId, dateR
                 outerRadius={80}
                 paddingAngle={2}
                 dataKey="value"
+                isAnimationActive={false}
               >
                 {processedData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
@@ -630,8 +631,7 @@ const SleepDataComponent = ({ darkMode, onSleepDataUpdate, selectedUserId, dateR
                   outerRadius={100}
                   paddingAngle={5}
                   dataKey="value"
-                  animationBegin={200}
-                  animationDuration={1000}
+                  isAnimationActive={false}
                 >
                   {processedData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import {
   LayoutDashboard, Users, Activity, BarChart3, FileText,
   Bell, Smartphone, Settings, LogOut, Menu, ChevronDown, RefreshCw, Moon, Sun
@@ -25,10 +25,31 @@ const NAV = [
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
+/** Isolated clock — updates every second without re-rendering tab content or charts */
+const HeaderDateLine = memo(function HeaderDateLine() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>
+      {now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+    </div>
+  );
+});
+
+const INSTITUTION_GLOBAL_STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+  * { box-sizing: border-box; }
+  ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+  input:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 3px #3b82f620 !important; }
+`;
+
 export default function InstitutionDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
   const [collapsed, setCollapsed] = useState(false);
-  const [time, setTime] = useState(new Date());
+  const [globalDateRange] = useState({ period: 'today', customRange: false });
 
   // Get institution data from localStorage (stored during login)
   const institutionData = getUserData();
@@ -47,12 +68,7 @@ export default function InstitutionDashboard() {
     window.location.href = '/login';
   };
 
-  useEffect(() => {
-    const t = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  const handleViewVitals = (userId, userName, profileImage) => {
+  const handleViewVitals = useCallback((userId, userName, profileImage) => {
     setSelectedUserId(userId);
     setSelectedUserName(userName);
 
@@ -64,24 +80,39 @@ export default function InstitutionDashboard() {
     }
 
     setActiveTab('vitals');
-  };
+  }, []);
 
-  const renderContent = () => {
-    if (activeTab === 'overview') return <OverviewTab />;
-    if (activeTab === 'members') return <MembersTab onViewVitals={handleViewVitals} />;
-    if (activeTab === 'vitals') return <VitalsTab selectedUserId={selectedUserId} selectedUserInfo={{ name: selectedUserName, profileImage: selectedUserProfileImage }} darkMode={darkMode} />;
-    if (activeTab === 'subscription') return <SubscriptionTab />;
-    return <PlaceholderTab tab={activeTab} />;
-  };
+  const selectedUserInfo = useMemo(
+    () => ({ name: selectedUserName, profileImage: selectedUserProfileImage }),
+    [selectedUserName, selectedUserProfileImage]
+  );
+
+  const tabContent = useMemo(() => {
+    switch (activeTab) {
+      case 'overview':
+        return <OverviewTab />;
+      case 'members':
+        return <MembersTab onViewVitals={handleViewVitals} />;
+      case 'vitals':
+        return (
+          <VitalsTab
+            selectedUserId={selectedUserId}
+            selectedUserInfo={selectedUserInfo}
+            darkMode={darkMode}
+            globalDateFilter={globalDateRange.period}
+            globalDateRange={globalDateRange}
+          />
+        );
+      case 'subscription':
+        return <SubscriptionTab />;
+      default:
+        return <PlaceholderTab tab={activeTab} />;
+    }
+  }, [activeTab, handleViewVitals, selectedUserId, selectedUserInfo, darkMode, globalDateRange]);
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', background: darkMode ? '#0f172a' : '#f8fafc', fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, sans-serif" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        * { box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
-        input:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 3px #3b82f620 !important; }
-      `}</style>
+      <style>{INSTITUTION_GLOBAL_STYLES}</style>
 
       {/* Sidebar */}
       <aside style={{
@@ -161,9 +192,7 @@ export default function InstitutionDashboard() {
             <div style={{ fontSize: 17, fontWeight: 800, color: darkMode ? '#fff' : '#0f172a' }}>
               {NAV.filter(Boolean).find(n => n.id === activeTab)?.label || 'Dashboard'}
             </div>
-            <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>
-              {time.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-            </div>
+            <HeaderDateLine />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
@@ -200,7 +229,7 @@ export default function InstitutionDashboard() {
 
         {/* Content */}
         <div style={{ padding: 24, flex: 1 }}>
-          {renderContent()}
+          {tabContent}
         </div>
       </main>
     </div>
