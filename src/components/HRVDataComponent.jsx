@@ -686,12 +686,12 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
       setLoading(true);
       setError(null);
 
-      let fromDate = null, toDate = null, range = null, cacheKey;
+      let range = null, cacheKey;
+      let date = null;
 
-      if (localDateRange?.customRange && localDateRange.from && localDateRange.to) {
-        fromDate = formatDateForAPI(localDateRange.from);
-        toDate = formatDateForAPI(localDateRange.to);
-        cacheKey = `${selectedUserId || 'null'}-hrv-${fromDate}-${toDate}`;
+      if (localDateRange?.customRange && localDateRange?.date) {
+        date = formatDateForAPI(localDateRange.date);
+        cacheKey = `${selectedUserId || 'null'}-hrv-date-${date}`;
       } else {
         if (localDateRange?.period === 'today') range = '24h';
         else if (localDateRange?.period === 'week') range = '7d';
@@ -712,7 +712,7 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
         }
       }
 
-      const data = await getHRVData(selectedUserId, fromDate, toDate, range);
+      const data = await getHRVData(selectedUserId, date, range);
       if (!isMountedRef.current || abortControllerRef.current.signal.aborted) return;
 
       if (data && data.length > 0) {
@@ -731,7 +731,7 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
     } finally {
       if (isMountedRef.current && !abortControllerRef.current?.signal.aborted) setLoading(false);
     }
-  }, [selectedUserId, onHRVDataUpdate, localDateRange?.from, localDateRange?.to, localDateRange?.customRange, localDateRange?.period]);
+  }, [selectedUserId, onHRVDataUpdate, localDateRange?.date, localDateRange?.customRange, localDateRange?.period]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -1026,12 +1026,8 @@ const HRVDataComponent = ({ darkMode, onHRVDataUpdate, selectedUserId, dateRange
 
             {localDateRange?.customRange && (
               <div className="flex items-center gap-2 text-xs w-full md:w-auto">
-                <input type="date" value={localDateRange?.from || ''}
-                  onChange={(e) => setLocalDateRange({ ...localDateRange, from: e.target.value })}
-                  className={`flex-1 md:flex-none px-2.5 py-1.5 rounded-lg border text-xs outline-none ${darkMode ? 'bg-gray-900 border-gray-700 text-gray-200' : 'bg-white border-gray-200 text-gray-700'}`} />
-                <span style={{ color: darkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)' }}>to</span>
-                <input type="date" value={localDateRange?.to || ''}
-                  onChange={(e) => setLocalDateRange({ ...localDateRange, to: e.target.value })}
+                <input type="date" value={localDateRange?.date || ''}
+                  onChange={(e) => setLocalDateRange({ ...localDateRange, date: e.target.value })}
                   className={`flex-1 md:flex-none px-2.5 py-1.5 rounded-lg border text-xs outline-none ${darkMode ? 'bg-gray-900 border-gray-700 text-gray-200' : 'bg-white border-gray-200 text-gray-700'}`} />
               </div>
             )}

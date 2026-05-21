@@ -154,12 +154,12 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
       let cacheKey;
 
       // Determine API parameters based on date range
-      if (localDateRange?.customRange && localDateRange?.from && localDateRange?.to) {
-        // Custom date range - use from/to parameters
-        fromDate = formatDateForAPI(localDateRange.from);
-        toDate = formatDateForAPI(localDateRange.to);
-        cacheKey = `${selectedUserId || 'null'}-${fromDate}-${toDate}`;
-        console.log('Fetching SpO2 data for custom range:', { fromDate, toDate });
+      let date = null;
+      if (localDateRange?.customRange && localDateRange?.date) {
+        // Custom date - use date parameter
+        date = formatDateForAPI(localDateRange.date);
+        cacheKey = `${selectedUserId || 'null'}-date-${date}`;
+        console.log('Fetching SpO2 data for custom date:', date);
       } else {
         // Use range parameter for predefined periods
         if (localDateRange?.period === 'today') {
@@ -208,7 +208,7 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
       });
 
       // Make API call with proper parameters
-      const data = await getSpO2Data(selectedUserId, fromDate, toDate, range);
+      const data = await getSpO2Data(selectedUserId, date, range);
 
       // Check if component is still mounted and request wasn't aborted
       if (!isMountedRef.current || abortControllerRef.current.signal.aborted) {
@@ -263,7 +263,7 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
         setLoading(false);
       }
     }
-  }, [selectedUserId, onSpO2DataUpdate, localDateRange?.from, localDateRange?.to, localDateRange?.customRange, localDateRange?.period]);
+  }, [selectedUserId, onSpO2DataUpdate, localDateRange?.date, localDateRange?.customRange, localDateRange?.period]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -759,9 +759,9 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
               <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                 No SpO2 data available for the selected period
               </p>
-              {dateRange?.customRange && dateRange.from && dateRange.to && (
+              {dateRange?.customRange && dateRange.date && (
                 <p className={`text-xs mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                  Selected range: {formatDateForAPI(dateRange.from)} to {formatDateForAPI(dateRange.to)}
+                  Selected date: {formatDateForAPI(dateRange.date)}
                 </p>
               )}
             </div>
@@ -801,11 +801,11 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
             <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
               {dateRangeDisplay}
             </p>
-            {dateRange?.customRange && dateRange.from && dateRange.to && (
+            {dateRange?.customRange && dateRange.date && (
               <div className="flex items-center gap-1 mt-1">
                 <Calendar className="w-3 h-3 text-blue-500" />
                 <span className={`text-xs ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-                  Custom Range
+                  Custom Date
                 </span>
               </div>
             )}
@@ -1011,15 +1011,8 @@ const SpO2DataComponent = ({ darkMode, onSpO2DataUpdate, selectedUserId, dateRan
               <div className="flex items-center gap-2 text-xs w-full md:w-auto">
                 <input
                   type="date"
-                  value={localDateRange?.from || ''}
-                  onChange={(e) => setLocalDateRange({ ...localDateRange, from: e.target.value })}
-                  className={`flex-1 md:flex-none px-2 py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500/20 ${darkMode ? 'bg-gray-900 border-gray-700 text-gray-200 focus:border-blue-500/50' : 'bg-white border-gray-200 text-gray-700 focus:border-blue-500'}`}
-                />
-                <span className="text-gray-400 font-medium">to</span>
-                <input
-                  type="date"
-                  value={localDateRange?.to || ''}
-                  onChange={(e) => setLocalDateRange({ ...localDateRange, to: e.target.value })}
+                  value={localDateRange?.date || ''}
+                  onChange={(e) => setLocalDateRange({ ...localDateRange, date: e.target.value })}
                   className={`flex-1 md:flex-none px-2 py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500/20 ${darkMode ? 'bg-gray-900 border-gray-700 text-gray-200 focus:border-blue-500/50' : 'bg-white border-gray-200 text-gray-700 focus:border-blue-500'}`}
                 />
               </div>

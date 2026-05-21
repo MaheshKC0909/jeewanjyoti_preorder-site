@@ -231,8 +231,8 @@ const HomeTab = ({
 
   // Format date range for display
   const getDateRangeDisplay = () => {
-    if (globalDateRange?.customRange && globalDateRange.from && globalDateRange.to) {
-      return `Filtering: ${globalDateRange.from} to ${globalDateRange.to}`;
+    if (globalDateRange?.customRange && globalDateRange.date) {
+      return `Filtering: ${globalDateRange.date}`;
     }
 
     switch (globalDateFilter) {
@@ -243,7 +243,7 @@ const HomeTab = ({
       case 'month':
         return 'Showing data for the last 30 days';
       case 'custom':
-        return 'Showing custom date range';
+        return 'Showing custom date';
       default:
         return 'Showing latest data';
     }

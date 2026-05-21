@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   AreaChart, Area, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip,
   ComposedChart, Line, Scatter, ReferenceArea, ReferenceLine, Customized
@@ -284,16 +284,14 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
       setLoading(true);
       setError(null);
 
-      let fromDate = null;
-      let toDate = null;
       let range = null;
       let cacheKey;
+      let date = null;
 
-      if (localDateRange?.customRange && localDateRange.from && localDateRange.to) {
-        fromDate = formatDateForAPI(localDateRange.from);
-        toDate = formatDateForAPI(localDateRange.to);
-        cacheKey = `${selectedUserId || 'null'}-stress-${fromDate}-${toDate}`;
-        console.log('Fetching stress data for custom range:', { fromDate, toDate });
+      if (localDateRange?.customRange && localDateRange?.date) {
+        date = formatDateForAPI(localDateRange.date);
+        cacheKey = `${selectedUserId || 'null'}-stress-date-${date}`;
+        console.log('Fetching stress data for custom date:', date);
       } else {
         if (localDateRange?.period === 'today') range = '24h';
         else if (localDateRange?.period === 'week') range = '7d';
@@ -319,7 +317,7 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
         }
       }
 
-      const data = await getStressData(selectedUserId, fromDate, toDate, range);
+      const data = await getStressData(selectedUserId, date, range);
 
       if (!isMountedRef.current || abortControllerRef.current.signal.aborted) {
         return;
@@ -360,7 +358,7 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
         setLoading(false);
       }
     }
-  }, [selectedUserId, onStressDataUpdate, localDateRange]);
+  }, [selectedUserId, onStressDataUpdate, localDateRange?.date, localDateRange?.customRange, localDateRange?.period]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -716,7 +714,7 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
         ) : (
         <div className="mt-4">
           <div className={`mb-3 flex items-center justify-between text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            <span>{dateRange?.customRange ? 'Selected period' : 'Last 24 hours'}</span>
+            <span>{dateRange?.customRange ? 'Selected date' : 'Last 24 hours'}</span>
             <span>{stressData.length} reading{stressData.length !== 1 ? 's' : ''}</span>
           </div>
           <ResponsiveContainer width="100%" height={LIVE_CHART_HEIGHT}>
@@ -777,15 +775,8 @@ const StressDataComponent = ({ darkMode, onStressDataUpdate, selectedUserId, dat
               <div className="flex items-center gap-2 text-xs w-full md:w-auto">
                 <input
                   type="date"
-                  value={localDateRange?.from || ''}
-                  onChange={(e) => setLocalDateRange({ ...localDateRange, from: e.target.value })}
-                  className={`flex-1 md:flex-none px-2 py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-purple-500/20 ${darkMode ? 'bg-gray-900 border-gray-700 text-gray-200 focus:border-purple-500/50' : 'bg-white border-gray-200 text-gray-700 focus:border-purple-500'}`}
-                />
-                <span className="text-gray-400 font-medium">to</span>
-                <input
-                  type="date"
-                  value={localDateRange?.to || ''}
-                  onChange={(e) => setLocalDateRange({ ...localDateRange, to: e.target.value })}
+                  value={localDateRange?.date || ''}
+                  onChange={(e) => setLocalDateRange({ ...localDateRange, date: e.target.value })}
                   className={`flex-1 md:flex-none px-2 py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-purple-500/20 ${darkMode ? 'bg-gray-900 border-gray-700 text-gray-200 focus:border-purple-500/50' : 'bg-white border-gray-200 text-gray-700 focus:border-purple-500'}`}
                 />
               </div>

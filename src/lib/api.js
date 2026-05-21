@@ -267,38 +267,24 @@ async function fetchAllPages(initialUrl) {
 /**
  * Get sleep data
  * @param {string} userId - Optional user ID
- * @param {string} fromDate - Optional from date filter (YYYY-MM-DD)
- * @param {string} toDate - Optional to date filter (YYYY-MM-DD)
+ * @param {string} date - Optional single date filter (YYYY-MM-DD)
  * @param {string} range - Optional range filter (24h, 7d, 30d)
  * @returns {Promise<Array>} List of sleep data records
  */
-export async function getSleepData(userId = null, fromDate = null, toDate = null, range = null) {
+export async function getSleepData(userId = null, date = null, range = null) {
   const userData = getUserData();
   const endpoint = userData?.institution_type ? 'institution_sleep_data' : 'sleep-data';
   let url = userId ? `/api/${endpoint}/?user_id=${userId}` : `/api/${endpoint}/?`;
 
-  if (fromDate && toDate) {
-    url = userId 
-      ? `/api/${endpoint}/?user_id=${userId}&from=${fromDate}&to=${toDate}`
-      : `/api/${endpoint}/?from=${fromDate}&to=${toDate}`;
-    console.log('Fetching sleep data with from/to:', url);
-  }
-  else if (range) {
+  if (date) {
+    url = userId
+      ? `/api/${endpoint}/?user_id=${userId}&date=${date}`
+      : `/api/${endpoint}/?date=${date}`;
+    console.log('Fetching sleep data with date:', url);
+  } else if (range) {
     url += `&range=${range}`;
     console.log('Fetching sleep data with range:', url);
-  }
-  else if (fromDate) {
-    url += `&from=${fromDate}`;
-    if (toDate) {
-      url += `&to=${toDate}`;
-    }
-    console.log('Fetching sleep data with from:', url);
-  }
-  else if (toDate) {
-    url += `&to=${toDate}`;
-    console.log('Fetching sleep data with to:', url);
-  }
-  else {
+  } else {
     url += `&range=24h`;
     console.log('Fetching sleep data default 24h:', url);
   }
@@ -312,38 +298,24 @@ export async function getSleepData(userId = null, fromDate = null, toDate = null
 /**
  * Get SpO2/Blood Oxygen data
  * @param {string} userId - Optional user ID
- * @param {string} fromDate - Optional from date filter (YYYY-MM-DD)
- * @param {string} toDate - Optional to date filter (YYYY-MM-DD)
+ * @param {string} date - Optional single date filter (YYYY-MM-DD)
  * @param {string} range - Optional range filter (24h, 7d, 30d)
  * @returns {Promise<Array>} List of SpO2 data records
  */
-export async function getSpO2Data(userId = null, fromDate = null, toDate = null, range = null) {
+export async function getSpO2Data(userId = null, date = null, range = null) {
   const userData = getUserData();
   const endpoint = userData?.institution_type ? 'institution_Spo2_data' : 'Spo2-data';
   let url = userId ? `/api/${endpoint}/?user_id=${userId}` : `/api/${endpoint}/?`;
 
-  if (fromDate && toDate) {
-    url = userId 
-      ? `/api/${endpoint}/?user_id=${userId}&from=${fromDate}&to=${toDate}`
-      : `/api/${endpoint}/?from=${fromDate}&to=${toDate}`;
-    console.log('Fetching SpO2 data with from/to:', url);
-  }
-  else if (range) {
+  if (date) {
+    url = userId
+      ? `/api/${endpoint}/?user_id=${userId}&date=${date}`
+      : `/api/${endpoint}/?date=${date}`;
+    console.log('Fetching SpO2 data with date:', url);
+  } else if (range) {
     url += `&range=${range}`;
     console.log('Fetching SpO2 data with range:', url);
-  }
-  else if (fromDate) {
-    url += `&from=${fromDate}`;
-    if (toDate) {
-      url += `&to=${toDate}`;
-    }
-    console.log('Fetching SpO2 data with from:', url);
-  }
-  else if (toDate) {
-    url += `&to=${toDate}`;
-    console.log('Fetching SpO2 data with to:', url);
-  }
-  else {
+  } else {
     url += `&range=24h`;
     console.log('Fetching SpO2 data default 24h:', url);
   }
@@ -357,38 +329,24 @@ export async function getSpO2Data(userId = null, fromDate = null, toDate = null,
 /**
  * Get Heart Rate data
  * @param {string} userId - Optional user ID
- * @param {string} fromDate - Optional from date filter (YYYY-MM-DD)
- * @param {string} toDate - Optional to date filter (YYYY-MM-DD)
+ * @param {string} date - Optional single date filter (YYYY-MM-DD)
  * @param {string} range - Optional range filter (24h, 7d, 30d)
  * @returns {Promise<Array>} List of Heart Rate data records
  */
-export async function getHeartRateData(userId = null, fromDate = null, toDate = null, range = null) {
+export async function getHeartRateData(userId = null, date = null, range = null) {
   const userData = getUserData();
   const endpoint = userData?.institution_type ? 'institution_heartrate_data' : 'HeartRate_Data';
   let url = userId ? `/api/${endpoint}/?user_id=${userId}` : `/api/${endpoint}/?`;
 
-  if (fromDate && toDate) {
-    url = userId 
-      ? `/api/${endpoint}/?user_id=${userId}&from=${fromDate}&to=${toDate}`
-      : `/api/${endpoint}/?from=${fromDate}&to=${toDate}`;
-    console.log('Fetching heart rate data with from/to:', url);
-  }
-  else if (range) {
+  if (date) {
+    url = userId
+      ? `/api/${endpoint}/?user_id=${userId}&date=${date}`
+      : `/api/${endpoint}/?date=${date}`;
+    console.log('Fetching heart rate data with date:', url);
+  } else if (range) {
     url += `&range=${range}`;
     console.log('Fetching heart rate data with range:', url);
-  }
-  else if (fromDate) {
-    url += `&from=${fromDate}`;
-    if (toDate) {
-      url += `&to=${toDate}`;
-    }
-    console.log('Fetching heart rate data with from:', url);
-  }
-  else if (toDate) {
-    url += `&to=${toDate}`;
-    console.log('Fetching heart rate data with to:', url);
-  }
-  else {
+  } else {
     url += `&range=24h`;
     console.log('Fetching heart rate data default 24h:', url);
   }
@@ -449,38 +407,24 @@ export async function getDailyHeartRateData(userId = null, range = '7d') {
 /**
  * Get Blood Pressure data
  * @param {string} userId - Optional user ID
- * @param {string} fromDate - Optional from date filter (YYYY-MM-DD)
- * @param {string} toDate - Optional to date filter (YYYY-MM-DD)
+ * @param {string} date - Optional single date filter (YYYY-MM-DD)
  * @param {string} range - Optional range filter (24h, 7d, 30d)
  * @returns {Promise<Array>} List of Blood Pressure data records
  */
-export async function getBloodPressureData(userId = null, fromDate = null, toDate = null, range = null) {
+export async function getBloodPressureData(userId = null, date = null, range = null) {
   const userData = getUserData();
   const endpoint = userData?.institution_type ? 'institution_BP_data' : 'BloodPressure_Data';
   let url = userId ? `/api/${endpoint}/?user_id=${userId}` : `/api/${endpoint}/?`;
 
-  if (fromDate && toDate) {
-    url = userId 
-      ? `/api/${endpoint}/?user_id=${userId}&from=${fromDate}&to=${toDate}`
-      : `/api/${endpoint}/?from=${fromDate}&to=${toDate}`;
-    console.log('Fetching blood pressure data with from/to:', url);
-  }
-  else if (range) {
+  if (date) {
+    url = userId
+      ? `/api/${endpoint}/?user_id=${userId}&date=${date}`
+      : `/api/${endpoint}/?date=${date}`;
+    console.log('Fetching blood pressure data with date:', url);
+  } else if (range) {
     url += `&range=${range}`;
     console.log('Fetching blood pressure data with range:', url);
-  }
-  else if (fromDate) {
-    url += `&from=${fromDate}`;
-    if (toDate) {
-      url += `&to=${toDate}`;
-    }
-    console.log('Fetching blood pressure data with from:', url);
-  }
-  else if (toDate) {
-    url += `&to=${toDate}`;
-    console.log('Fetching blood pressure data with to:', url);
-  }
-  else {
+  } else {
     url += `&range=24h`;
     console.log('Fetching blood pressure data default 24h:', url);
   }
@@ -494,38 +438,24 @@ export async function getBloodPressureData(userId = null, fromDate = null, toDat
 /**
  * Get Stress data
  * @param {string} userId - Optional user ID
- * @param {string} fromDate - Optional from date filter (YYYY-MM-DD)
- * @param {string} toDate - Optional to date filter (YYYY-MM-DD)
+ * @param {string} date - Optional single date filter (YYYY-MM-DD)
  * @param {string} range - Optional range filter (24h, 7d, 30d)
  * @returns {Promise<Array>} List of Stress data records
  */
-export async function getStressData(userId = null, fromDate = null, toDate = null, range = null) {
+export async function getStressData(userId = null, date = null, range = null) {
   const userData = getUserData();
   const endpoint = userData?.institution_type ? 'institution_Stress_data' : 'Stress_Data';
   let url = userId ? `/api/${endpoint}/?user_id=${userId}` : `/api/${endpoint}/?`;
 
-  if (fromDate && toDate) {
-    url = userId 
-      ? `/api/${endpoint}/?user_id=${userId}&from=${fromDate}&to=${toDate}`
-      : `/api/${endpoint}/?from=${fromDate}&to=${toDate}`;
-    console.log('Fetching stress data with from/to:', url);
-  }
-  else if (range) {
+  if (date) {
+    url = userId
+      ? `/api/${endpoint}/?user_id=${userId}&date=${date}`
+      : `/api/${endpoint}/?date=${date}`;
+    console.log('Fetching stress data with date:', url);
+  } else if (range) {
     url += `&range=${range}`;
     console.log('Fetching stress data with range:', url);
-  }
-  else if (fromDate) {
-    url += `&from=${fromDate}`;
-    if (toDate) {
-      url += `&to=${toDate}`;
-    }
-    console.log('Fetching stress data with from:', url);
-  }
-  else if (toDate) {
-    url += `&to=${toDate}`;
-    console.log('Fetching stress data with to:', url);
-  }
-  else {
+  } else {
     url += `&range=24h`;
     console.log('Fetching stress data default 24h:', url);
   }
@@ -539,38 +469,24 @@ export async function getStressData(userId = null, fromDate = null, toDate = nul
 /**
  * Get HRV (Heart Rate Variability) data
  * @param {string} userId - Optional user ID
- * @param {string} fromDate - Optional from date filter (YYYY-MM-DD)
- * @param {string} toDate - Optional to date filter (YYYY-MM-DD)
+ * @param {string} date - Optional single date filter (YYYY-MM-DD)
  * @param {string} range - Optional range filter (24h, 7d, 30d)
  * @returns {Promise<Array>} List of HRV data records
  */
-export async function getHRVData(userId = null, fromDate = null, toDate = null, range = null) {
+export async function getHRVData(userId = null, date = null, range = null) {
   const userData = getUserData();
   const endpoint = userData?.institution_type ? 'institution_HRV_data' : 'HRV_Iso_Data';
   let url = userId ? `/api/${endpoint}/?user_id=${userId}` : `/api/${endpoint}/?`;
 
-  if (fromDate && toDate) {
-    url = userId 
-      ? `/api/${endpoint}/?user_id=${userId}&from=${fromDate}&to=${toDate}`
-      : `/api/${endpoint}/?from=${fromDate}&to=${toDate}`;
-    console.log('Fetching HRV data with from/to:', url);
-  }
-  else if (range) {
+  if (date) {
+    url = userId
+      ? `/api/${endpoint}/?user_id=${userId}&date=${date}`
+      : `/api/${endpoint}/?date=${date}`;
+    console.log('Fetching HRV data with date:', url);
+  } else if (range) {
     url += `&range=${range}`;
     console.log('Fetching HRV data with range:', url);
-  }
-  else if (fromDate) {
-    url += `&from=${fromDate}`;
-    if (toDate) {
-      url += `&to=${toDate}`;
-    }
-    console.log('Fetching HRV data with from:', url);
-  }
-  else if (toDate) {
-    url += `&to=${toDate}`;
-    console.log('Fetching HRV data with to:', url);
-  }
-  else {
+  } else {
     url += `&range=24h`;
     console.log('Fetching HRV data default 24h:', url);
   }
@@ -584,25 +500,19 @@ export async function getHRVData(userId = null, fromDate = null, toDate = null, 
 /**
  * Get Steps data
  * @param {string} userId - Optional user ID
- * @param {string} fromDate - Optional from date filter (YYYY-MM-DD)
- * @param {string} toDate - Optional to date filter (YYYY-MM-DD)
+ * @param {string} date - Optional single date filter (YYYY-MM-DD)
  * @param {string} range - Optional range filter (24h, 7d, 30d)
  * @returns {Promise<Array>} List of Steps data records
  */
-export async function getStepsData(userId = null, fromDate = null, toDate = null, range = null) {
+export async function getStepsData(userId = null, date = null, range = null) {
   try {
     let url = '/api/Steps/';
     const params = new URLSearchParams();
 
     if (userId) params.append('user', userId);
-    
-    if (fromDate && toDate) {
-      params.append('from', fromDate);
-      params.append('to', toDate);
-    } else if (fromDate) {
-      params.append('from', fromDate);
-    } else if (toDate) {
-      params.append('to', toDate);
+
+    if (date) {
+      params.append('date', date);
     } else if (range) {
       params.append('range', range);
     }
@@ -633,9 +543,10 @@ export async function getStepsData(userId = null, fromDate = null, toDate = null
  * Get daily total activity data
  * @param {string} userId - Optional user ID
  * @param {string} range - Optional time range filter (e.g., '24h', '7d', '30d')
+ * @param {string} date - Optional single date filter (YYYY-MM-DD)
  * @returns {Promise<object>} Daily activity data
  */
-export async function getDayTotalActivity(userId = null, range = null, fromDate = null, toDate = null) {
+export async function getDayTotalActivity(userId = null, range = null, date = null) {
   try {
     const userData = getUserData();
     const endpoint = userData?.institution_type ? 'institution_activity_data' : 'Day_total_activity';
@@ -643,14 +554,9 @@ export async function getDayTotalActivity(userId = null, range = null, fromDate 
     const params = new URLSearchParams();
 
     if (userId) params.append('user_id', userId);
-    
-    if (fromDate && toDate) {
-      params.append('from', fromDate);
-      params.append('to', toDate);
-    } else if (fromDate) {
-      params.append('from', fromDate);
-    } else if (toDate) {
-      params.append('to', toDate);
+
+    if (date) {
+      params.append('date', date);
     } else if (range) {
       params.append('range', range);
     }

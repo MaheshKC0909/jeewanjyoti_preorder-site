@@ -325,16 +325,14 @@ const BloodPressureDataComponent = ({ darkMode, onBloodPressureDataUpdate, selec
       setLoading(true);
       setError(null);
 
-      let fromDate = null;
-      let toDate = null;
       let range = null;
       let cacheKey;
+      let date = null;
 
-      if (localDateRange?.customRange && localDateRange.from && localDateRange.to) {
-        fromDate = formatDateForAPI(localDateRange.from);
-        toDate = formatDateForAPI(localDateRange.to);
-        cacheKey = `${selectedUserId || 'null'}-bp-${fromDate}-${toDate}`;
-        console.log('Fetching blood pressure data for custom range:', { fromDate, toDate });
+      if (localDateRange?.customRange && localDateRange?.date) {
+        date = formatDateForAPI(localDateRange.date);
+        cacheKey = `${selectedUserId || 'null'}-bp-date-${date}`;
+        console.log('Fetching blood pressure data for custom date:', date);
       } else {
         if (localDateRange?.period === 'today') range = '24h';
         else if (localDateRange?.period === 'week') range = '7d';
@@ -360,7 +358,7 @@ const BloodPressureDataComponent = ({ darkMode, onBloodPressureDataUpdate, selec
         }
       }
 
-      const data = await getBloodPressureData(selectedUserId, fromDate, toDate, range);
+      const data = await getBloodPressureData(selectedUserId, date, range);
 
       if (!isMountedRef.current || abortControllerRef.current.signal.aborted) {
         return;
@@ -401,7 +399,7 @@ const BloodPressureDataComponent = ({ darkMode, onBloodPressureDataUpdate, selec
         setLoading(false);
       }
     }
-  }, [selectedUserId, onBloodPressureDataUpdate, localDateRange]);
+  }, [selectedUserId, onBloodPressureDataUpdate, localDateRange?.date, localDateRange?.customRange, localDateRange?.period]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -916,15 +914,8 @@ const BloodPressureDataComponent = ({ darkMode, onBloodPressureDataUpdate, selec
               <div className="flex items-center gap-2 text-xs w-full md:w-auto">
                 <input
                   type="date"
-                  value={localDateRange?.from || ''}
-                  onChange={(e) => setLocalDateRange({ ...localDateRange, from: e.target.value })}
-                  className={`flex-1 md:flex-none px-2 py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-orange-500/20 ${darkMode ? 'bg-gray-900 border-gray-700 text-gray-200 focus:border-orange-500/50' : 'bg-white border-gray-200 text-gray-700 focus:border-orange-500'}`}
-                />
-                <span className="text-gray-400 font-medium">to</span>
-                <input
-                  type="date"
-                  value={localDateRange?.to || ''}
-                  onChange={(e) => setLocalDateRange({ ...localDateRange, to: e.target.value })}
+                  value={localDateRange?.date || ''}
+                  onChange={(e) => setLocalDateRange({ ...localDateRange, date: e.target.value })}
                   className={`flex-1 md:flex-none px-2 py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-orange-500/20 ${darkMode ? 'bg-gray-900 border-gray-700 text-gray-200 focus:border-orange-500/50' : 'bg-white border-gray-200 text-gray-700 focus:border-orange-500'}`}
                 />
               </div>

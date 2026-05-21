@@ -66,18 +66,16 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
             setLoading(true);
             setError(null);
 
-            let fromDate = null;
-            let toDate = null;
+            let date = null;
             let range = null;
             let cacheKey;
 
             // Determine API parameters based on date range
-            if (dateRange?.customRange && dateRange.from && dateRange.to) {
-                // Custom date range - use from/to parameters
-                fromDate = formatDateForAPI(dateRange.from);
-                toDate = formatDateForAPI(dateRange.to);
-                cacheKey = `activity-${selectedUserId || 'default'}-${fromDate}-${toDate}`;
-                console.log('Fetching activity data for custom range:', { fromDate, toDate });
+            if (dateRange?.customRange && dateRange.date) {
+                // Custom date - use date parameter
+                date = formatDateForAPI(dateRange.date);
+                cacheKey = `activity-${selectedUserId || 'default'}-date-${date}`;
+                console.log('Fetching activity data for custom date:', date);
             } else {
                 // Use range parameter for predefined periods
                 if (dateRange?.period === 'today' || !dateRange?.period) {
@@ -94,11 +92,11 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
                     cacheKey = `activity-${selectedUserId || 'default'}-${range}`;
                     console.log('Fetching activity data with range:', range);
                 } else {
+                    // Fallback: use today's date
                     const todayStr = formatDateForAPI(new Date());
-                    fromDate = todayStr;
-                    toDate = todayStr;
+                    date = todayStr;
                     cacheKey = `activity-${selectedUserId || 'default'}-today-fallback-${todayStr}`;
-                    console.log('Fetching activity data for specific today:', { fromDate, toDate });
+                    console.log('Fetching activity data for specific today:', todayStr);
                 }
             }
 
@@ -124,12 +122,11 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
             console.log('Making API call with params:', {
                 userId: selectedUserId,
                 range,
-                fromDate,
-                toDate
+                date
             });
 
             // Fetch daily activity data
-            const response = await getDayTotalActivity(selectedUserId, range, fromDate, toDate);
+            const response = await getDayTotalActivity(selectedUserId, range, date);
 
             // Check if component is still mounted and request wasn't aborted
             if (!isMountedRef.current || abortControllerRef.current.signal.aborted) {
@@ -145,13 +142,10 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
                 // Filter data based on date range if custom range is active
                 let dataToProcess = response.results;
 
-                if (fromDate && toDate) {
-                    // Filter results to only include dates within the custom range
-                    dataToProcess = response.results.filter(item => {
-                        const itemDate = item.date;
-                        return itemDate >= fromDate && itemDate <= toDate;
-                    });
-                    console.log(`Filtered to ${dataToProcess.length} records within custom range`);
+                if (date) {
+                    // Filter results to only include the custom date
+                    dataToProcess = response.results.filter(item => item.date === date);
+                    console.log(`Filtered to custom date (${date})`);
                 } else if (!dateRange?.period || dateRange?.period === 'today') {
                     // If 'today' filter is active, pick ONLY the latest day available
                     const sortedAll = [...response.results].sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -421,11 +415,11 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
                         <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                             {getDateRangeDisplay()}
                         </p>
-                        {dateRange?.customRange && dateRange.from && dateRange.to && (
+                        {dateRange?.customRange && dateRange.date && (
                             <div className="flex items-center gap-1 mt-1">
                                 <Calendar className="w-3 h-3 text-green-500" />
                                 <span className={`text-xs ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
-                                    Custom Range
+                                    Custom Date
                                 </span>
                             </div>
                         )}

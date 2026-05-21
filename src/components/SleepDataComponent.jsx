@@ -47,12 +47,12 @@ const SleepDataComponent = ({ darkMode, onSleepDataUpdate, selectedUserId, dateR
       let cacheKey;
 
       // Determine API parameters based on date range
-      if (dateRange?.customRange && dateRange.from && dateRange.to) {
-        // Custom date range - use from/to parameters
-        fromDate = formatDateForAPI(dateRange.from);
-        toDate = formatDateForAPI(dateRange.to);
-        cacheKey = `${selectedUserId || 'null'}-${fromDate}-${toDate}`;
-        console.log('Fetching sleep data for custom range:', { fromDate, toDate });
+      let date = null;
+      if (dateRange?.customRange && dateRange.date) {
+        // Custom date - use date parameter
+        date = formatDateForAPI(dateRange.date);
+        cacheKey = `${selectedUserId || 'null'}-date-${date}`;
+        console.log('Fetching sleep data for custom date:', date);
       } else {
         // Use range parameter for predefined periods
         if (dateRange?.period === 'today') {
@@ -102,7 +102,7 @@ const SleepDataComponent = ({ darkMode, onSleepDataUpdate, selectedUserId, dateR
       });
       
       // Make API call with proper parameters
-      const data = await getSleepData(selectedUserId, fromDate, toDate, range);
+      const data = await getSleepData(selectedUserId, date, range);
 
       // Check if component is still mounted and request wasn't aborted
       if (!isMountedRef.current || abortControllerRef.current.signal.aborted) {
@@ -160,7 +160,7 @@ const SleepDataComponent = ({ darkMode, onSleepDataUpdate, selectedUserId, dateR
         setLoading(false);
       }
     }
-  }, [selectedUserId, onSleepDataUpdate, dateRange?.from, dateRange?.to, dateRange?.customRange, dateRange?.period]);
+  }, [selectedUserId, onSleepDataUpdate, dateRange?.date, dateRange?.customRange, dateRange?.period]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -434,9 +434,9 @@ const SleepDataComponent = ({ darkMode, onSleepDataUpdate, selectedUserId, dateR
               <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                 No sleep data available for the selected period
               </p>
-              {dateRange?.customRange && dateRange.from && dateRange.to && (
+              {dateRange?.customRange && dateRange.date && (
                 <p className={`text-xs mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                  Selected range: {formatDateForAPI(dateRange.from)} to {formatDateForAPI(dateRange.to)}
+                  Selected date: {formatDateForAPI(dateRange.date)}
                 </p>
               )}
             </div>
@@ -476,11 +476,11 @@ const SleepDataComponent = ({ darkMode, onSleepDataUpdate, selectedUserId, dateR
             <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
               {dateRangeDisplay}
             </p>
-            {dateRange?.customRange && dateRange.from && dateRange.to && (
+            {dateRange?.customRange && dateRange.date && (
               <div className="flex items-center gap-1 mt-1">
                 <Calendar className="w-3 h-3 text-indigo-500" />
                 <span className={`text-xs ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`}>
-                  Custom Range
+                  Custom Date
                 </span>
               </div>
             )}

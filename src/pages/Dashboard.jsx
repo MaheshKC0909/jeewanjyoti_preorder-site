@@ -83,11 +83,9 @@ const Dashboard = () => {
   const [globalDateFilter, setGlobalDateFilter] = useState('today');
   const [showGlobalFilterDropdown, setShowGlobalFilterDropdown] = useState(false);
   const [showCustomDateModal, setShowCustomDateModal] = useState(false);
-  const [customDateFrom, setCustomDateFrom] = useState('');
-  const [customDateTo, setCustomDateTo] = useState('');
+  const [customDate, setCustomDate] = useState('');
   const [globalDateRange, setGlobalDateRange] = useState({
-    from: null,
-    to: null,
+    date: null,
     customRange: false,
     period: 'today'
   });
@@ -292,12 +290,10 @@ const Dashboard = () => {
       setShowGlobalFilterDropdown(false);
       setShowCustomDateModal(true);
       const today = new Date().toISOString().split('T')[0];
-      setCustomDateFrom(today);
-      setCustomDateTo(today);
+      setCustomDate(today);
     } else {
       setGlobalDateRange({
-        from: null,
-        to: null,
+        date: null,
         customRange: false,
         period: filterType
       });
@@ -306,10 +302,9 @@ const Dashboard = () => {
   };
 
   // Handle custom date range apply
-  const handleCustomDateApply = (from, to) => {
+  const handleCustomDateApply = (date) => {
     setGlobalDateRange({
-      from: formatDateForAPI(from),
-      to: formatDateForAPI(to),
+      date: formatDateForAPI(date),
       customRange: true,
       period: 'custom'
     });
@@ -805,7 +800,7 @@ const Dashboard = () => {
                     }`}
                   title={`Filter: ${globalDateFilter === 'today' ? 'Today' :
                       globalDateFilter === 'week' ? 'This Week' :
-                        globalDateFilter === 'month' ? 'This Month' : 'Custom Range'
+                        globalDateFilter === 'month' ? 'This Month' : 'Custom Date'
                     }`}
                 >
                   <SlidersHorizontal className={`w-5 h-5 transition-colors ${showGlobalFilterDropdown || globalDateFilter !== 'today'
@@ -871,7 +866,7 @@ const Dashboard = () => {
                               : 'text-gray-700 hover:bg-purple-50'
                           }`}
                       >
-                        Custom Range
+                        Custom Date
                       </button>
                     </div>
                   </div>
@@ -1573,13 +1568,13 @@ const Dashboard = () => {
         />
       )}
 
-      {/* Custom Date Range Modal */}
+      {/* Custom Date Modal */}
       {showCustomDateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className={`rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
             <div className="flex items-center justify-between mb-6">
               <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                Custom Date Range
+                Select Custom Date
               </h3>
               <button
                 onClick={() => setShowCustomDateModal(false)}
@@ -1590,15 +1585,15 @@ const Dashboard = () => {
             </div>
 
             <div className="space-y-4">
-              {/* From Date */}
+              {/* Select Date */}
               <div>
                 <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  From Date
+                  Select Date
                 </label>
                 <input
                   type="date"
-                  value={customDateFrom}
-                  onChange={(e) => setCustomDateFrom(e.target.value)}
+                  value={customDate}
+                  onChange={(e) => setCustomDate(e.target.value)}
                   className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-purple-500 focus:border-transparent ${darkMode
                       ? 'bg-gray-700 border-gray-600 text-white'
                       : 'bg-white border-gray-300 text-gray-900'
@@ -1606,27 +1601,11 @@ const Dashboard = () => {
                 />
               </div>
 
-              {/* To Date */}
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  To Date
-                </label>
-                <input
-                  type="date"
-                  value={customDateTo}
-                  onChange={(e) => setCustomDateTo(e.target.value)}
-                  className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-purple-500 focus:border-transparent ${darkMode
-                      ? 'bg-gray-700 border-gray-600 text-white'
-                      : 'bg-white border-gray-300 text-gray-900'
-                    }`}
-                />
-              </div>
-
-              {/* Date Range Preview */}
-              {customDateFrom && customDateTo && (
+              {/* Date Preview */}
+              {customDate && (
                 <div className={`p-3 rounded-lg ${darkMode ? 'bg-purple-900/20' : 'bg-purple-50'}`}>
                   <p className={`text-sm ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>
-                    Selected range: <strong>{customDateFrom}</strong> to <strong>{customDateTo}</strong>
+                    Selected date: <strong>{customDate}</strong>
                   </p>
                 </div>
               )}
@@ -1645,13 +1624,13 @@ const Dashboard = () => {
               </button>
               <button
                 onClick={() => {
-                  if (customDateFrom && customDateTo) {
-                    handleCustomDateApply(customDateFrom, customDateTo);
+                  if (customDate) {
+                    handleCustomDateApply(customDate);
                     setShowCustomDateModal(false);
                   }
                 }}
-                disabled={!customDateFrom || !customDateTo}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${customDateFrom && customDateTo
+                disabled={!customDate}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${customDate
                     ? 'bg-purple-500 hover:bg-purple-600 text-white'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   }`}

@@ -57,12 +57,11 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
       setLoading(true);
       setError(null);
 
-      let fromDate = null, toDate = null, range = null, cacheKey;
+      let date = null, range = null, cacheKey;
 
-      if (localDateRange?.customRange && localDateRange?.from && localDateRange?.to) {
-        fromDate = formatDateForAPI(localDateRange.from);
-        toDate = formatDateForAPI(localDateRange.to);
-        cacheKey = `${selectedUserId || 'null'}-${fromDate}-${toDate}`;
+      if (localDateRange?.customRange && localDateRange?.date) {
+        date = formatDateForAPI(localDateRange.date);
+        cacheKey = `${selectedUserId || 'null'}-date-${date}`;
       } else {
         range = localDateRange?.period === 'week' ? '7d'
           : localDateRange?.period === 'month' ? '30d'
@@ -115,7 +114,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
         }
       }
 
-      const data = await getHeartRateData(selectedUserId, fromDate, toDate, range);
+      const data = await getHeartRateData(selectedUserId, date, range);
       if (!isMountedRef.current || abortControllerRef.current.signal.aborted) return;
 
       if (data?.length) {
@@ -137,7 +136,7 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
       if (isMountedRef.current && !abortControllerRef.current?.signal.aborted) setLoading(false);
     }
   }, [selectedUserId, onHeartRateDataUpdate,
-    localDateRange?.from, localDateRange?.to,
+    localDateRange?.date,
     localDateRange?.customRange, localDateRange?.period]);
 
   useEffect(() => {
@@ -530,10 +529,10 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
           <div>
             <h3 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>Heart Rate</h3>
             <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{dateRangeDisplay}</p>
-            {dateRange?.customRange && dateRange.from && dateRange.to && (
+            {dateRange?.customRange && dateRange.date && (
               <div className="flex items-center gap-1 mt-1">
                 <Calendar className="w-3 h-3 text-blue-500" />
-                <span className={`text-xs ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Custom Range</span>
+                <span className={`text-xs ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Custom Date</span>
               </div>
             )}
           </div>
@@ -654,12 +653,8 @@ const HeartRateDataComponent = ({ darkMode, onHeartRateDataUpdate, selectedUserI
             </div>
             {localDateRange?.customRange && (
               <div className="flex items-center gap-2 text-xs w-full md:w-auto">
-                <input type="date" value={localDateRange?.from || ''}
-                  onChange={e => setLocalDateRange({ ...localDateRange, from: e.target.value })}
-                  className={`flex-1 md:flex-none px-2 py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-red-500/20 ${darkMode ? 'bg-gray-900 border-gray-700 text-gray-200' : 'bg-white border-gray-200 text-gray-700'}`} />
-                <span className="text-gray-400 font-medium">to</span>
-                <input type="date" value={localDateRange?.to || ''}
-                  onChange={e => setLocalDateRange({ ...localDateRange, to: e.target.value })}
+                <input type="date" value={localDateRange?.date || ''}
+                  onChange={e => setLocalDateRange({ ...localDateRange, date: e.target.value })}
                   className={`flex-1 md:flex-none px-2 py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-red-500/20 ${darkMode ? 'bg-gray-900 border-gray-700 text-gray-200' : 'bg-white border-gray-200 text-gray-700'}`} />
               </div>
             )}
