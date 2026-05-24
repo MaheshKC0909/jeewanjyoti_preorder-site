@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { getBatteryStatus } from '../../lib/api';
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import BatteryWidget from '../../components/BatteryWidget';
 import { Heart, Moon, Activity, Brain, Calendar, TrendingUp, Droplets } from 'lucide-react';
 import SleepDataComponent from '../../components/SleepDataComponent';
 import SpO2DataComponent from '../../components/SpO2DataComponent';
@@ -10,47 +11,6 @@ import StressDataComponent from '../../components/StressDataComponent';
 import HRVDataComponent from '../../components/HRVDataComponent';
 import BloodPressureDataComponent from '../../components/BloodPressureDataComponent';
 
-// Horizontal battery icon — nub on LEFT, percentage text inside the body
-const BatteryIcon = ({ percentage = null, size = 40 }) => {
-  const pct = percentage !== null ? Math.max(0, Math.min(100, percentage)) : null;
-  const fillColor =
-    pct === null ? '#9CA3AF'
-      : pct > 50 ? '#22C55E'
-        : pct > 20 ? '#F59E0B'
-          : '#EF4444';
-  const innerX = 9, innerW = 52, innerY = 3, innerH = 24;
-  const fillW = pct !== null ? (innerW * pct) / 100 : 0;
-  const fillX = innerX + innerW - fillW;
-  const textX = innerX + innerW / 2;
-  const textY = innerY + innerH / 2 + 4;
-  return (
-    <svg
-      width={size * 1.8}
-      height={size}
-      viewBox="0 0 64 30"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <rect x="0" y="9" width="6" height="12" rx="2" fill="#4B5563" />
-      <rect x="6" y="0" width="58" height="30" rx="5" fill="#4B5563" />
-      <rect x={innerX} y={innerY} width={innerW} height={innerH} rx="3" fill="#E5E7EB" />
-      {pct !== null && fillW > 0 && (
-        <rect x={fillX} y={innerY} width={fillW} height={innerH} rx="3" fill={fillColor} />
-      )}
-      <text
-        x={textX}
-        y={textY}
-        textAnchor="middle"
-        fontSize="9"
-        fontWeight="bold"
-        fill="white"
-        style={{ filter: 'drop-shadow(0px 0px 1px rgba(0,0,0,0.5))' }}
-      >
-        {pct !== null ? `${pct}%` : '—'}
-      </text>
-    </svg>
-  );
-};
 
 const VitalsTab = ({
   darkMode,
@@ -315,9 +275,9 @@ const VitalsTab = ({
             </div>
           )}
 
-          {/* Right: Battery Icon */}
+          {/* Right: Battery Widget with history chart popup */}
           <div className="flex-shrink-0 flex items-center justify-end">
-            <BatteryIcon percentage={batteryData?.percentage ?? null} size={48} />
+            <BatteryWidget batteryData={batteryData} size={48} darkMode={darkMode} />
           </div>
 
         </div>
