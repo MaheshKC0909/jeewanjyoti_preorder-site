@@ -8,7 +8,7 @@ const calculateOffset = (percentage, circumference) => {
     return circumference - (percentage / 100) * circumference;
 };
 
-const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserId, dateRange }) => {
+const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserId, dateRange, aiActivityRating }) => {
     const [activityData, setActivityData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -428,10 +428,12 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
                 <div className="flex items-center gap-2">
                     <div className="text-right">
                         <div className={`text-xl md:text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                            {activityData ? `${Math.round(chartData.reduce((acc, item) => acc + item.percentage, 0) / chartData.length)}%` : '0%'}
+                            {aiActivityRating !== undefined && aiActivityRating !== null
+                                ? `${aiActivityRating}/100`
+                                : (activityData ? `${Math.round(chartData.reduce((acc, item) => acc + item.percentage, 0) / chartData.length)}%` : '0%')}
                         </div>
                         <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                            Overall
+                            {aiActivityRating !== undefined && aiActivityRating !== null ? 'Activity Rating' : 'Overall'}
                         </div>
                     </div>
                     <button

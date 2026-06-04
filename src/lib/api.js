@@ -655,6 +655,30 @@ export async function getBatteryStatus(userId = null) {
   return await response.json();
 }
 
+/**
+ * Fetch AI data
+ * @param {string|null} userId - Optional user ID
+ * @param {string|null} date - Optional date (YYYY-MM-DD)
+ * @returns {Promise<object>} AI data
+ */
+export async function getAIData(userId = null, date = null) {
+  let url = '/api/fetch_AI_data/?';
+  const params = new URLSearchParams();
+  if (userId) params.append('user_id', userId);
+  if (date) params.append('date', date);
+  
+  if (params.toString()) {
+    url += params.toString();
+  }
+  
+  console.log('Fetching AI data with URL:', url);
+  const response = await apiRequest(url);
+  if (!response.ok) {
+    throw new Error('Failed to fetch AI data');
+  }
+  return await response.json();
+}
+
 export const initializePayment = async (token, invoiceNo, amount) => {
   return await apiRequest('/initialize_payment/', {
     method: 'POST',

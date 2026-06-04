@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { getBatteryStatus } from '../../lib/api';
+import { getBatteryStatus, getAIData } from '../../lib/api';
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import BatteryWidget from '../../components/BatteryWidget';
 import { Heart, Moon, Activity, Brain, Calendar, TrendingUp, Droplets } from 'lucide-react';
@@ -28,6 +28,8 @@ const HomeTab = ({
   const [stressApiData, setStressApiData] = useState(null);
   const [hrvApiData, setHrvApiData] = useState(null);
   const [batteryData, setBatteryData] = useState(null);
+  const [aiData, setAiData] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   // State for loading
   const [isLoading, setIsLoading] = useState(false);
@@ -139,6 +141,13 @@ const HomeTab = ({
       : '—';
   }, [sleepData]);
 
+  const displaySleepScore = useMemo(() => {
+    if (aiData && aiData.sleep_score !== undefined && aiData.sleep_score !== null) {
+      return aiData.sleep_score;
+    }
+    return sleepScore;
+  }, [aiData, sleepScore]);
+
   const latestSpO2 = useMemo(() => {
     return spo2Data && Array.isArray(spo2Data) && spo2Data.length > 0
       ? spo2Data[spo2Data.length - 1]?.Blood_oxygen
@@ -229,6 +238,40 @@ const HomeTab = ({
     fetchBattery();
     return () => { cancelled = true; };
   }, [selectedUserId]);
+
+  // Fetch AI data when user or date selection changes
+  useEffect(() => {
+    let cancelled = false;
+    const fetchAIData = async () => {
+      try {
+        setAiLoading(true);
+        let dateParam = null;
+        if (globalDateRange?.customRange && globalDateRange.date) {
+          const d = new Date(globalDateRange.date);
+          if (!isNaN(d.getTime())) {
+            dateParam = d.toISOString().split('T')[0];
+          } else if (typeof globalDateRange.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(globalDateRange.date)) {
+            dateParam = globalDateRange.date;
+          }
+        } else {
+          const d = new Date();
+          dateParam = d.toISOString().split('T')[0];
+        }
+
+        const data = await getAIData(selectedUserId || null, dateParam);
+        if (!cancelled) {
+          setAiData(data);
+        }
+      } catch (err) {
+        console.warn('AI data fetch failed:', err);
+        if (!cancelled) setAiData(null);
+      } finally {
+        if (!cancelled) setAiLoading(false);
+      }
+    };
+    fetchAIData();
+    return () => { cancelled = true; };
+  }, [selectedUserId, globalDateRange]);
 
   // Get latest timestamps
   const latestHeartRateTime = useMemo(() => {
@@ -371,7 +414,7 @@ const HomeTab = ({
             <div>
               <p className="text-xs md:text-sm text-indigo-100">Sleep Score</p>
               <p className="text-xl md:text-3xl font-bold text-white">
-                {sleepScore}/100
+                {displaySleepScore}/100
               </p>
             </div>
             <div className="p-3 rounded-full bg-white/20 backdrop-blur-sm">
@@ -404,6 +447,11 @@ const HomeTab = ({
             <div>
               {stepsData && stepsData.step && (
                 <span>Goal: {stepsData.step_goal || 10000} steps</span>
+              )}
+              {aiData && aiData.activity_rating !== undefined && aiData.activity_rating !== null && (
+                <span className="block mt-0.5 font-medium text-green-100">
+                  Rating: {aiData.activity_rating}/100
+                </span>
               )}
             </div>
             {latestStepsTime && <div className="text-right whitespace-nowrap opacity-90">{formatDateTime(latestStepsTime, true)}</div>}
@@ -460,6 +508,7 @@ const HomeTab = ({
           onLoadingStateChange={(loading) => handleDataLoading('sleep', loading)}
           selectedUserId={selectedUserId}
           dateRange={globalDateRange}
+          aiSleepScore={aiData?.sleep_score}
         />
 
         <ActivitySummary
@@ -468,6 +517,7 @@ const HomeTab = ({
           onLoadingStateChange={(loading) => handleDataLoading('steps', loading)}
           selectedUserId={selectedUserId}
           dateRange={globalDateRange}
+          aiActivityRating={aiData?.activity_rating}
         />
       </div>
 
@@ -503,53 +553,108 @@ const HomeTab = ({
       {/* Health Summary */}
       <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex-1">
+          <div className="flex-1 w-full">
             <h3 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-2`}>
               Health Summary
             </h3>
-            <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              {getDateRangeDisplay()}. Your metrics are being tracked and analyzed to provide you with the best insights for your health journey.
-            </p>
+            
+            {aiData && aiData.recommendations && aiData.recommendations.length > 0 ? (
+              <div className="mb-4">
+                <p className={`text-xs font-semibold uppercase tracking-wider mb-2 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                  AI Recommendations
+                </p>
+                <ul className="space-y-1.5">
+                  {aiData.recommendations.map((rec, index) => (
+                    <li key={index} className={`text-xs md:text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'} flex items-start gap-2`}>
+                      <span className="text-blue-500 mt-1">•</span>
+                      <span>{rec}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} mb-4`}>
+                {getDateRangeDisplay()}. Your metrics are being tracked and analyzed to provide you with the best insights for your health journey.
+              </p>
+            )}
 
-            {/* Data completion status */}
-            <div className="flex flex-wrap gap-3 mt-3">
-              <div className="flex items-center gap-1">
+            {/* Data completion status & AI scores */}
+            <div className="flex flex-wrap gap-4 mt-3">
+              <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-700/30 px-2 py-1 rounded-lg">
                 <Heart className={`w-4 h-4 ${heartRateData ? 'text-red-500' : 'text-gray-400'}`} />
-                <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Heart Rate</span>
+                <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Heart Rate</span>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-700/30 px-2 py-1 rounded-lg">
                 <Moon className={`w-4 h-4 ${sleepData ? 'text-blue-500' : 'text-gray-400'}`} />
-                <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Sleep</span>
+                <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Sleep</span>
+                {aiData && aiData.sleep_score !== undefined && aiData.sleep_score !== null && (
+                  <span className={`text-[10px] font-semibold px-1 py-0.5 rounded bg-blue-500/20 text-blue-400`}>
+                    Score: {aiData.sleep_score}
+                  </span>
+                )}
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-700/30 px-2 py-1 rounded-lg">
                 <Droplets className={`w-4 h-4 ${spo2Data ? 'text-blue-500' : 'text-gray-400'}`} />
-                <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>SpO2</span>
+                <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>SpO2</span>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-700/30 px-2 py-1 rounded-lg">
                 <Activity className={`w-4 h-4 ${stepsData ? 'text-green-500' : 'text-gray-400'}`} />
-                <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Activity</span>
+                <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Activity</span>
+                {aiData && aiData.activity_rating !== undefined && aiData.activity_rating !== null && (
+                  <span className={`text-[10px] font-semibold px-1 py-0.5 rounded bg-green-500/20 text-green-400`}>
+                    Rating: {aiData.activity_rating}
+                  </span>
+                )}
               </div>
             </div>
           </div>
 
           {/* Overall Score */}
-          <div className="flex items-center gap-4 ml-0 md:ml-4">
-            <div className="text-center">
-              <div className={`text-3xl md:text-4xl font-bold ${overallScore === 'N/A' ? 'text-gray-400' :
-                  parseFloat(overallScore) >= 80 ? 'text-green-500' :
-                    parseFloat(overallScore) >= 60 ? 'text-yellow-500' : 'text-red-500'
-                }`}>
-                {getScoreGrade(overallScore)}
-              </div>
-              <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Overall Score
-              </div>
-              {overallScore !== 'N/A' && (
-                <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                  {overallScore}/100
+          <div className="flex items-center gap-4 ml-0 md:ml-4 flex-shrink-0">
+            {aiData && aiData.daily_health_stars !== undefined && aiData.daily_health_stars !== null ? (
+              <div className="text-center bg-yellow-500/10 dark:bg-yellow-500/5 p-4 rounded-2xl border border-yellow-500/20">
+                <div className="text-3xl md:text-4xl font-black text-yellow-500">
+                  {aiData.daily_health_stars} <span className="text-lg font-normal text-gray-500">/ 5</span>
                 </div>
-              )}
-            </div>
+                <div className={`text-xs md:text-sm font-semibold mt-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Health Score
+                </div>
+                <div className="flex justify-center gap-0.5 mt-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <svg
+                      key={star}
+                      className={`w-4 h-4 ${star <= aiData.daily_health_stars ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300 dark:text-gray-600'}`}
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                    </svg>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center">
+                <div className={`text-3xl md:text-4xl font-bold ${overallScore === 'N/A' ? 'text-gray-400' :
+                    parseFloat(overallScore) >= 80 ? 'text-green-500' :
+                      parseFloat(overallScore) >= 60 ? 'text-yellow-500' : 'text-red-500'
+                  }`}>
+                  {getScoreGrade(overallScore)}
+                </div>
+                <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Overall Score
+                </div>
+                {overallScore !== 'N/A' && (
+                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                    {overallScore}/100
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
