@@ -350,13 +350,12 @@ const SleepDataComponent = ({ darkMode, onSleepDataUpdate, selectedUserId, dateR
   // Memoize processed data
   const currentData = selectedDate || (sleepData.length > 0 ? sleepData[0] : null);
   const processedData = React.useMemo(() => currentData ? processSleepData(currentData) : null, [currentData, processSleepData]);
-  const sleepScore = React.useMemo(() => currentData ? calculateSleepScore(currentData) : 0, [currentData, calculateSleepScore]);
   const displaySleepScore = React.useMemo(() => {
     if (aiSleepScore !== undefined && aiSleepScore !== null) {
       return aiSleepScore;
     }
-    return sleepScore;
-  }, [aiSleepScore, sleepScore]);
+    return '—';
+  }, [aiSleepScore]);
   const qualitySequence = React.useMemo(() => currentData ? parseSleepQualitySequence(currentData.sleep_quality_sequence) : [], [currentData, parseSleepQualitySequence]);
   const dateRangeDisplay = React.useMemo(() => getDateRangeDisplay(), [sleepData, getDateRangeDisplay]);
 
@@ -495,7 +494,7 @@ const SleepDataComponent = ({ darkMode, onSleepDataUpdate, selectedUserId, dateR
         <div className="flex items-center gap-2">
           <div className="text-right">
             <div className={`text-xl md:text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              {displaySleepScore}/100
+              {displaySleepScore !== '—' ? `${displaySleepScore}/100` : '—'}
             </div>
             <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
               Sleep Score

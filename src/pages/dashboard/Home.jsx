@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { getBatteryStatus, getAIData } from '../../lib/api';
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import BatteryWidget from '../../components/BatteryWidget';
-import { Heart, Moon, Activity, Brain, Calendar, TrendingUp, Droplets } from 'lucide-react';
+import { Heart, Moon, Activity, Brain, Calendar, TrendingUp, Droplets, Eye, EyeOff } from 'lucide-react';
 import SleepDataComponent from '../../components/SleepDataComponent';
 import SpO2DataComponent from '../../components/SpO2DataComponent';
 import HeartRateDataComponent from '../../components/HeartRateDataComponent';
@@ -30,6 +30,7 @@ const HomeTab = ({
   const [batteryData, setBatteryData] = useState(null);
   const [aiData, setAiData] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [showAiSummaries, setShowAiSummaries] = useState(false);
 
   // State for loading
   const [isLoading, setIsLoading] = useState(false);
@@ -46,86 +47,6 @@ const HomeTab = ({
   // Cache ref
   const cacheRef = useRef(new Map());
 
-  // Calculate sleep score based on data
-  const calculateSleepScore = (data) => {
-    if (!data) return 0;
-
-    let score = 0;
-
-    const duration = data.duration;
-    if (duration >= 7 && duration <= 9) {
-      score += 30;
-    } else if (duration >= 6 && duration <= 10) {
-      score += 20;
-    } else {
-      score += 10;
-    }
-
-    const deepSleep = data.deep_sleep_percentage;
-    if (deepSleep >= 15 && deepSleep <= 20) {
-      score += 25;
-    } else if (deepSleep >= 10 && deepSleep <= 25) {
-      score += 15;
-    } else {
-      score += 5;
-    }
-
-    const lightSleep = data.light_sleep_percentage;
-    if (lightSleep >= 45 && lightSleep <= 55) {
-      score += 25;
-    } else if (lightSleep >= 40 && lightSleep <= 60) {
-      score += 15;
-    } else {
-      score += 5;
-    }
-
-    const awake = data.awake_percentage;
-    if (awake < 5) {
-      score += 20;
-    } else if (awake < 10) {
-      score += 10;
-    } else {
-      score += 5;
-    }
-
-    return Math.min(score, 100);
-  };
-
-  // Calculate heart rate score — handles both single readings (once_heart_value) and daily aggregates (average_heart_rate)
-  const calculateHeartRateScore = (data) => {
-    if (!data || data.length === 0) return 70;
-
-    const last = data[data.length - 1];
-    const latestHR = last?.once_heart_value ?? last?.average_heart_rate ?? 72;
-    if (latestHR >= 60 && latestHR <= 80) return 95;
-    if (latestHR >= 50 && latestHR <= 90) return 85;
-    if (latestHR >= 40 && latestHR <= 100) return 75;
-    return 60;
-  };
-
-  // Calculate SpO2 score
-  const calculateSpO2Score = (data) => {
-    if (!data || data.length === 0) return 90;
-
-    const latestSpO2 = data[data.length - 1]?.Blood_oxygen || 98;
-    if (latestSpO2 >= 95) return 100;
-    if (latestSpO2 >= 90) return 80;
-    if (latestSpO2 >= 85) return 60;
-    return 40;
-  };
-
-  // Calculate steps score
-  const calculateStepsScore = (data) => {
-    if (!data || !data.step) return 50;
-
-    const steps = data.step;
-    if (steps >= 10000) return 100;
-    if (steps >= 7500) return 85;
-    if (steps >= 5000) return 70;
-    if (steps >= 2500) return 50;
-    return 30;
-  };
-
   // Memoized values for quick stats
   const latestHeartRate = useMemo(() => {
     if (!heartRateData || !Array.isArray(heartRateData) || heartRateData.length === 0) return '—';
@@ -135,18 +56,12 @@ const HomeTab = ({
     return val ?? '—';
   }, [heartRateData]);
 
-  const sleepScore = useMemo(() => {
-    return sleepData && sleepData.length > 0
-      ? calculateSleepScore(sleepData[0])
-      : '—';
-  }, [sleepData]);
-
   const displaySleepScore = useMemo(() => {
     if (aiData && aiData.sleep_score !== undefined && aiData.sleep_score !== null) {
       return aiData.sleep_score;
     }
-    return sleepScore;
-  }, [aiData, sleepScore]);
+    return '—';
+  }, [aiData]);
 
   const latestSpO2 = useMemo(() => {
     return spo2Data && Array.isArray(spo2Data) && spo2Data.length > 0
@@ -159,34 +74,6 @@ const HomeTab = ({
       ? stepsData.step.toLocaleString()
       : '—';
   }, [stepsData]);
-
-  // Calculate overall health score
-  const overallScore = useMemo(() => {
-    const scores = [];
-
-    if (heartRateData) scores.push(calculateHeartRateScore(heartRateData));
-    if (sleepData) scores.push(sleepScore);
-    if (spo2Data) scores.push(calculateSpO2Score(spo2Data));
-    if (stepsData) scores.push(calculateStepsScore(stepsData));
-
-    if (scores.length > 0) {
-      const average = scores.reduce((a, b) => a + b, 0) / scores.length;
-      return average.toFixed(1);
-    }
-    return 'N/A';
-  }, [heartRateData, sleepData, spo2Data, stepsData, sleepScore]);
-
-  // Get score letter grade
-  const getScoreGrade = (score) => {
-    if (score === 'N/A') return 'N/A';
-    const numScore = parseFloat(score);
-    if (numScore >= 90) return 'A+';
-    if (numScore >= 80) return 'A';
-    if (numScore >= 70) return 'B+';
-    if (numScore >= 60) return 'B';
-    if (numScore >= 50) return 'C';
-    return 'D';
-  };
 
   // Format date range for display
   const getDateRangeDisplay = () => {
@@ -239,40 +126,6 @@ const HomeTab = ({
     return () => { cancelled = true; };
   }, [selectedUserId]);
 
-  // Fetch AI data when user or date selection changes
-  useEffect(() => {
-    let cancelled = false;
-    const fetchAIData = async () => {
-      try {
-        setAiLoading(true);
-        let dateParam = null;
-        if (globalDateRange?.customRange && globalDateRange.date) {
-          const d = new Date(globalDateRange.date);
-          if (!isNaN(d.getTime())) {
-            dateParam = d.toISOString().split('T')[0];
-          } else if (typeof globalDateRange.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(globalDateRange.date)) {
-            dateParam = globalDateRange.date;
-          }
-        } else {
-          const d = new Date();
-          dateParam = d.toISOString().split('T')[0];
-        }
-
-        const data = await getAIData(selectedUserId || null, dateParam);
-        if (!cancelled) {
-          setAiData(data);
-        }
-      } catch (err) {
-        console.warn('AI data fetch failed:', err);
-        if (!cancelled) setAiData(null);
-      } finally {
-        if (!cancelled) setAiLoading(false);
-      }
-    };
-    fetchAIData();
-    return () => { cancelled = true; };
-  }, [selectedUserId, globalDateRange]);
-
   // Get latest timestamps
   const latestHeartRateTime = useMemo(() => {
     if (!heartRateData || heartRateData.length === 0) return null;
@@ -292,6 +145,70 @@ const HomeTab = ({
   const latestStepsTime = useMemo(() => {
     return stepsData?.date || null;
   }, [stepsData]);
+
+  // Compute the latest date with available data
+  const latestDataDate = useMemo(() => {
+    const dates = [
+      latestSleepTime,
+      latestStepsTime,
+      latestHeartRateTime,
+      latestSpO2Time
+    ].filter(Boolean).map(d => {
+      if (typeof d === 'string') {
+        return d.split('T')[0];
+      }
+      return null;
+    }).filter(Boolean);
+
+    if (dates.length > 0) {
+      return dates.sort((a, b) => new Date(b) - new Date(a))[0];
+    }
+    return null;
+  }, [latestSleepTime, latestStepsTime, latestHeartRateTime, latestSpO2Time]);
+
+  const recommendations = useMemo(() => {
+    if (!aiData) return [];
+    if (Array.isArray(aiData.recommendations)) return aiData.recommendations;
+    if (typeof aiData.recommendation === 'string' && aiData.recommendation.trim()) {
+      return [aiData.recommendation];
+    }
+    return [];
+  }, [aiData]);
+
+  const hasAnySummary = useMemo(() => {
+    return !!(aiData?.summary || aiData?.sleep_summary || aiData?.activity_summary);
+  }, [aiData]);
+
+  // Fetch AI data when user or date selection changes
+  useEffect(() => {
+    let cancelled = false;
+    const fetchAIData = async () => {
+      try {
+        setAiLoading(true);
+        let dateParam = null;
+        if (globalDateRange?.customRange && globalDateRange.date) {
+          const d = new Date(globalDateRange.date);
+          if (!isNaN(d.getTime())) {
+            dateParam = d.toISOString().split('T')[0];
+          } else if (typeof globalDateRange.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(globalDateRange.date)) {
+            dateParam = globalDateRange.date;
+          }
+        }
+
+        const data = await getAIData(selectedUserId || null, dateParam);
+        if (!cancelled) {
+          setAiData(data);
+        }
+      } catch (err) {
+        console.warn('AI data fetch failed:', err);
+        if (!cancelled) setAiData(null);
+      } finally {
+        if (!cancelled) setAiLoading(false);
+      }
+    };
+    fetchAIData();
+    return () => { cancelled = true; };
+  }, [selectedUserId, globalDateRange]);
 
   const formatDateTime = (dateString, isDateOnly = false) => {
     if (!dateString) return null;
@@ -414,7 +331,7 @@ const HomeTab = ({
             <div>
               <p className="text-xs md:text-sm text-indigo-100">Sleep Score</p>
               <p className="text-xl md:text-3xl font-bold text-white">
-                {displaySleepScore}/100
+                {displaySleepScore !== '—' ? `${displaySleepScore}/100` : '—'}
               </p>
             </div>
             <div className="p-3 rounded-full bg-white/20 backdrop-blur-sm">
@@ -554,17 +471,38 @@ const HomeTab = ({
       <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex-1 w-full">
-            <h3 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'} mb-2`}>
-              Health Summary
-            </h3>
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className={`font-semibold text-sm md:text-base ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                Health Summary
+              </h3>
+              {hasAnySummary && (
+                <button
+                  onClick={() => setShowAiSummaries(!showAiSummaries)}
+                  className={`p-1 rounded-lg transition-all ${
+                    darkMode 
+                      ? 'hover:bg-gray-750 text-gray-400 hover:text-gray-200' 
+                      : 'hover:bg-gray-100 text-gray-500 hover:text-gray-900'
+                  }`}
+                  title={showAiSummaries ? "Hide Detailed Summaries" : "Show Detailed Summaries"}
+                >
+                  {showAiSummaries ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              )}
+            </div>
             
-            {aiData && aiData.recommendations && aiData.recommendations.length > 0 ? (
+            {aiLoading ? (
+              <div className="mb-4">
+                <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} animate-pulse`}>
+                  Loading AI Recommendations...
+                </p>
+              </div>
+            ) : recommendations.length > 0 ? (
               <div className="mb-4">
                 <p className={`text-xs font-semibold uppercase tracking-wider mb-2 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
                   AI Recommendations
                 </p>
                 <ul className="space-y-1.5">
-                  {aiData.recommendations.map((rec, index) => (
+                  {recommendations.map((rec, index) => (
                     <li key={index} className={`text-xs md:text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'} flex items-start gap-2`}>
                       <span className="text-blue-500 mt-1">•</span>
                       <span>{rec}</span>
@@ -573,9 +511,75 @@ const HomeTab = ({
                 </ul>
               </div>
             ) : (
-              <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} mb-4`}>
-                {getDateRangeDisplay()}. Your metrics are being tracked and analyzed to provide you with the best insights for your health journey.
-              </p>
+              <div className="mb-4">
+                <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} italic`}>
+                  No AI recommendations available for this period.
+                </p>
+              </div>
+            )}
+
+            {/* Expandable Summaries */}
+            {showAiSummaries && hasAnySummary && (
+              <div className={`mt-4 pt-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-100'} space-y-3`}>
+                <p className={`text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>
+                  Detailed AI Analysis
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {aiData.summary && (
+                    <div className={`p-3.5 rounded-xl border transition-all duration-200 ${
+                      darkMode 
+                        ? 'bg-gray-900/30 border-gray-700 hover:border-blue-500/40 text-gray-300' 
+                        : 'bg-blue-50/20 border-blue-100 hover:border-blue-300 text-gray-700'
+                    }`}>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <div className={`p-1 rounded-lg ${darkMode ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-100/60 text-blue-700'}`}>
+                          <Brain className="w-3.5 h-3.5" />
+                        </div>
+                        <span className={`text-xs font-bold ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>Overall Health</span>
+                      </div>
+                      <p className="text-xs leading-relaxed">
+                        {aiData.summary}
+                      </p>
+                    </div>
+                  )}
+
+                  {aiData.sleep_summary && (
+                    <div className={`p-3.5 rounded-xl border transition-all duration-200 ${
+                      darkMode 
+                        ? 'bg-gray-900/30 border-gray-700 hover:border-indigo-500/40 text-gray-300' 
+                        : 'bg-indigo-50/20 border-indigo-100 hover:border-indigo-300 text-gray-700'
+                    }`}>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <div className={`p-1 rounded-lg ${darkMode ? 'bg-indigo-500/10 text-indigo-400' : 'bg-indigo-100/60 text-indigo-700'}`}>
+                          <Moon className="w-3.5 h-3.5" />
+                        </div>
+                        <span className={`text-xs font-bold ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>Sleep Analysis</span>
+                      </div>
+                      <p className="text-xs leading-relaxed">
+                        {aiData.sleep_summary}
+                      </p>
+                    </div>
+                  )}
+
+                  {aiData.activity_summary && (
+                    <div className={`p-3.5 rounded-xl border transition-all duration-200 ${
+                      darkMode 
+                        ? 'bg-gray-900/30 border-gray-700 hover:border-green-500/40 text-gray-300' 
+                        : 'bg-green-50/20 border-green-100 hover:border-green-300 text-gray-700'
+                    }`}>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <div className={`p-1 rounded-lg ${darkMode ? 'bg-green-500/10 text-green-400' : 'bg-green-100/60 text-green-700'}`}>
+                          <Activity className="w-3.5 h-3.5" />
+                        </div>
+                        <span className={`text-xs font-bold ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>Activity Analysis</span>
+                      </div>
+                      <p className="text-xs leading-relaxed">
+                        {aiData.activity_summary}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
 
             {/* Data completion status & AI scores */}
@@ -611,19 +615,23 @@ const HomeTab = ({
 
           {/* Overall Score */}
           <div className="flex items-center gap-4 ml-0 md:ml-4 flex-shrink-0">
-            {aiData && aiData.daily_health_stars !== undefined && aiData.daily_health_stars !== null ? (
-              <div className="text-center bg-yellow-500/10 dark:bg-yellow-500/5 p-4 rounded-2xl border border-yellow-500/20">
-                <div className="text-3xl md:text-4xl font-black text-yellow-500">
-                  {aiData.daily_health_stars} <span className="text-lg font-normal text-gray-500">/ 5</span>
-                </div>
-                <div className={`text-xs md:text-sm font-semibold mt-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Health Score
-                </div>
-                <div className="flex justify-center gap-0.5 mt-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
+            <div className="text-center bg-yellow-500/10 dark:bg-yellow-500/5 p-4 rounded-2xl border border-yellow-500/20">
+              <div className="text-3xl md:text-4xl font-black text-yellow-500">
+                {aiData && aiData.daily_health_stars !== undefined && aiData.daily_health_stars !== null 
+                  ? aiData.daily_health_stars 
+                  : '—'
+                } <span className="text-lg font-normal text-gray-500">/ 5</span>
+              </div>
+              <div className={`text-xs md:text-sm font-semibold mt-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Health Score
+              </div>
+              <div className="flex justify-center gap-0.5 mt-2">
+                {[1, 2, 3, 4, 5].map((star) => {
+                  const rating = aiData?.daily_health_stars ?? 0;
+                  return (
                     <svg
                       key={star}
-                      className={`w-4 h-4 ${star <= aiData.daily_health_stars ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300 dark:text-gray-600'}`}
+                      className={`w-4 h-4 ${star <= rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300 dark:text-gray-600'}`}
                       xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 24 24"
                       fill="none"
@@ -634,27 +642,10 @@ const HomeTab = ({
                     >
                       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                     </svg>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-            ) : (
-              <div className="text-center">
-                <div className={`text-3xl md:text-4xl font-bold ${overallScore === 'N/A' ? 'text-gray-400' :
-                    parseFloat(overallScore) >= 80 ? 'text-green-500' :
-                      parseFloat(overallScore) >= 60 ? 'text-yellow-500' : 'text-red-500'
-                  }`}>
-                  {getScoreGrade(overallScore)}
-                </div>
-                <div className={`text-xs md:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Overall Score
-                </div>
-                {overallScore !== 'N/A' && (
-                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                    {overallScore}/100
-                  </div>
-                )}
-              </div>
-            )}
+            </div>
           </div>
         </div>
       </div>

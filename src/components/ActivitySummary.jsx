@@ -398,6 +398,44 @@ const ActivitySummary = ({ darkMode = false, onActivityDataUpdate, selectedUserI
         );
     }
 
+    // Empty state
+    if (!activityData) {
+        return (
+            <>
+                <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+                    <div className="flex items-center justify-center h-64">
+                        <div className="text-center">
+                            <Activity className="w-8 h-8 text-gray-400 mx-auto mb-4" />
+                            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                No activity data available for the selected period
+                            </p>
+                            {dateRange?.customRange && dateRange.date && (
+                                <p className={`text-xs mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                                    Selected date: {formatDateForAPI(dateRange.date)}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+                <DataModal
+                    isOpen={showDetails}
+                    onClose={() => setShowDetails(false)}
+                    title="Activity Analysis Details"
+                    darkMode={darkMode}
+                >
+                    <div className="flex items-center justify-center h-64">
+                        <div className="text-center">
+                            <Activity className="w-10 h-10 text-gray-400 mx-auto mb-4" />
+                            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                No activity details are available for this range.
+                            </p>
+                        </div>
+                    </div>
+                </DataModal>
+            </>
+        );
+    }
+
     const chartData = getChartData();
 
     return (
