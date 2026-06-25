@@ -7,8 +7,11 @@ import OverviewTab from './institution/Overview';
 import MembersTab from './institution/Members';
 import SubscriptionTab from './institution/Subscription';
 import VitalsTab from './institution/Vitals';
+import AnalyticsTab from './institution/Analytics';
+import ReportsTab from './institution/Reports';
+import AlertsTab from './institution/Alerts';
 import PlaceholderTab from './institution/Placeholder';
-import { getUserData, clearTokens } from '../lib/tokenManager';
+import { getUserData, clearTokens, authenticatedFetch } from '../lib/tokenManager';
 import jjlogo from '../assets/jjlogo.png';
 import { CreditCard } from 'lucide-react';
 
@@ -63,6 +66,140 @@ export default function InstitutionDashboard() {
   const [selectedUserProfileImage, setSelectedUserProfileImage] = useState(null);
   const [darkMode, setDarkMode] = useState(false);
 
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [thresholds, setThresholds] = useState({
+    hrMax: 120,
+    hrMin: 50,
+    spo2Warning: 92,
+    spo2Critical: 90,
+    tempMax: 38.5,
+    inactivityHours: 12,
+  });
+  const [alerts, setAlerts] = useState([]);
+
+  const fetchMembers = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await authenticatedFetch('https://jeewanjyoti-backend.smart.org.np/api/instutionmember/');
+      if (!res.ok) throw new Error('Failed to fetch members');
+      const json = await res.json();
+      const membersList = json.data || [];
+      
+      const membersWithVitals = await Promise.all(membersList.map(async (m) => {
+        try {
+          const vitalsRes = await authenticatedFetch(`https://jeewanjyoti-backend.smart.org.np/api/latest_data/?user_id=${m.user_id}`);
+          if (vitalsRes.ok) {
+            m.vitals = await vitalsRes.json();
+          }
+        } catch (e) {
+          console.error("Vitals load error for member:", m.user_id, e);
+        }
+        return m;
+      }));
+      
+      setMembers(membersWithVitals);
+    } catch (err) {
+      console.error(err);
+      setError('Could not load members.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchMembers();
+  }, [fetchMembers]);
+
+  // Dynamic Alert Generation from active members vitals and active thresholds
+  useEffect(() => {
+    if (!members.length) return;
+    
+    // Scanned active alerts from vitals
+    const scannedAlerts = [];
+    members.forEach(m => {
+      if (!m.vitals) return;
+
+      const userName = m.full_name || m.user_email || 'Unknown Member';
+
+      // 1. SpO2 critical or warning check
+      if (m.vitals.spo2?.Blood_oxygen) {
+        const spo2 = m.vitals.spo2.Blood_oxygen;
+        
+        if (spo2 < thresholds.spo2Critical) {
+          scannedAlerts.push({
+            id: `spo2-crit-${m.user_id}`,
+            member: userName,
+            type: 'SpO₂ Critical',
+            value: `${spo2}%`,
+            time: '2 mins ago',
+            severity: 'critical',
+            status: 'active',
+            node: m.user_email || 'Member Node'
+          });
+        } else if (spo2 < thresholds.spo2Warning) {
+          scannedAlerts.push({
+            id: `spo2-warn-${m.user_id}`,
+            member: userName,
+            type: 'SpO₂ Warning',
+            value: `${spo2}%`,
+            time: '5 mins ago',
+            severity: 'warning',
+            status: 'active',
+            node: m.user_email || 'Member Node'
+          });
+        }
+      }
+
+      // 2. Heart rate check
+      if (m.vitals.heartrate?.once_heart_value) {
+        const hr = m.vitals.heartrate.once_heart_value;
+
+        if (hr > thresholds.hrMax) {
+          scannedAlerts.push({
+            id: `hr-high-${m.user_id}`,
+            member: userName,
+            type: 'Elevated Heart Rate',
+            value: `${hr} bpm`,
+            time: '3 mins ago',
+            severity: 'critical',
+            status: 'active',
+            node: m.user_email || 'Member Node'
+          });
+        } else if (hr < thresholds.hrMin) {
+          scannedAlerts.push({
+            id: `hr-low-${m.user_id}`,
+            member: userName,
+            type: 'Low Heart Rate',
+            value: `${hr} bpm`,
+            time: '4 mins ago',
+            severity: 'warning',
+            status: 'active',
+            node: m.user_email || 'Member Node'
+          });
+        }
+      }
+    });
+
+    setAlerts(prev => {
+      const merged = [...scannedAlerts];
+      // Keep user actions (like resolved or acknowledged logs)
+      prev.forEach(p => {
+        if (p.status === 'resolved' || p.status === 'acknowledged') {
+          const idx = merged.findIndex(m => m.id === p.id);
+          if (idx !== -1) {
+            merged[idx] = { ...merged[idx], ...p };
+          } else {
+            merged.push(p);
+          }
+        }
+      });
+      return merged;
+    });
+  }, [members, thresholds]);
+
   const handleLogout = () => {
     clearTokens();
     window.location.href = '/login';
@@ -90,9 +227,9 @@ export default function InstitutionDashboard() {
   const tabContent = useMemo(() => {
     switch (activeTab) {
       case 'overview':
-        return <OverviewTab />;
+        return <OverviewTab members={members} loading={loading} error={error} />;
       case 'members':
-        return <MembersTab onViewVitals={handleViewVitals} />;
+        return <MembersTab members={members} loading={loading} error={error} refreshMembers={fetchMembers} onViewVitals={handleViewVitals} />;
       case 'vitals':
         return (
           <VitalsTab
@@ -103,12 +240,18 @@ export default function InstitutionDashboard() {
             globalDateRange={globalDateRange}
           />
         );
+      case 'analytics':
+        return <AnalyticsTab darkMode={darkMode} members={members} loading={loading} error={error} thresholds={thresholds} />;
+      case 'reports':
+        return <ReportsTab darkMode={darkMode} members={members} loading={loading} error={error} />;
+      case 'alerts':
+        return <AlertsTab darkMode={darkMode} alerts={alerts} setAlerts={setAlerts} thresholds={thresholds} setThresholds={setThresholds} members={members} />;
       case 'subscription':
         return <SubscriptionTab />;
       default:
         return <PlaceholderTab tab={activeTab} />;
     }
-  }, [activeTab, handleViewVitals, selectedUserId, selectedUserInfo, darkMode, globalDateRange]);
+  }, [activeTab, handleViewVitals, selectedUserId, selectedUserInfo, darkMode, globalDateRange, members, loading, error, fetchMembers, thresholds, alerts]);
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', background: darkMode ? '#0f172a' : '#f8fafc', fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, sans-serif" }}>

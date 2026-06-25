@@ -17,48 +17,14 @@ function formatTimeShort(dateString) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
-export default function Members({ onViewVitals }) {
+export default function Members({ members = [], loading = false, error = null, refreshMembers, onViewVitals }) {
   const [search, setSearch] = useState('');
-  const [members, setMembers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   // Add Member Modal State
   const [showAddModal, setShowAddModal] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [addError, setAddError] = useState('');
-
-  const fetchMembers = async () => {
-    try {
-      setLoading(true);
-      const res = await authenticatedFetch('https://jeewanjyoti-backend.smart.org.np/api/instutionmember/');
-      if (!res.ok) throw new Error('Failed to fetch members');
-      const json = await res.json();
-      const membersList = json.data || [];
-      
-      const membersWithVitals = await Promise.all(membersList.map(async (m) => {
-        try {
-          const vitalsRes = await authenticatedFetch(`https://jeewanjyoti-backend.smart.org.np/api/latest_data/?user_id=${m.user_id}`);
-          if (vitalsRes.ok) {
-            m.vitals = await vitalsRes.json();
-          }
-        } catch (e) {}
-        return m;
-      }));
-      
-      setMembers(membersWithVitals);
-    } catch (err) {
-      console.error(err);
-      setError('Could not load members.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchMembers();
-  }, []);
 
   const handleAddMember = async (e) => {
     e.preventDefault();
@@ -77,7 +43,7 @@ export default function Members({ onViewVitals }) {
       }
       setNewEmail('');
       setShowAddModal(false);
-      fetchMembers(); // refresh list
+      if (refreshMembers) refreshMembers(); // refresh list
     } catch (err) {
       setAddError(err.message);
     } finally {
@@ -92,7 +58,7 @@ export default function Members({ onViewVitals }) {
         method: 'DELETE'
       });
       if (!res.ok) throw new Error('Failed to delete member');
-      fetchMembers(); // refresh list
+      if (refreshMembers) refreshMembers(); // refresh list
     } catch (err) {
       alert(err.message);
     }
