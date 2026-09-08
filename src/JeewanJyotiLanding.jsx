@@ -19,11 +19,11 @@ import CareEcosystem from "./landing/CareEcosystem";
 import FinalCTA from "./landing/FinalCTA";
 
 const FITNESS_PANELS = [
-  { label: "Running", media: "running", tone: "forest", overlay: "dramatic", focus: "45% 35%", stats: [["Distance", "6.2 km"], ["Time", "42 min"], ["Calories", "512"]] },
+  { label: "Running", media: "running", tone: "forest", fit: "contain", stats: [["Distance", "6.2 km"], ["Time", "42 min"], ["Calories", "512"]] },
   { label: "Walking", media: "walking", tone: "dawn", stats: [["Steps", "8,426"], ["Distance", "6.8 km"]] },
   { label: "Cycling", media: "cycling", tone: "ocean", stats: [["Distance", "18.4 km"], ["Time", "48 min"], ["Calories", "380"]] },
-  { label: "Workout", media: "workout", tone: "electric", overlay: "dramatic", focus: "30% 45%", stats: [["Time", "58 min"], ["Calories", "642"]] },
-  { label: "Recovery", media: "recoveryFitness", tone: "slate", overlay: "dramatic", focus: "50% 40%", stats: [["Heart", "68 bpm"], ["Stress", "Low"]] },
+  { label: "Workout", media: "workout", tone: "electric", fit: "contain", stats: [["Time", "58 min"], ["Calories", "642"]] },
+  { label: "Recovery", media: "recoveryFitness", tone: "slate", fit: "contain", stats: [["Heart", "68 bpm"], ["Stress", "Low"]] },
 ];
 
 export default function JeewanJyotiLanding() {

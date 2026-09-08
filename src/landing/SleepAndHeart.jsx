@@ -31,7 +31,7 @@ export default function SleepAndHeart() {
     <section id="heart" ref={ref} className="jj-void relative h-[480vh]">
       <div className="sticky top-0 h-screen overflow-hidden">
         <Motion.div style={{ scale: bgScale }} className="absolute inset-0">
-          <Visual id="sleepingPerson" tone="midnight" label="person sleeping" className="h-full w-full" overlay="left" />
+          <Visual id="sleepingPerson" tone="midnight" label="person sleeping" className="h-full w-full" overlay="left" focus="68% 45%" />
         </Motion.div>
 
         <div className="relative mx-auto flex h-full max-w-7xl flex-col justify-center px-6 lg:px-10">
