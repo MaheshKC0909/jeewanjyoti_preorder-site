@@ -85,19 +85,17 @@ export default function AppHeader() {
     ? isScrolled
       ? 'bg-white/95 backdrop-blur-xl shadow-lg border-b border-gray-200'
       : 'bg-white shadow-sm border-b border-gray-100'
-    : isScrolled
-      ? 'bg-white/95 backdrop-blur-xl shadow-lg border-b border-[#D7E3EE]'
-      : 'bg-white/80 backdrop-blur-sm border-b border-[#D7E3EE]/60';
+    : 'bg-transparent';
 
   // Nav link classes
   const navLinkBase = isBlogs
     ? 'text-gray-600 hover:text-emerald-600'
-    : 'text-[#2F3A45] hover:text-[#1D4ED8]';
+    : 'text-white/80 hover:text-white';
 
   // Mobile menu button classes
   const mobileButtonClass = isBlogs
     ? 'lg:hidden p-2 text-gray-600 hover:text-gray-900 rounded-xl transition-colors'
-    : 'lg:hidden p-2 text-[#2F3A45] hover:text-[#1D4ED8] rounded-xl transition-colors';
+    : 'lg:hidden p-2 text-white/80 hover:text-white rounded-xl transition-colors';
 
   return (
     <motion.header
@@ -109,7 +107,7 @@ export default function AppHeader() {
         <div className="flex items-center justify-between">
           <motion.div whileHover={{ scale: 1.03 }} className="cursor-pointer flex items-center gap-2 md:gap-3" onClick={handleLogoClick}>
             <img src={jjlogo} alt="JJ Logo" className="h-8 w-8 md:h-10 md:w-10 object-contain" />
-            <h1 className="text-xl md:text-2xl font-bold text-blue-500 whitespace-nowrap truncate">DIGITAL CARE</h1>
+            <h1 className={`text-xl md:text-2xl font-bold whitespace-nowrap truncate ${isBlogs ? 'text-blue-500' : 'text-white'}`}>DIGITAL CARE</h1>
           </motion.div>
 
           <div className="hidden lg:flex items-center gap-8">
