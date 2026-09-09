@@ -4,6 +4,9 @@ import { Kicker, useLocalScroll, Visual } from "./shared";
 
 const VIEWS = ["deviceFront", "deviceSide", "deviceSensor", "deviceWrist"];
 const LABELS = ["Front view", "Side view", "Sensor view", "Wrist view"];
+// Source photos are landscape product shots; these keep the clasp/module centered
+// once cropped into the tall portrait frame below.
+const FOCUS = ["40% 55%", "30% 50%", "38% 50%", "50% 50%"];
 
 const SPECS = [
   [Watch, "Continuous monitoring"],
@@ -13,7 +16,7 @@ const SPECS = [
   [Droplets, "Water resistance"],
 ];
 
-function View({ id, label, index, progress }) {
+function View({ id, label, focus, index, progress }) {
   const n = VIEWS.length;
   const step = 1 / n;
   const start = index * step;
@@ -23,7 +26,7 @@ function View({ id, label, index, progress }) {
 
   return (
     <Motion.div style={{ opacity, rotateY }} className="absolute inset-0 flex items-center justify-center">
-      <Visual id={id} tone="steel" label={label} className="h-[420px] w-[300px] rounded-[2.5rem] sm:h-[500px] sm:w-[340px]" overlay="bottom" grid />
+      <Visual id={id} tone="steel" label={label} className="h-[420px] w-[300px] rounded-[2.5rem] sm:h-[500px] sm:w-[340px]" overlay="bottom" focus={focus} grid />
     </Motion.div>
   );
 }

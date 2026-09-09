@@ -19,11 +19,11 @@ import CareEcosystem from "./landing/CareEcosystem";
 import FinalCTA from "./landing/FinalCTA";
 
 const FITNESS_PANELS = [
-  { label: "Running", media: "running", tone: "forest", overlay: "dramatic", focus: "45% 35%", stats: [["Distance", "6.2 km"], ["Time", "42 min"], ["Calories", "512"]] },
-  { label: "Walking", media: "walking", tone: "dawn", stats: [["Steps", "8,426"], ["Distance", "6.8 km"]] },
-  { label: "Cycling", media: "cycling", tone: "ocean", stats: [["Distance", "18.4 km"], ["Time", "48 min"], ["Calories", "380"]] },
-  { label: "Workout", media: "workout", tone: "electric", overlay: "dramatic", focus: "30% 45%", stats: [["Time", "58 min"], ["Calories", "642"]] },
-  { label: "Recovery", media: "recoveryFitness", tone: "slate", overlay: "dramatic", focus: "50% 40%", stats: [["Heart", "68 bpm"], ["Stress", "Low"]] },
+  { label: "Running", media: "running", tone: "forest", overlay: "dramatic", focus: "45% 35%", live: "148 bpm · 5:52/km", stats: [["Distance", "2.5 km"], ["Time", "16 min"], ["Calories", "210"]] },
+  { label: "Walking", media: "walking", tone: "dawn", live: "Cadence 112 spm", route: true, stats: [["Steps", "8,426"], ["Distance", "6.8 km"]] },
+  { label: "Cycling", media: "cycling", tone: "ocean", live: "142 bpm · SpO2 97%", stats: [["Distance", "18.4 km"], ["Time", "48 min"], ["Calories", "380"]] },
+  { label: "Workout", media: "workout", tone: "electric", overlay: "dramatic", focus: "30% 45%", live: "162 bpm · high intensity", stats: [["Time", "58 min"], ["Calories", "642"]] },
+  { label: "Recovery", media: "recoveryFitness", tone: "slate", overlay: "dramatic", focus: "50% 40%", live: "58 bpm · SpO2 98%", stats: [["Heart", "68 bpm"], ["Stress", "Low"]] },
 ];
 
 export default function JeewanJyotiLanding() {

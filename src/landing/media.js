@@ -16,24 +16,29 @@ const walking = "/photos/walking.png";
 const cycling = "/photos/cycling.png";
 const workout = "/photos/work.png";
 const recoveryFitness = "/photos/youga.png";
+const familyParent = "/photos/remotemonitering.png";
+const exercisePhoto = "/photos/realworld to digital world.png";
+const deviceFront = "/photos/front image.png";
+const deviceSide = "/photos/sideview.png";
+const deviceSensor = "/photos/sensor image.png";
 
 const MEDIA = {
   hero,
   wearablePerson: null,
   wearableWrist: null,
   wearableBand: null,
-  exercisePhoto: null,
   sleepingPerson,
   running,
   walking,
   cycling,
   workout,
   recoveryFitness,
-  familyParent: null,
+  familyParent,
+  exercisePhoto,
   familyChild: null,
-  deviceFront: null,
-  deviceSide: null,
-  deviceSensor: null,
+  deviceFront,
+  deviceSide,
+  deviceSensor,
   deviceWrist: null,
   finalParent: null,
   finalYoungAdult: null,
