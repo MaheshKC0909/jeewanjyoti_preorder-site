@@ -1,0 +1,19 @@
+File,Section #,Role
+CinematicHero.jsx,Hero,"Full-screen opening section: parallax photo, headline (""Your health. Always connected.""), live BPM/SpO2 chips, CTA buttons."
+WearableReveal.jsx,01 - The wearable,"Long scroll-driven sequence zooming into the wristband, cycling through 5 headline stages, floating metric cards and particles."
+HealthModulesGrid.jsx,02 - The signals,"Bento-style grid of stat cards (heart rate waveform, SpO2, sleep, steps, HRV, stress)."
+ImageToDashboard.jsx,(untitled transition),Scroll animation morphing a full-bleed exercise photo into a shrunk dashboard card with count-up module scores.
+HealthScoreRing.jsx,03 - The overview,"Animated circular progress ring building up to a ""Health score: 87"", with sleep/activity/recovery/heart icons around it."
+SleepAndHeart.jsx,(part of heart/sleep story),Scroll-scrubbed section over a sleeping-person photo: sleep bar chart transitions into a heartbeat/ECG marquee with BPM stats.
+HorizontalStory.jsx,04 - Movement,"Reusable horizontal-scroll panel carousel (used for the ""Fitness"" panels: Running/Walking/Cycling/Workout/Recovery), with live stat readouts and a route-trace SVG."
+AIInsight.jsx,05 - The intelligence layer,Rotating insight-card stack with a typewriter effect and an orbiting-particle sparkle icon.
+FamilyMonitoring.jsx,Family (no numbered kicker),Scroll sequence: photo of a parent transitions into a data flow diagram (Nepal to Cloud to Phone to Family abroad) then a live "Mom - Live" vitals card.
+PhoneShowcase.jsx,06 - The mobile app,3D carousel of phone mockups cycling through Today/Sleep/AI-insights screens.
+DashboardModules.jsx,07 - Data organized,"Grid of 9 metric tiles flying in from different directions (health score, sleep, heart rate, steps, etc.)."
+CommunitySection.jsx,08 - Better together,"Social feed post plus horizontally-scrollable cards (30-day challenge, leaderboard, friends progress)."
+DeviceShowcase.jsx,09 - The device,Scroll-cycled front/side/sensor/wrist product photos of the wearable with a spec list (battery Bluetooth water resistance).
+CareEcosystem.jsx,10 - The connected system,"Radial diagram connecting a central ""Jeewan Jyoti"" node to 8 feature nodes (wearable, app, AI, family, etc.) with animated connector lines."
+FinalCTA.jsx,Closing,Crossfading portrait photos behind a closing headline and final "Get started" CTA.
+Nav.jsx,(unused),Alternate sticky nav header with a scroll-progress bar - currently unused replaced by components/AppHeader.jsx.
+shared.jsx,(shared helpers),"Shared helpers: Visual, Kicker, Reveal/MaskLine/CountUp, useLocalScroll, GLOBAL_STYLES, color/tone constants."
+media.js,(shared helpers),Maps image ids to actual image imports/URLs consumed by Visual.
