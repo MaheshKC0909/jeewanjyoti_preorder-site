@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion as Motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
-import MEDIA from "./media";
+import MEDIA, { MEDIA_MOBILE } from "./media";
 
 export const EASE = [0.22, 1, 0.36, 1];
 export const EASE_OUT = [0.16, 1, 0.3, 1];
@@ -55,6 +55,7 @@ const TONES = {
 
 export function Visual({ id, label, tone = "forest", Icon, className = "", focus = "50% 50%", overlay = "bottom", grid = false, fit = "cover" }) {
   const src = MEDIA[id];
+  const mobileSrc = MEDIA_MOBILE[id];
   const overlayClass =
     overlay === "bottom" ? "bg-gradient-to-t from-black/65 via-black/10 to-transparent" :
     overlay === "top" ? "bg-gradient-to-b from-black/55 via-transparent to-transparent" :
@@ -74,9 +75,12 @@ export function Visual({ id, label, tone = "forest", Icon, className = "", focus
         </div>
       )}
       {src && (
-        fit === "contain"
-          ? <img src={src} alt="" className="absolute inset-x-0 bottom-0 h-[92%] w-full object-contain object-bottom" />
-          : <img src={src} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: focus }} />
+        <picture>
+          {mobileSrc && <source media="(max-width: 767px)" srcSet={mobileSrc} />}
+          {fit === "contain"
+            ? <img src={src} alt="" className="absolute inset-x-0 bottom-0 h-[92%] w-full object-contain object-bottom" />
+            : <img src={src} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: focus }} />}
+        </picture>
       )}
       {overlay !== "none" && <div className={`pointer-events-none absolute inset-0 ${overlayClass}`} />}
     </div>
