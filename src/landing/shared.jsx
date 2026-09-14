@@ -76,7 +76,7 @@ export function Visual({ id, label, tone = "forest", Icon, className = "", focus
       )}
       {src && (
         <picture>
-          {mobileSrc && <source media="(max-width: 767px)" srcSet={mobileSrc} />}
+          {mobileSrc && <source media="(max-width: 767px)" srcSet={encodeURI(mobileSrc)} />}
           {fit === "contain"
             ? <img src={src} alt="" className="absolute inset-x-0 bottom-0 h-[92%] w-full object-contain object-bottom" />
             : <img src={src} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: focus }} />}
