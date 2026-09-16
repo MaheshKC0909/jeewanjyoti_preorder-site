@@ -694,9 +694,28 @@ export async function getUserOnlineStatus(userId) {
  * @param {string|number} targetUserId - The recipient's user ID
  * @param {string} title - Notification title
  * @param {string} body - Notification body
- * @returns {Promise<object>} Created notification { id, target_user, title, body, created_at, read_at }
+ * @param {File|null} image - Optional image attachment
+ * @returns {Promise<object>} Created notification { id, target_user, title, body, image, created_at, read_at }
  */
-export async function createAdminNotification(targetUserId, title, body) {
+export async function createAdminNotification(targetUserId, title, body, image = null) {
+  if (image) {
+    const formData = new FormData()
+    formData.append('target_user', targetUserId)
+    formData.append('title', title)
+    formData.append('body', body)
+    formData.append('image', image)
+    const accessToken = getAccessToken()
+    const response = await fetch(`${API_BASE_URL}/api/admin/notifications/create/`, {
+      method: 'POST',
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      body: formData,
+    })
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}))
+      throw new Error(errData.detail || errData.message || 'Failed to send notification')
+    }
+    return await response.json()
+  }
   const response = await apiRequest('/api/admin/notifications/create/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -705,6 +724,43 @@ export async function createAdminNotification(targetUserId, title, body) {
   if (!response.ok) {
     const errData = await response.json().catch(() => ({}))
     throw new Error(errData.detail || errData.message || 'Failed to send notification')
+  }
+  return await response.json()
+}
+
+/**
+ * Broadcast an admin push notification to all users
+ * @param {string} title - Notification title
+ * @param {string} body - Notification body
+ * @param {File|null} image - Optional image attachment
+ * @returns {Promise<object>} { detail, title, body, total_recipients }
+ */
+export async function broadcastNotification(title, body, image = null) {
+  if (image) {
+    const formData = new FormData()
+    formData.append('title', title)
+    formData.append('body', body)
+    formData.append('image', image)
+    const accessToken = getAccessToken()
+    const response = await fetch(`${API_BASE_URL}/api/admin/notifications/broadcast/`, {
+      method: 'POST',
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      body: formData,
+    })
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}))
+      throw new Error(errData.detail || errData.message || 'Failed to broadcast notification')
+    }
+    return await response.json()
+  }
+  const response = await apiRequest('/api/admin/notifications/broadcast/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, body }),
+  })
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}))
+    throw new Error(errData.detail || errData.message || 'Failed to broadcast notification')
   }
   return await response.json()
 }

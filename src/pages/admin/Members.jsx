@@ -3,10 +3,10 @@ import {
   Search, Loader, X, Stethoscope, User as UserIcon, Phone, Droplet, Calendar,
   Ruler, Weight, Award, Building2, GraduationCap, RefreshCw,
   Heart, Droplets, Activity, Moon, Zap, BatteryFull, BatteryLow, BatteryWarning,
-  Pencil, Trash2, Eye, AlertTriangle, Bell, Send,
+  Pencil, Trash2, Eye, AlertTriangle, Bell, Send, Megaphone, Image as ImageIcon,
 } from 'lucide-react';
 import { authenticatedFetch } from '../../lib/tokenManager';
-import { updateProfile, createAdminNotification } from '../../lib/api';
+import { updateProfile, createAdminNotification, broadcastNotification } from '../../lib/api';
 
 const GENDER_OPTIONS = [
   { value: '', label: 'Select…' },
@@ -141,6 +141,8 @@ export default function AdminMembers({ users = [], loading = false, error = null
 
   // Push notification form — shown inside the member detail modal
   const [notifyForm, setNotifyForm] = useState({ title: '', body: '' });
+  const [notifyImage, setNotifyImage] = useState(null);
+  const [notifyImagePreview, setNotifyImagePreview] = useState('');
   const [notifySending, setNotifySending] = useState(false);
   const [notifyError, setNotifyError] = useState('');
   const [notifySuccess, setNotifySuccess] = useState(false);
@@ -150,6 +152,15 @@ export default function AdminMembers({ users = [], loading = false, error = null
   const [editForm, setEditForm] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+
+  // Broadcast notification modal — sends to all users
+  const [showBroadcast, setShowBroadcast] = useState(false);
+  const [broadcastForm, setBroadcastForm] = useState({ title: '', body: '' });
+  const [broadcastImage, setBroadcastImage] = useState(null);
+  const [broadcastImagePreview, setBroadcastImagePreview] = useState('');
+  const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastError, setBroadcastError] = useState('');
+  const [broadcastResult, setBroadcastResult] = useState(null);
 
   // Color tokens
   const cardBg = darkMode ? '#1e293b' : '#fff';
@@ -165,6 +176,8 @@ export default function AdminMembers({ users = [], loading = false, error = null
   const openDetail = (u) => {
     setSelectedUser(u);
     setNotifyForm({ title: '', body: '' });
+    setNotifyImage(null);
+    setNotifyImagePreview('');
     setNotifyError('');
     setNotifySuccess(false);
   };
@@ -172,8 +185,16 @@ export default function AdminMembers({ users = [], loading = false, error = null
   const closeDetail = () => {
     setSelectedUser(null);
     setNotifyForm({ title: '', body: '' });
+    setNotifyImage(null);
+    setNotifyImagePreview('');
     setNotifyError('');
     setNotifySuccess(false);
+  };
+
+  const handleNotifyImageChange = (e) => {
+    const file = e.target.files?.[0] || null;
+    setNotifyImage(file);
+    setNotifyImagePreview(file ? URL.createObjectURL(file) : '');
   };
 
   const handleSendNotification = async (e) => {
@@ -186,13 +207,60 @@ export default function AdminMembers({ users = [], loading = false, error = null
       setNotifySending(true);
       setNotifyError('');
       setNotifySuccess(false);
-      await createAdminNotification(selectedUser.id, title, body);
+      await createAdminNotification(selectedUser.id, title, body, notifyImage);
       setNotifyForm({ title: '', body: '' });
+      setNotifyImage(null);
+      setNotifyImagePreview('');
       setNotifySuccess(true);
     } catch (err) {
       setNotifyError(err.message || 'Failed to send notification.');
     } finally {
       setNotifySending(false);
+    }
+  };
+
+  const openBroadcast = () => {
+    setShowBroadcast(true);
+    setBroadcastForm({ title: '', body: '' });
+    setBroadcastImage(null);
+    setBroadcastImagePreview('');
+    setBroadcastError('');
+    setBroadcastResult(null);
+  };
+
+  const closeBroadcast = () => {
+    setShowBroadcast(false);
+    setBroadcastForm({ title: '', body: '' });
+    setBroadcastImage(null);
+    setBroadcastImagePreview('');
+    setBroadcastError('');
+    setBroadcastResult(null);
+  };
+
+  const handleBroadcastImageChange = (e) => {
+    const file = e.target.files?.[0] || null;
+    setBroadcastImage(file);
+    setBroadcastImagePreview(file ? URL.createObjectURL(file) : '');
+  };
+
+  const handleBroadcast = async (e) => {
+    e.preventDefault();
+    const title = broadcastForm.title.trim();
+    const body = broadcastForm.body.trim();
+    if (!title || !body) return;
+    try {
+      setBroadcastSending(true);
+      setBroadcastError('');
+      setBroadcastResult(null);
+      const res = await broadcastNotification(title, body, broadcastImage);
+      setBroadcastForm({ title: '', body: '' });
+      setBroadcastImage(null);
+      setBroadcastImagePreview('');
+      setBroadcastResult(res);
+    } catch (err) {
+      setBroadcastError(err.message || 'Failed to broadcast notification.');
+    } finally {
+      setBroadcastSending(false);
     }
   };
 
@@ -300,8 +368,85 @@ export default function AdminMembers({ users = [], loading = false, error = null
               <RefreshCw size={14} color={darkMode ? '#94a3b8' : '#6b7280'} />
             </button>
           )}
+          <button onClick={openBroadcast} style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', borderRadius: 10, background: '#3b82f6', color: '#fff', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            <Megaphone size={14} /> Broadcast
+          </button>
         </div>
       </div>
+
+      {/* Broadcast Modal — sends a notification to every user */}
+      {showBroadcast && (
+        <>
+          <div onClick={closeBroadcast} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', zIndex: 999 }} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: cardBg, padding: 24, borderRadius: 16, boxShadow: '0 20px 40px rgba(0,0,0,0.2)', zIndex: 1000, width: 380, maxHeight: '85vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Megaphone size={16} color="#3b82f6" />
+                <div style={{ fontSize: 16, fontWeight: 700, color: textPrimary }}>Broadcast Notification</div>
+              </div>
+              <button onClick={closeBroadcast} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+                <X size={18} color={textSecondary} />
+              </button>
+            </div>
+            <div style={{ fontSize: 12, color: textSecondary, marginBottom: 16 }}>
+              Sends a push notification to every user ({users.length} total).
+            </div>
+            <form onSubmit={handleBroadcast} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <input
+                type="text"
+                value={broadcastForm.title}
+                onChange={e => setBroadcastForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="Title"
+                style={inputStyle}
+              />
+              <textarea
+                value={broadcastForm.body}
+                onChange={e => setBroadcastForm(f => ({ ...f, body: e.target.value }))}
+                placeholder="Message"
+                rows={4}
+                style={{ ...inputStyle, resize: 'vertical' }}
+              />
+              <div>
+                <label htmlFor="broadcast-image" style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 8,
+                  border: `1px dashed ${subtleBorder}`, cursor: 'pointer', fontSize: 12, color: textSecondary,
+                }}>
+                  <ImageIcon size={14} />
+                  {broadcastImage ? broadcastImage.name : 'Attach image (optional)'}
+                </label>
+                <input id="broadcast-image" type="file" accept="image/*" onChange={handleBroadcastImageChange} style={{ display: 'none' }} />
+                {broadcastImagePreview && (
+                  <div style={{ marginTop: 8, position: 'relative', display: 'inline-block' }}>
+                    <img src={broadcastImagePreview} alt="Preview" style={{ maxWidth: '100%', maxHeight: 140, borderRadius: 8, display: 'block' }} />
+                    <button
+                      type="button"
+                      onClick={() => { setBroadcastImage(null); setBroadcastImagePreview(''); }}
+                      title="Remove image"
+                      style={{ position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: '50%', background: 'rgba(0,0,0,0.6)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <X size={12} color="#fff" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              {broadcastError && <div style={{ fontSize: 11, color: '#ef4444' }}>{broadcastError}</div>}
+              {broadcastResult && (
+                <div style={{ fontSize: 11, color: '#10b981' }}>
+                  {broadcastResult.detail || `Sent to ${broadcastResult.total_recipients} users.`}
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={broadcastSending || !broadcastForm.title.trim() || !broadcastForm.body.trim()}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 12px', borderRadius: 8, background: '#3b82f6', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: broadcastSending ? 'not-allowed' : 'pointer', opacity: broadcastSending || !broadcastForm.title.trim() || !broadcastForm.body.trim() ? 0.6 : 1 }}
+              >
+                {broadcastSending ? <Loader className="animate-spin" size={14} /> : <Send size={14} />}
+                {broadcastSending ? 'Sending...' : 'Send to All'}
+              </button>
+            </form>
+          </div>
+        </>
+      )}
 
       {/* Detail Modal — role, gender, phone and other profile fields live here, opened by clicking a member's name */}
       {selectedUser && (
@@ -371,6 +516,29 @@ export default function AdminMembers({ users = [], loading = false, error = null
                     rows={3}
                     style={{ ...inputStyle, resize: 'vertical' }}
                   />
+                  <div>
+                    <label htmlFor="notify-image" style={{
+                      display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 8,
+                      border: `1px dashed ${subtleBorder}`, cursor: 'pointer', fontSize: 12, color: textSecondary,
+                    }}>
+                      <ImageIcon size={14} />
+                      {notifyImage ? notifyImage.name : 'Attach image (optional)'}
+                    </label>
+                    <input id="notify-image" type="file" accept="image/*" onChange={handleNotifyImageChange} style={{ display: 'none' }} />
+                    {notifyImagePreview && (
+                      <div style={{ marginTop: 8, position: 'relative', display: 'inline-block' }}>
+                        <img src={notifyImagePreview} alt="Preview" style={{ maxWidth: '100%', maxHeight: 140, borderRadius: 8, display: 'block' }} />
+                        <button
+                          type="button"
+                          onClick={() => { setNotifyImage(null); setNotifyImagePreview(''); }}
+                          title="Remove image"
+                          style={{ position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: '50%', background: 'rgba(0,0,0,0.6)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <X size={12} color="#fff" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   {notifyError && <div style={{ fontSize: 11, color: '#ef4444' }}>{notifyError}</div>}
                   {notifySuccess && <div style={{ fontSize: 11, color: '#10b981' }}>Notification sent.</div>}
                   <button

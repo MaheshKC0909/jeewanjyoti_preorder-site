@@ -16,12 +16,22 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+const API_BASE_URL = 'https://jeewanjyoti-backend.smart.org.np';
+
+function resolveImageUrl(url) {
+  if (!url) return undefined;
+  if (url.startsWith('/')) return `${API_BASE_URL}${url}`;
+  return url;
+}
+
 // Optional: display notifications when app is in background
 messaging.onBackgroundMessage((payload) => {
   const notificationTitle = payload?.notification?.title || 'New Notification';
+  const image = resolveImageUrl(payload?.notification?.image || payload?.data?.image);
   const notificationOptions = {
     body: payload?.notification?.body || '',
-    icon: '/favicon.ico'
+    icon: '/favicon.ico',
+    image
   };
   self.registration.showNotification(notificationTitle, notificationOptions);
 });
