@@ -53,7 +53,6 @@ export default function AdminDashboard() {
     localStorage.setItem('adminActiveTab', tab);
   }, []);
   const [collapsed, setCollapsed] = useState(false);
-  const [globalDateRange] = useState({ period: 'today', customRange: false });
   const [showAdminMenu, setShowAdminMenu] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -281,7 +280,7 @@ export default function AdminDashboard() {
       case 'members':
         return <AdminMembersTab users={allUsers} loading={usersLoading} error={usersError} refreshUsers={fetchAllUsers} onViewVitals={handleViewVitals} darkMode={darkMode} />;
       case 'vitals':
-        return <VitalsTab selectedUserId={selectedUserId} selectedUserInfo={selectedUserInfo} darkMode={darkMode} globalDateFilter={globalDateRange.period} globalDateRange={globalDateRange} />;
+        return <VitalsTab selectedUserId={selectedUserId} selectedUserInfo={selectedUserInfo} darkMode={darkMode} />;
       case 'analytics':
         return <AnalyticsTab darkMode={darkMode} allUsers={allUsers} onViewMember={handleViewMember} />;
       case 'reports':
@@ -291,7 +290,7 @@ export default function AdminDashboard() {
       default:
         return <PlaceholderTab tab={activeTab} darkMode={darkMode} />;
     }
-  }, [activeTab, handleViewVitals, handleViewMember, selectedUserId, selectedUserInfo, darkMode, globalDateRange, members, loading, error, fetchMembers, thresholds, alerts, allUsers, usersLoading, usersError, fetchAllUsers]);
+  }, [activeTab, handleViewVitals, handleViewMember, selectedUserId, selectedUserInfo, darkMode, members, loading, error, fetchMembers, thresholds, alerts, allUsers, usersLoading, usersError, fetchAllUsers]);
 
   // Non-admin accounts get redirected to /admin by the effect above — render
   // nothing in the meantime instead of flashing the dashboard with their data.

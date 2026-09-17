@@ -138,6 +138,7 @@ export default function AdminMembers({ users = [], loading = false, error = null
   const [roleFilter, setRoleFilter] = useState('all');
   const [selectedUser, setSelectedUser] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [photoLightbox, setPhotoLightbox] = useState(null);
 
   // Push notification form — shown inside the member detail modal
   const [notifyForm, setNotifyForm] = useState({ title: '', body: '' });
@@ -184,6 +185,7 @@ export default function AdminMembers({ users = [], loading = false, error = null
 
   const closeDetail = () => {
     setSelectedUser(null);
+    setPhotoLightbox(null);
     setNotifyForm({ title: '', body: '' });
     setNotifyImage(null);
     setNotifyImagePreview('');
@@ -455,7 +457,13 @@ export default function AdminMembers({ users = [], loading = false, error = null
           <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: cardBg, borderRadius: 16, boxShadow: '0 20px 40px rgba(0,0,0,0.2)', zIndex: 1000, width: 380, maxHeight: '85vh', overflowY: 'auto' }}>
             <div style={{ padding: 20, borderBottom: `1px solid ${cardBorder}`, display: 'flex', alignItems: 'center', gap: 12 }}>
               {resolveImageUrl(selectedUser.profile_image) ? (
-                <img src={resolveImageUrl(selectedUser.profile_image)} alt="" style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'cover' }} />
+                <img
+                  src={resolveImageUrl(selectedUser.profile_image)}
+                  alt=""
+                  onClick={() => setPhotoLightbox(resolveImageUrl(selectedUser.profile_image))}
+                  style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'cover', cursor: 'pointer' }}
+                  title="View full photo"
+                />
               ) : (
                 <div style={{ width: 48, height: 48, borderRadius: 12, background: darkMode ? '#1d4ed820' : '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 800, color: '#3b82f6' }}>
                   {`${selectedUser.first_name?.[0] || ''}${selectedUser.last_name?.[0] || ''}`.toUpperCase() || 'U'}
@@ -554,6 +562,27 @@ export default function AdminMembers({ users = [], loading = false, error = null
             </div>
           </div>
         </>
+      )}
+
+      {/* Photo Lightbox — full-size view of the avatar clicked in the detail modal */}
+      {photoLightbox && (
+        <div
+          onClick={() => setPhotoLightbox(null)}
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}
+        >
+          <button
+            onClick={() => setPhotoLightbox(null)}
+            style={{ position: 'fixed', top: 20, right: 20, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+          >
+            <X size={18} color="#fff" />
+          </button>
+          <img
+            src={photoLightbox}
+            alt="Full size"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '90vw', maxHeight: '85vh', borderRadius: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.5)', objectFit: 'contain', cursor: 'default' }}
+          />
+        </div>
       )}
 
       {/* Edit Modal — pre-filled with the user's current values */}

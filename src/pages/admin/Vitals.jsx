@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { getBatteryStatus, getAIData, getLastSync } from '../../lib/api';
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import BatteryWidget from '../../components/BatteryWidget';
-import { Heart, Moon, Activity, Brain, Calendar, TrendingUp, Droplets, Eye, EyeOff, Sparkles, Target } from 'lucide-react';
+import { Heart, Moon, Activity, Brain, Calendar, TrendingUp, Droplets, Eye, EyeOff, Sparkles, Target, SlidersHorizontal, X } from 'lucide-react';
 import SleepDataComponent from '../../components/SleepDataComponent';
 import SpO2DataComponent from '../../components/SpO2DataComponent';
 import HeartRateDataComponent from '../../components/HeartRateDataComponent';
@@ -135,9 +135,52 @@ const InsightCard = ({ title, icon: Icon, text, darkMode, accentColor }) => {
 const VitalsTab = ({
   darkMode,
   selectedUserId,
-  selectedUserInfo,
-  globalDateRange
+  selectedUserInfo
 }) => {
+  // Local date filter — mirrors the member dashboard home's "Today / This Week /
+  // This Month / Custom Date" filter, scoped to this Vitals view only.
+  const [globalDateFilter, setGlobalDateFilter] = useState('today');
+  const [showGlobalFilterDropdown, setShowGlobalFilterDropdown] = useState(false);
+  const [showCustomDateModal, setShowCustomDateModal] = useState(false);
+  const [customDate, setCustomDate] = useState('');
+  const [globalDateRange, setGlobalDateRange] = useState({ date: null, customRange: false, period: 'today' });
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showGlobalFilterDropdown && !event.target.closest('.admin-vitals-filter-dropdown')) {
+        setShowGlobalFilterDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showGlobalFilterDropdown]);
+
+  const formatDateForAPI = (date) => {
+    if (!date) return null;
+    const d = new Date(date);
+    return d.toISOString().split('T')[0];
+  };
+
+  const handleGlobalFilterChange = (filterType) => {
+    setGlobalDateFilter(filterType);
+
+    if (filterType === 'custom') {
+      setShowGlobalFilterDropdown(false);
+      setShowCustomDateModal(true);
+      const today = new Date().toISOString().split('T')[0];
+      setCustomDate(today);
+      return;
+    }
+
+    setGlobalDateRange({ date: null, customRange: false, period: filterType });
+    setShowGlobalFilterDropdown(false);
+  };
+
+  const handleCustomDateApply = (date) => {
+    setGlobalDateRange({ date: formatDateForAPI(date), customRange: true, period: 'custom' });
+    setGlobalDateFilter('custom');
+  };
+
   const [sleepData, setSleepData] = useState(null);
   const [spo2Data, setSpO2Data] = useState(null);
   const [heartRateData, setHeartRateData] = useState(null);
@@ -354,12 +397,12 @@ const VitalsTab = ({
       try {
         setAiLoading(true);
         let dateParam = null;
-        if (globalDateRange?.customRange && globalDateRange.from) {
-          const d = new Date(globalDateRange.from);
+        if (globalDateRange?.customRange && globalDateRange.date) {
+          const d = new Date(globalDateRange.date);
           if (!isNaN(d.getTime())) {
             dateParam = d.toISOString().split('T')[0];
-          } else if (typeof globalDateRange.from === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(globalDateRange.from)) {
-            dateParam = globalDateRange.from;
+          } else if (typeof globalDateRange.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(globalDateRange.date)) {
+            dateParam = globalDateRange.date;
           }
         }
 
@@ -448,8 +491,56 @@ const VitalsTab = ({
             </div>
           )}
 
-          {/* Right: Online/Offline status + Battery Widget */}
+          {/* Right: Filter + Online/Offline status + Battery Widget */}
           <div className="flex-shrink-0 flex items-center gap-3">
+            {/* Global Period Filter */}
+            <div className="relative admin-vitals-filter-dropdown">
+              <button
+                onClick={() => setShowGlobalFilterDropdown(v => !v)}
+                title={`Filter: ${globalDateFilter === 'today' ? 'Today' : globalDateFilter === 'week' ? 'This Week' : globalDateFilter === 'month' ? 'This Month' : 'Custom Date'}`}
+                className={`p-2 rounded-lg transition-all duration-200 transform hover:scale-105 ${
+                  showGlobalFilterDropdown || globalDateFilter !== 'today'
+                    ? (darkMode ? 'bg-purple-600 hover:bg-purple-700' : 'bg-purple-500 hover:bg-purple-600')
+                    : (darkMode ? 'bg-gray-800 hover:bg-purple-600/20 border border-purple-500/30' : 'bg-gradient-to-r from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 border border-purple-200')
+                }`}
+              >
+                <SlidersHorizontal className={`w-5 h-5 transition-colors ${showGlobalFilterDropdown || globalDateFilter !== 'today' ? 'text-white' : 'text-purple-600'}`} />
+              </button>
+
+              {showGlobalFilterDropdown && (
+                <div className={`absolute top-full right-0 mt-2 w-40 rounded-lg shadow-xl border z-10 ${darkMode ? 'bg-gray-800 border-purple-500/30 shadow-purple-500/20' : 'bg-white border-purple-200 shadow-purple-100'}`}>
+                  <div className="py-1">
+                    {[
+                      { id: 'today', label: 'Today' },
+                      { id: 'week', label: 'This Week' },
+                      { id: 'month', label: 'This Month' },
+                      { id: 'custom', label: 'Custom Date' },
+                    ].map(opt => (
+                      <button
+                        key={opt.id}
+                        onClick={() => handleGlobalFilterChange(opt.id)}
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                          globalDateFilter === opt.id
+                            ? (darkMode ? 'bg-purple-600/20 text-purple-400' : 'bg-purple-50 text-purple-600')
+                            : (darkMode ? 'text-gray-300 hover:bg-purple-600/10' : 'text-gray-700 hover:bg-purple-50')
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {globalDateFilter !== 'today' && (
+              <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs ${darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>
+                <span>
+                  {globalDateFilter === 'week' ? 'This Week' : globalDateFilter === 'month' ? 'This Month' : 'Custom'}
+                </span>
+              </div>
+            )}
+
             {(() => {
               const status = selectedUserInfo?.status || 'offline';
               const statusStyles = {
@@ -849,6 +940,68 @@ const VitalsTab = ({
           <p className={`text-sm md:text-base ${darkMode ? 'text-gray-400' : 'text-gray-600'} max-w-md mx-auto`}>
             There is no health data available for the selected time period. Try selecting a different date range or check back later.
           </p>
+        </div>
+      )}
+
+      {/* Custom Date Modal */}
+      {showCustomDateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className={`rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                Select Custom Date
+              </h3>
+              <button
+                onClick={() => setShowCustomDateModal(false)}
+                className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Select Date
+                </label>
+                <input
+                  type="date"
+                  value={customDate}
+                  onChange={(e) => setCustomDate(e.target.value)}
+                  className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-purple-500 focus:border-transparent ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                />
+              </div>
+
+              {customDate && (
+                <div className={`p-3 rounded-lg ${darkMode ? 'bg-purple-900/20' : 'bg-purple-50'}`}>
+                  <p className={`text-sm ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                    Selected date: <strong>{customDate}</strong>
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowCustomDateModal(false)}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (customDate) {
+                    handleCustomDateApply(customDate);
+                    setShowCustomDateModal(false);
+                  }
+                }}
+                disabled={!customDate}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${customDate ? 'bg-purple-500 hover:bg-purple-600 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+              >
+                Apply Filter
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
