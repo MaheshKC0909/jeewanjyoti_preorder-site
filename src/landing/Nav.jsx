@@ -29,8 +29,8 @@ export default function Nav({ onNavigate, onStart }) {
           className={`mx-auto flex max-w-7xl items-center justify-between bg-transparent px-6 transition-[padding] duration-300 lg:px-10 ${compact ? "py-2.5" : "py-4"}`}
         >
           <button onClick={() => onNavigate("top")} className="flex items-center gap-3">
-            <img src={jjlogo} alt="Jeewan Jyoti" className="h-8 w-8 rounded-lg object-contain" />
-            <span className="text-sm font-semibold tracking-[.14em]">JEEWAN JYOTI</span>
+            <img src={jjlogo} alt="Digital Care" className="h-8 w-8 rounded-lg object-contain" />
+            <span className="text-sm font-semibold tracking-[.14em]">DIGITAL CARE</span>
           </button>
           <div className="hidden items-center gap-8 text-sm text-white/60 lg:flex">
             {LINKS.map(([label, id]) => (

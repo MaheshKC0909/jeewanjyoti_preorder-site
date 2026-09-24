@@ -12,7 +12,7 @@ PhoneShowcase.jsx,06 - The mobile app,3D carousel of phone mockups cycling throu
 DashboardModules.jsx,07 - Data organized,"Grid of 9 metric tiles flying in from different directions (health score, sleep, heart rate, steps, etc.)."
 CommunitySection.jsx,08 - Better together,"Social feed post plus horizontally-scrollable cards (30-day challenge, leaderboard, friends progress)."
 DeviceShowcase.jsx,09 - The device,Scroll-cycled front/side/sensor/wrist product photos of the wearable with a spec list (battery Bluetooth water resistance).
-CareEcosystem.jsx,10 - The connected system,"Radial diagram connecting a central ""Jeewan Jyoti"" node to 8 feature nodes (wearable, app, AI, family, etc.) with animated connector lines."
+CareEcosystem.jsx,10 - The connected system,"Radial diagram connecting a central ""Digital Care"" node to 8 feature nodes (wearable, app, AI, family, etc.) with animated connector lines."
 FinalCTA.jsx,Closing,Crossfading portrait photos behind a closing headline and final "Get started" CTA.
 Nav.jsx,(unused),Alternate sticky nav header with a scroll-progress bar - currently unused replaced by components/AppHeader.jsx.
 shared.jsx,(shared helpers),"Shared helpers: Visual, Kicker, Reveal/MaskLine/CountUp, useLocalScroll, GLOBAL_STYLES, color/tone constants."

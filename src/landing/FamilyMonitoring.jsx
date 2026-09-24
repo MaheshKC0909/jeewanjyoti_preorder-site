@@ -116,7 +116,7 @@ export default function FamilyMonitoring() {
               <Motion.div style={{ opacity: flowOpacity }} className="flex flex-col gap-4 rounded-[1.6rem] border border-white/10 bg-white/[.04] p-6 backdrop-blur-sm">
                 <FlowNode Icon={MapPin} label="Nepal" progress={progress} at={0.34} />
                 <FlowConnector progress={progress} at={0.4} />
-                <FlowNode Icon={Cloud} label="Jeewan Jyoti Cloud" progress={progress} at={0.44} />
+                <FlowNode Icon={Cloud} label="Digital Care Cloud" progress={progress} at={0.44} />
                 <FlowConnector progress={progress} at={0.5} />
                 <FlowNode Icon={Smartphone} label="Mobile phone" progress={progress} at={0.54} />
                 <FlowConnector progress={progress} at={0.6} />

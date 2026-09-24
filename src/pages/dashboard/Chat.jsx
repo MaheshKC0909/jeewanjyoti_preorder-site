@@ -746,6 +746,31 @@ const ChatTab = ({ darkMode = false, onChatRoomStateChange, onUnreadCountChange,
     setAddSearch('');
   };
 
+  // Normalize a doctor entry from the appointed-doctors API, which may nest the
+  // doctor's identity under `doctor`/`user`, or provide a single `name`/`full_name`
+  // string instead of separate first/last name fields.
+  const normalizeDoctor = (raw) => {
+    const src = raw?.doctor || raw?.user || raw || {};
+    let first_name = src.first_name || raw?.first_name || '';
+    let last_name = src.last_name || raw?.last_name || '';
+
+    if (!first_name && !last_name) {
+      const fullName = src.name || src.full_name || raw?.doctor_name || raw?.name || raw?.full_name || '';
+      const cleaned = String(fullName).replace(/^Dr\.?\s*/i, '').trim();
+      const parts = cleaned.split(/\s+/).filter(Boolean);
+      first_name = parts[0] || '';
+      last_name = parts.slice(1).join(' ');
+    }
+
+    return {
+      id: src.id ?? raw?.id ?? raw?.doctor_id ?? raw?.user_id,
+      first_name,
+      last_name,
+      specialization: src.specialization || raw?.specialization || src.department || raw?.department || '',
+      profile_image: src.profile_image || raw?.profile_image || null,
+    };
+  };
+
   // Fetch doctors for Add modal
   useEffect(() => {
     const fetchDoctors = async () => {
@@ -753,12 +778,14 @@ const ChatTab = ({ darkMode = false, onChatRoomStateChange, onUnreadCountChange,
         setLoadingDoctors(true);
         const token = getAccessToken();
         if (!token) return;
-        const res = await fetch(`${API_BASE_URL}/api/doctorlist/`, {
+        const res = await fetch(`${API_BASE_URL}/api/appointed-doctors/`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) {
           const data = await res.json();
-          setDoctors(Array.isArray(data) ? data : (data.results || []));
+          const rawList = Array.isArray(data) ? data : (data.results || data.doctors || []);
+          console.log('Raw appointed-doctors response:', rawList);
+          setDoctors(rawList.map(normalizeDoctor));
         }
       } catch (e) {
         console.error('Failed to load doctors', e);

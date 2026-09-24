@@ -1,4 +1,4 @@
-# JeewanJyoti Care - Visual Documentation & Charts
+# Digital Care - Visual Documentation & Charts
 
 ## Table of Contents
 1. [System Architecture Diagram](#system-architecture-diagram)
@@ -201,7 +201,7 @@ sequenceDiagram
 ```mermaid
 graph TD
     A[App.jsx] --> B[Router Setup]
-    B --> C[JeewanJyotiLanding]
+    B --> C[DigitalCareLanding]
     B --> D[Login]
     B --> E[Register]
     B --> F[Dashboard]
@@ -712,20 +712,20 @@ graph LR
         N[Image Optimization]
     end
     
-    A --> JeewanJyoti
-    B --> JeewanJyoti
-    C --> JeewanJyoti
-    D --> JeewanJyoti
-    E --> JeewanJyoti
-    F --> JeewanJyoti
-    G --> JeewanJyoti
-    H --> JeewanJyoti
-    I --> JeewanJyoti
-    J --> JeewanJyoti
-    K --> JeewanJyoti
-    L --> JeewanJyoti
-    M --> JeewanJyoti
-    N --> JeewanJyoti
+    A --> DigitalCare
+    B --> DigitalCare
+    C --> DigitalCare
+    D --> DigitalCare
+    E --> DigitalCare
+    F --> DigitalCare
+    G --> DigitalCare
+    H --> DigitalCare
+    I --> DigitalCare
+    J --> DigitalCare
+    K --> DigitalCare
+    L --> DigitalCare
+    M --> DigitalCare
+    N --> DigitalCare
 ```
 
 ---

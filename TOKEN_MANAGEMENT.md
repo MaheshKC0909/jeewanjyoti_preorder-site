@@ -1,6 +1,6 @@
 # Token Management System
 
-This document explains how the JWT token management system works in your Jeewan Jyoti Care application.
+This document explains how the JWT token management system works in your Digital Care application.
 
 ## Overview
 

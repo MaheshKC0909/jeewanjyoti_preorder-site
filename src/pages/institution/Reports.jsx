@@ -436,7 +436,7 @@ export default function Reports({ darkMode = false, members = [], loading = fals
               {/* Header Letterhead */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: `2px solid ${darkMode ? '#334155' : '#cbd5e1'}`, paddingBottom: 16, marginBottom: 20 }}>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: '#3b82f6', letterSpacing: '-0.3px' }}>JEEWAN JYOTI DIGITAL CARE</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#3b82f6', letterSpacing: '-0.3px' }}>DIGITAL CARE</div>
                   <div style={{ fontSize: 9, fontWeight: 600, color: styles.muted.color, textTransform: 'uppercase', marginTop: 2 }}>Institutional Monitoring Network</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>

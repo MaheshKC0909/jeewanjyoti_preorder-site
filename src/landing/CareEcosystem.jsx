@@ -21,7 +21,7 @@ export default function CareEcosystem() {
     <section id="ecosystem" className="relative overflow-hidden bg-[#eef7f1] px-6 py-28 lg:px-10 lg:py-40">
       <div className="mx-auto max-w-5xl text-center">
         <Reveal>
-          <Kicker index={10}>The connected system</Kicker>
+          <Kicker index={11}>The connected system</Kicker>
           <h2 className="mt-5 text-5xl font-semibold leading-[.98] sm:text-7xl">One platform.<br /><span className="text-[#0d8b68]">Connected care.</span></h2>
         </Reveal>
 
@@ -47,7 +47,7 @@ export default function CareEcosystem() {
 
           <Reveal delay={0.1} className="absolute left-1/2 top-1/2 flex h-28 w-28 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full bg-[#10211d] text-white shadow-xl">
             <span className="jj-mono text-[9px] uppercase tracking-[.14em] text-[#45c59b]">Platform</span>
-            <span className="mt-1 text-sm font-semibold leading-tight">Jeewan<br />Jyoti</span>
+            <span className="mt-1 text-sm font-semibold leading-tight">Digital<br />Care</span>
           </Reveal>
 
           {NODES.map((node, i) => {

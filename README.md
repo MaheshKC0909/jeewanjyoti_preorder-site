@@ -1,6 +1,6 @@
-# JeewanJyoti Care - Frontend Application
+# Digital Care - Frontend Application
 
-JeewanJyoti Care is a comprehensive digital healthcare platform built with React and Vite. It provides users with a dashboard to monitor their health metrics, book appointments with healthcare providers, chat with doctors, manage their medical profiles, and connect with family members for caregiver support.
+Digital Care is a comprehensive digital healthcare platform built with React and Vite. It provides users with a dashboard to monitor their health metrics, book appointments with healthcare providers, chat with doctors, manage their medical profiles, and connect with family members for caregiver support.
 
 ## Table of Contents
 1. [Project Overview](#project-overview)

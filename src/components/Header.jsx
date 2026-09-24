@@ -31,7 +31,7 @@ function Header() {
         <div className="flex justify-between items-center h-16">
           <div className="flex-shrink-0">
             <Link to="/" className="flex items-center">
-              <img className="h-12 w-auto" src={logo} alt="Jeewan Jyoti" />
+              <img className="h-12 w-auto" src={logo} alt="Digital Care" />
             </Link>
           </div>
           

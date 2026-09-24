@@ -64,7 +64,7 @@ export default function FinalCTA({ onStart, onNavigate }) {
               Get started <ArrowRight className="ml-2 inline h-4 w-4" />
             </button>
             <button onClick={() => onNavigate("top")} className="rounded-full border border-white/30 px-7 py-4 font-semibold text-white transition-colors hover:bg-white/10">
-              Explore Jeewan Jyoti
+              Explore Digital Care
             </button>
           </Motion.div>
         </div>

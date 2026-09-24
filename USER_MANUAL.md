@@ -1,4 +1,4 @@
-# JeewanJyoti Care - User Manual
+# Digital Care - User Manual
 
 ## Table of Contents
 1. [System Overview](#system-overview)
@@ -20,7 +20,7 @@
 
 ## System Overview
 
-JeewanJyoti Care is a comprehensive digital healthcare platform that provides:
+Digital Care is a comprehensive digital healthcare platform that provides:
 - **Health Monitoring**: Real-time tracking of vital signs and health metrics
 - **Telemedicine**: Virtual consultations with healthcare professionals
 - **Appointment Management**: Schedule and manage medical appointments
@@ -458,7 +458,7 @@ The platform integrates with Khalti for secure online payments:
 ## Technical Support
 
 ### Contact Information
-- **Email Support**: support@jeewanjyoti.com
+- **Email Support**: support@digitalcare.care
 - **Phone Support**: +977-1-XXXXXXX (available 24/7 for emergencies)
 - **Live Chat**: Available through the platform during business hours
 - **Support Tickets**: Submit support requests through the help center
@@ -575,7 +575,7 @@ A: Ensure JavaScript is enabled and your browser is updated to the latest versio
 
 ## Conclusion
 
-JeewanJyoti Care is designed to make healthcare accessible, convenient, and personalized. This user manual covers all the essential features and functions to help you make the most of the platform.
+Digital Care is designed to make healthcare accessible, convenient, and personalized. This user manual covers all the essential features and functions to help you make the most of the platform.
 
 For additional assistance, don't hesitate to reach out to our support team. Your health and well-being are our top priorities.
 

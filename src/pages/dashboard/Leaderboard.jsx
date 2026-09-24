@@ -283,7 +283,7 @@ async function tryNativeShare({ text, imageUrl }) {
       const blob = await response.blob();
       const file = new File([blob], imageUrl.split('/').pop() || 'post.jpg', { type: blob.type || 'image/jpeg' });
       if (navigator.canShare({ files: [file] })) {
-        await navigator.share({ title: 'Jeewan Jyoti Digital Care', text, files: [file] });
+        await navigator.share({ title: 'Digital Care', text, files: [file] });
         return true;
       }
     } catch (fileError) {
@@ -292,7 +292,7 @@ async function tryNativeShare({ text, imageUrl }) {
   }
 
   try {
-    await navigator.share({ title: 'Jeewan Jyoti Digital Care', text, url: imageUrl || undefined });
+    await navigator.share({ title: 'Digital Care', text, url: imageUrl || undefined });
     return true;
   } catch (error) {
     if (error?.name === 'AbortError') return true;
@@ -303,7 +303,7 @@ async function tryNativeShare({ text, imageUrl }) {
 
 function ShareModal({ post, onClose }) {
   const imageUrl = post.image ? getFullImageUrl(post.image) : null;
-  const shareText = post.summary || 'Check out this update on Jeewan Jyoti Digital Care!';
+  const shareText = post.summary || 'Check out this update on Digital Care!';
   const shareUrl = imageUrl || window.location.origin;
   const encodedText = encodeURIComponent(shareText);
   const encodedUrl = encodeURIComponent(shareUrl);

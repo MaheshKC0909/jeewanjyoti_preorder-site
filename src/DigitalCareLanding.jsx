@@ -15,6 +15,7 @@ import PhoneShowcase from "./landing/PhoneShowcase";
 import DashboardModules from "./landing/DashboardModules";
 import CommunitySection from "./landing/CommunitySection";
 import DeviceShowcase from "./landing/DeviceShowcase";
+import GetStartedBanner from "./landing/GetStartedBanner";
 import CareEcosystem from "./landing/CareEcosystem";
 import FinalCTA from "./landing/FinalCTA";
 
@@ -26,7 +27,7 @@ const FITNESS_PANELS = [
   { label: "Recovery", media: "recoveryFitness", tone: "slate", overlay: "dramatic", focus: "50% 40%", live: "58 bpm · SpO2 98%", stats: [["Heart", "68 bpm"], ["Stress", "Low"]] },
 ];
 
-export default function JeewanJyotiLanding() {
+export default function DigitalCareLanding() {
   const reduce = useReducedMotion();
   const go = (id) => document.getElementById(id)?.scrollIntoView({ behavior: reduce ? "auto" : "smooth" });
   const start = () => window.location.assign("/register");
@@ -50,6 +51,7 @@ export default function JeewanJyotiLanding() {
         <DashboardModules />
         <CommunitySection />
         <DeviceShowcase />
+        <GetStartedBanner />
         <CareEcosystem />
         <FinalCTA onStart={start} onNavigate={go} />
       </main>
@@ -58,8 +60,8 @@ export default function JeewanJyotiLanding() {
         <div className="mx-auto flex max-w-7xl flex-col justify-between gap-10 md:flex-row">
           <div>
             <div className="flex items-center gap-3">
-              <img src={jjlogo} alt="Jeewan Jyoti" className="h-9 w-9 rounded-xl" />
-              <span className="font-semibold tracking-[.14em]">JEEWAN JYOTI</span>
+              <img src={jjlogo} alt="Digital Care" className="h-9 w-9 rounded-xl" />
+              <span className="font-semibold tracking-[.14em]">DIGITAL CARE</span>
             </div>
             <p className="mt-5 max-w-xs text-sm leading-relaxed text-white/45">Your health, always connected. Digital care for the people and patterns that matter.</p>
           </div>
@@ -73,7 +75,7 @@ export default function JeewanJyotiLanding() {
           </div>
         </div>
         <div className="mx-auto mt-12 max-w-7xl border-t border-white/10 pt-5 text-xs text-white/35">
-          © {new Date().getFullYear()} Jeewan Jyoti Digital Care · Built in Nepal
+          © {new Date().getFullYear()} Digital Care · Built in Nepal
         </div>
       </footer>
     </div>

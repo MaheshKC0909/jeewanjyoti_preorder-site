@@ -396,7 +396,7 @@ function Blogs() {
             Our Blogs & Updates
           </h1>
           <p className="mt-5 max-w-2xl mx-auto text-xl text-gray-500">
-            Stay updated with the latest health tips, news, and stories from Jeewan Jyoti.
+            Stay updated with the latest health tips, news, and stories from Digital Care.
           </p>
         </div>
 
