@@ -1046,16 +1046,20 @@ const AppointmentsTab = ({ darkMode, onSwitchToChat }) => {
                             e.stopPropagation();
                             e.preventDefault();
                             console.log('Message button clicked for patient:', patientId);
-                            if (window.startChatWithAppointment) {
-                              window.startChatWithAppointment({
-                                ...appointment,
-                                user_id: patientId,
-                                user_name: patientName,
-                                doctor_name: doctorName,
-                              });
-                            }
+                            const chatPayload = {
+                              ...appointment,
+                              user_id: patientId,
+                              user_name: patientName,
+                              doctor_name: doctorName,
+                              chat_partner_id: patientId,
+                              chat_partner_name: patientName,
+                            };
+                            // Chat tab is not mounted while on this tab, so hand the
+                            // appointment to the dashboard, which passes it to ChatTab.
                             if (onSwitchToChat) {
-                              setTimeout(() => onSwitchToChat(), 50);
+                              onSwitchToChat(chatPayload);
+                            } else if (window.startChatWithAppointment) {
+                              window.startChatWithAppointment(chatPayload);
                             }
                           }}
                           className="p-2 rounded-full bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white transition-colors cursor-pointer"

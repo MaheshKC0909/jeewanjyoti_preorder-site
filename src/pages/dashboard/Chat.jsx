@@ -78,7 +78,7 @@ const EmojiPicker = ({ onEmojiClick, theme, height, width, emojiAsFile, setEmoji
 
 import { getAccessToken, getUserData } from '../../lib/tokenManager';
 
-const ChatTab = ({ darkMode = false, onChatRoomStateChange, onUnreadCountChange, userStatuses = {} }) => {
+const ChatTab = ({ darkMode = false, onChatRoomStateChange, onUnreadCountChange, userStatuses = {}, initialChatAppointment = null, onInitialChatHandled }) => {
   const [selectedChat, setSelectedChat] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showChatRoom, setShowChatRoom] = useState(false);
@@ -102,6 +102,8 @@ const ChatTab = ({ darkMode = false, onChatRoomStateChange, onUnreadCountChange,
   const [processingMessage, setProcessingMessage] = useState(false);
   const [processedMessageIds, setProcessedMessageIds] = useState(new Set());
   const processedMessageIdsRef = useRef(new Set());
+  // Locally-created conversation (no messages yet) that must survive conversation_list refreshes
+  const pendingConversationRef = useRef(null);
 
   // Per-message delivery/read status keyed by real (server) message id.
   // Kept separate from `messages` so a status event can arrive before or
@@ -871,6 +873,9 @@ const ChatTab = ({ darkMode = false, onChatRoomStateChange, onUnreadCountChange,
       };
       
       console.log('Creating new conversation:', newConv);
+      // Remember it so the server's conversation list (which won't include a
+      // chat with no messages yet) doesn't wipe it out
+      pendingConversationRef.current = newConv;
       return [...(prev || []), newConv];
     });
   };
@@ -906,20 +911,21 @@ const ChatTab = ({ darkMode = false, onChatRoomStateChange, onUnreadCountChange,
     }
   }, []);
 
-  // Expose a helper to start chat from an appointment payload
-  useEffect(() => {
-    const handler = (appointment) => {
+  // Start (or open) a chat from an appointment payload
+  const startChatFromAppointment = (appointment) => {
       try {
         if (!appointment) return;
         const role = String(userDataRef.current?.role || '').toUpperCase();
-        const partnerId = role === 'DOCTOR'
+        const partnerId = appointment.chat_partner_id || (role === 'DOCTOR'
           ? (appointment.user_id || appointment.patient_id)
-          : (appointment.doctor_id || appointment.doctor_user_id || appointment.doctor?.id);
+          : (appointment.doctor_id || appointment.doctor_user_id || appointment.doctor?.id));
         if (!partnerId) {
           console.warn('No partner id found in appointment to start chat');
           return;
         }
-        const rawName = role === 'DOCTOR' ? (appointment.user_name || '') : (appointment.doctor_name || '');
+        const rawName = String(appointment.chat_partner_name
+          || (role === 'DOCTOR' ? (appointment.user_name || '') : (appointment.doctor_name || '')));
+        console.log('[chat] opening chat from appointment with partner:', partnerId, rawName);
         const cleaned = rawName.replace(/^Dr\.?\s*/i, '').trim();
         const parts = cleaned.split(/\s+/);
         const first_name = parts[0] || cleaned || '';
@@ -942,13 +948,22 @@ const ChatTab = ({ darkMode = false, onChatRoomStateChange, onUnreadCountChange,
       } catch (e) {
         console.error('Failed to start chat from appointment:', e);
       }
-    };
+  };
 
-    window.startChatWithAppointment = handler;
+  // Expose the helper globally for callers that render alongside ChatTab
+  useEffect(() => {
+    window.startChatWithAppointment = startChatFromAppointment;
     return () => {
       try { delete window.startChatWithAppointment; } catch {}
     };
   }, []);
+
+  // Open the chat requested by the parent (e.g. message icon on an appointment)
+  useEffect(() => {
+    if (!initialChatAppointment) return;
+    startChatFromAppointment(initialChatAppointment);
+    if (onInitialChatHandled) onInitialChatHandled();
+  }, [initialChatAppointment]);
   // Fetch conversation history via HTTP - FIXED MESSAGE ALIGNMENT
   const fetchHistory = async (userId) => {
     if (!userId) return;
@@ -1107,7 +1122,16 @@ const ChatTab = ({ darkMode = false, onChatRoomStateChange, onUnreadCountChange,
         if (handleRealtimeStatusEvent(data, currentUserId)) return;
 
         if (data?.type === 'conversation_list' && Array.isArray(data.conversations)) {
-          setConversations(data.conversations);
+          const pending = pendingConversationRef.current;
+          if (pending && data.conversations.some(c => Number(c?.user?.id) === Number(pending.user.id))) {
+            // Server now knows about this conversation
+            pendingConversationRef.current = null;
+            setConversations(data.conversations);
+          } else if (pending) {
+            setConversations([...data.conversations, pending]);
+          } else {
+            setConversations(data.conversations);
+          }
           
           // Update user statuses from conversation list (normalize ids)
           const statusUpdates = {};
@@ -1125,9 +1149,10 @@ const ChatTab = ({ darkMode = false, onChatRoomStateChange, onUnreadCountChange,
           setStatusUpdateTrigger(s => s + 1);
           
           // Set a default selection if none
-          if (!selectedChat && data.conversations.length > 0) {
+          // (functional update: this handler's `selectedChat` is a stale closure)
+          if (data.conversations.length > 0) {
             const firstId = String(data.conversations[0]?.user?.id);
-            if (firstId) setSelectedChat(firstId);
+            if (firstId) setSelectedChat(prev => prev || firstId);
           }
         }
         // REMOVED: Individual message handling to prevent duplicates

@@ -88,6 +88,7 @@ const Dashboard = () => {
   const [selectionFeedback, setSelectionFeedback] = useState(null);
   const [imageErrors, setImageErrors] = useState({}); // Track image loading errors
   const [totalUnread, setTotalUnread] = useState(0); // Real unread count from ChatTab
+  const [pendingChatAppointment, setPendingChatAppointment] = useState(null); // Appointment to open a chat for when switching to ChatTab
 
   // Presence/status WebSocket — connects as soon as the dashboard mounts (i.e. on login),
   // not only when the user opens the chat tab. Subscribe to the selected mapped user.
@@ -504,14 +505,17 @@ const Dashboard = () => {
           <ErrorBoundary>
             <AppointmentsTab
               darkMode={darkMode}
-              onSwitchToChat={() => handleTabChange('chat')}
+              onSwitchToChat={(appointment) => {
+                setPendingChatAppointment(appointment || null);
+                handleTabChange('chat');
+              }}
             />
           </ErrorBoundary>
         );
       case 'leaderboard':
         return <LeaderboardTab />;
       case 'chat':
-        return <ChatTab darkMode={darkMode} onChatRoomStateChange={handleChatRoomStateChange} onUnreadCountChange={setTotalUnread} userStatuses={userStatuses} />;
+        return <ChatTab darkMode={darkMode} onChatRoomStateChange={handleChatRoomStateChange} onUnreadCountChange={setTotalUnread} userStatuses={userStatuses} initialChatAppointment={pendingChatAppointment} onInitialChatHandled={() => setPendingChatAppointment(null)} />;
       case 'profile':
         return <ProfileTab darkMode={darkMode} selectedUserId={selectedUserId} selectedUserInfo={currentUser} globalDateFilter={globalDateFilter} globalDateRange={globalDateRange} />;
       case 'settings':
