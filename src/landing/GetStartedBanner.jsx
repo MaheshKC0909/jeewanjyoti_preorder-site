@@ -20,7 +20,7 @@ export default function GetStartedBanner() {
 
           <div className="mt-9 flex flex-wrap gap-3">
             <button
-              onClick={() => navigate("/get-started")}
+              onClick={() => navigate("/downloads")}
               className="inline-flex items-center gap-2 rounded-full bg-[#0d8b68] px-7 py-3.5 text-sm font-semibold text-white transition-transform hover:scale-[1.02]"
             >
               Get started <ArrowRight className="h-4 w-4" />

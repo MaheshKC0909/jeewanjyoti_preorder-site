@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { apiRequest } from '../lib/api'
+import { apiRequest, isInstitutionSession } from '../lib/api'
 
 export default function useRegisteredMonthly() {
   const [data, setData] = useState([])
@@ -11,7 +11,7 @@ export default function useRegisteredMonthly() {
     setLoading(true)
     setError(null)
 
-    apiRequest('/api/registered-monthly/')
+    apiRequest(isInstitutionSession() ? '/api/institution/member-growth/' : '/api/registered-monthly/')
       .then((res) => {
         if (!res.ok) throw new Error(res.statusText || 'Failed to fetch')
         return res.json()

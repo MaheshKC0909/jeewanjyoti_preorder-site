@@ -23,7 +23,7 @@ export default function AppHeader() {
     { name: 'About', href: '/#about' },
     { name: 'Features', href: '/#features' },
     { name: 'Blogs', href: '/blogs' },
-    { name: 'Get started', href: '/get-started' },
+    { name: 'Downloads', href: '/downloads' },
     { name: 'Contact', href: '/#contact' },
   ];
 

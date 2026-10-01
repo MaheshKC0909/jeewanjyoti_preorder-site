@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import DigitalCareLanding from './DigitalCareLanding'
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -25,7 +25,8 @@ function App() {
       <Route path="/mapping-success" element={<MappingSuccess />} />
       <Route path="/blogs" element={<Blogs />} />
       <Route path="/leaderboard" element={<Leaderboard />} />
-      <Route path="/get-started" element={<GetStarted />} />
+      <Route path="/downloads" element={<GetStarted />} />
+      <Route path="/get-started" element={<Navigate to="/downloads" replace />} />
     </Routes>
   )
 }

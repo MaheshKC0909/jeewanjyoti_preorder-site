@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { apiRequest } from '../lib/api'
+import { apiRequest, isInstitutionSession } from '../lib/api'
 
 export default function useAgeDistribution() {
   const [totalUsers, setTotalUsers] = useState(0)
@@ -12,10 +12,20 @@ export default function useAgeDistribution() {
     setLoading(true)
     setError(null)
 
-    apiRequest('/api/age-distribution/')
+    const institution = isInstitutionSession()
+
+    apiRequest(institution ? '/api/institution/age-distribution/' : '/api/age-distribution/')
       .then((res) => {
         if (!res.ok) throw new Error(res.statusText || 'Failed to fetch')
         return res.json()
+      })
+      .then((json) => {
+        if (!institution) return json
+        const rows = Array.isArray(json) ? json : []
+        return {
+          total_users: rows.reduce((sum, r) => sum + (r.total || 0), 0),
+          distribution: rows.map((r) => ({ age_group: r.age, count: r.total || 0 })),
+        }
       })
       .then((json) => {
         if (!mounted) return

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import {
   LayoutDashboard, Users, Activity, BarChart3, FileText,
-  Bell, Smartphone, Settings, LogOut, Menu, ChevronDown, RefreshCw, Moon, Sun
+  Bell, Smartphone, Settings, LogOut, Menu, ChevronDown, RefreshCw, Moon, Sun, QrCode
 } from 'lucide-react';
 import OverviewTab from '../institution/Overview';
 import AdminMembersTab from './Members';
@@ -9,6 +9,7 @@ import VitalsTab from './Vitals';
 import AnalyticsTab from './Analytics';
 import ReportsTab from '../institution/Reports';
 import AlertsTab from '../institution/Alerts';
+import AdminInputsTab from './AdminInputs';
 import PlaceholderTab from '../institution/Placeholder';
 import { getUserData, clearTokens, authenticatedFetch } from '../../lib/tokenManager';
 import { logoutUser } from '../../lib/api';
@@ -21,6 +22,7 @@ const NAV = [
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'reports', label: 'Reports', icon: FileText },
   { id: 'alerts', label: 'Alerts', icon: Bell, badge: 4 },
+  { id: 'inputs', label: 'Admin Inputs', icon: QrCode },
   null,
   { id: 'devices', label: 'Devices', icon: Smartphone },
   { id: 'settings', label: 'Settings', icon: Settings },
@@ -287,6 +289,8 @@ export default function AdminDashboard() {
         return <ReportsTab darkMode={darkMode} members={members} loading={loading} error={error} />;
       case 'alerts':
         return <AlertsTab darkMode={darkMode} alerts={alerts} setAlerts={setAlerts} thresholds={thresholds} setThresholds={setThresholds} members={allUsers} />;
+      case 'inputs':
+        return <AdminInputsTab darkMode={darkMode} />;
       default:
         return <PlaceholderTab tab={activeTab} darkMode={darkMode} />;
     }

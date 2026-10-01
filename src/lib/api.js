@@ -24,6 +24,16 @@ export const apiRequest = async (endpoint, options = {}) => {
 const isAdminUser = (userData) => !!(userData?.is_superuser || userData?.role === 'ADMIN')
 
 /**
+ * Institutions log in as InstitutionUser (a separate model from CustomUser), so
+ * their tokens are only accepted by the /api/institution/* endpoints — the
+ * admin analytics endpoints resolve the token against CustomUser and reject it.
+ */
+export const isInstitutionSession = () => {
+  const userData = getUserData()
+  return !!(userData?.institution_type && !isAdminUser(userData))
+}
+
+/**
  * Register a new user
  * @param {object} payload - Registration data
  * @returns {Promise<object>} Registration response

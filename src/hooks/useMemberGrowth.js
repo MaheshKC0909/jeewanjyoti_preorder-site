@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { apiRequest } from '../lib/api'
+import { apiRequest, isInstitutionSession } from '../lib/api'
 
 export default function useMemberGrowth() {
   const [weekly, setWeekly] = useState([])
@@ -12,11 +12,20 @@ export default function useMemberGrowth() {
     setLoading(true)
     setError(null)
 
-    apiRequest('/api/member-growth/')
-      .then((res) => {
-        if (!res.ok) throw new Error(res.statusText || 'Failed to fetch')
-        return res.json()
-      })
+    const fetchJson = (endpoint) => apiRequest(endpoint).then((res) => {
+      if (!res.ok) throw new Error(res.statusText || 'Failed to fetch')
+      return res.json()
+    })
+    const toGrowth = (rows) => (Array.isArray(rows) ? rows : []).map((r) => ({ ...r, new_members: r.added ?? 0 }))
+
+    const request = isInstitutionSession()
+      ? Promise.all([
+          fetchJson('/api/institution/weekly-members/'),
+          fetchJson('/api/institution/monthly-members/'),
+        ]).then(([weeklyRows, monthlyRows]) => ({ weekly: toGrowth(weeklyRows), monthly: toGrowth(monthlyRows) }))
+      : fetchJson('/api/member-growth/')
+
+    request
       .then((json) => {
         if (!mounted) return
         setWeekly(Array.isArray(json.weekly) ? json.weekly : [])

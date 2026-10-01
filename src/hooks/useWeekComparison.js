@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { apiRequest } from '../lib/api'
+import { apiRequest, isInstitutionSession } from '../lib/api'
 
 export default function useWeekComparison() {
   const [days, setDays] = useState([])
@@ -11,11 +11,16 @@ export default function useWeekComparison() {
     setLoading(true)
     setError(null)
 
-    apiRequest('/api/week-comparison/')
+    const institution = isInstitutionSession()
+
+    apiRequest(institution ? '/api/institution/week-comparison/' : '/api/week-comparison/')
       .then((res) => {
         if (!res.ok) throw new Error(res.statusText || 'Failed to fetch')
         return res.json()
       })
+      .then((json) => (institution
+        ? { days: (Array.isArray(json) ? json : []).map((d) => ({ day: d.day, this_week: d.thisWeek ?? 0, last_week: d.lastWeek ?? 0 })) }
+        : json))
       .then((json) => {
         if (!mounted) return
         setDays(Array.isArray(json.days) ? json.days : [])

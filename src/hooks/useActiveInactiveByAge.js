@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { apiRequest } from '../lib/api'
+import { apiRequest, isInstitutionSession } from '../lib/api'
 
 export default function useActiveInactiveByAge() {
   const [groups, setGroups] = useState([])
@@ -11,11 +11,16 @@ export default function useActiveInactiveByAge() {
     setLoading(true)
     setError(null)
 
-    apiRequest('/api/active-inactive-by-age/')
+    const institution = isInstitutionSession()
+
+    apiRequest(institution ? '/api/institution/age-distribution/' : '/api/active-inactive-by-age/')
       .then((res) => {
         if (!res.ok) throw new Error(res.statusText || 'Failed to fetch')
         return res.json()
       })
+      .then((json) => (institution
+        ? { groups: (Array.isArray(json) ? json : []).map((r) => ({ age_group: r.age, active: r.active || 0, inactive: r.inactive || 0 })) }
+        : json))
       .then((json) => { if (mounted) setGroups(Array.isArray(json.groups) ? json.groups : []) })
       .catch((err) => { if (mounted) setError(err) })
       .finally(() => { if (mounted) setLoading(false) })
